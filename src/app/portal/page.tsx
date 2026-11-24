@@ -19,8 +19,10 @@ import { getAllAudits } from "@/data/audits";
 import { DISTRIBUTION_DIRECTORIES } from "@/data/directories";
 import type { StartupAuditReport } from "@/types/audit";
 import { useI18n } from "@/components/I18nProvider";
+import BrandMark from "@/components/BrandMark";
 import LangSwitcher from "@/components/LangSwitcher";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import DirectoryTable from "@/components/console/DirectoryTable";
 import {
   decodeHtmlEntities,
   localizeCategory,
@@ -415,53 +417,52 @@ export default function CustomerPortalPage() {
       : t.portal.leadStatusNew;
 
   return (
-    <div className="min-h-screen bg-[#07090d] text-slate-100 obsidian-grid overflow-x-hidden">
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07090d]/90 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+    <div className="min-h-screen bg-[var(--apple-bg)] text-[var(--apple-ink)] overflow-x-hidden">
+      <header className="sticky top-0 z-40 apple-glass border-b border-[var(--apple-border)]">
+        <div className="max-w-[1080px] mx-auto px-4 sm:px-6 h-12 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
             <Link
               href="/"
-              className="flex items-center gap-2 font-[family-name:var(--font-display)] font-bold text-white tracking-tight"
+              className="flex items-center gap-2 font-semibold text-[15px] tracking-tight text-[var(--apple-ink)]"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#10b981]" />
+              <BrandMark className="w-5 h-5" />
               <span>LaunchPulse</span>
             </Link>
-            <span className="text-slate-600">/</span>
-            <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-300">
+            <span className="text-[var(--apple-ink-tertiary)]">/</span>
+            <span className="text-[12px] font-medium text-[var(--apple-ink-secondary)]">
               {t.portal.headerLabel}
             </span>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <ThemeSwitcher />
             <LangSwitcher />
             <Link
               href="/dashboard"
-              className="hidden sm:inline-block px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/25 transition"
+              className="hidden sm:inline-flex px-3.5 py-1.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-[12px] font-medium text-white transition"
             >
               Dashboard →
-            </Link>
-            <Link
-              href="/"
-              className="hidden md:inline-block text-xs text-slate-400 hover:text-white transition"
-            >
-              {t.warRoom.backToScanner}
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-10">
+      <main className="max-w-[1080px] mx-auto px-4 sm:px-6 py-12 space-y-10">
         {!activeReport ? (
-          <section className="max-w-xl mx-auto rounded-2xl border border-white/10 bg-[#0c1018] p-7 sm:p-9 space-y-6 shadow-2xl">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-[family-name:var(--font-mono)]">
-                <KeyRound className="w-3.5 h-3.5" /> {t.portal.badge}
+          <section className="max-w-[440px] mx-auto rounded-[24px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-8 space-y-6 shadow-[var(--apple-shadow)]">
+            <div className="text-center space-y-2">
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-[var(--apple-bg-alt)] border border-[var(--apple-border)]">
+                <KeyRound className="w-4 h-4 text-[var(--apple-blue)]" />
               </div>
-              <h1 className="text-2xl sm:text-3xl font-[family-name:var(--font-display)] font-bold text-white">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--apple-blue)]">
+                {t.portal.badge}
+              </p>
+              <h1 className="apple-display text-2xl font-semibold text-[var(--apple-ink)]">
                 {t.portal.title}
               </h1>
-              <p className="text-sm text-slate-400 leading-relaxed">{t.portal.subtitle}</p>
+              <p className="text-[13px] text-[var(--apple-ink-secondary)] leading-relaxed">
+                {t.portal.subtitle}
+              </p>
             </div>
 
             <form onSubmit={handleLoginSubmit} className="space-y-3">
@@ -470,12 +471,12 @@ export default function CustomerPortalPage() {
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
                 placeholder={t.portal.inputPlaceholder}
-                className="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm font-[family-name:var(--font-mono)] text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
+                className="w-full rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-4 py-2.5 text-[16px] sm:text-[14px] text-[var(--apple-ink)] placeholder:text-[var(--apple-ink-tertiary)] focus:border-[var(--apple-blue)] focus:outline-none"
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                className="w-full py-2.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white font-medium text-[14px] transition inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
               >
                 {loading ? (
                   <>
@@ -488,7 +489,7 @@ export default function CustomerPortalPage() {
             </form>
 
             {statusMsg && (
-              <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+              <p className="text-[12px] text-[var(--apple-orange)] bg-[var(--apple-bg-alt)] border border-[var(--apple-border)] rounded-xl p-3">
                 {statusMsg}
               </p>
             )}
@@ -496,9 +497,9 @@ export default function CustomerPortalPage() {
             {verifiedUnboundEmail && (
               <form
                 onSubmit={bindCustomSite}
-                className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 space-y-3"
+                className="rounded-2xl border border-[var(--apple-border)] bg-[var(--apple-bg-alt)] p-4 space-y-3"
               >
-                <p className="text-xs text-emerald-200 font-semibold">
+                <p className="text-[12px] text-[var(--apple-ink)] font-medium">
                   {t.portal.unboundTitlePrefix} {verifiedUnboundEmail}
                   {t.portal.unboundTitleSuffix}
                 </p>
@@ -508,12 +509,12 @@ export default function CustomerPortalPage() {
                     value={bindUrlInput}
                     onChange={(e) => setBindUrlInput(e.target.value)}
                     placeholder="https://your-startup.com"
-                    className="flex-1 rounded-lg border border-white/15 bg-black/60 px-3 py-2 text-xs font-[family-name:var(--font-mono)] text-white"
+                    className="flex-1 rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-surface)] px-3 py-2 text-[13px] text-[var(--apple-ink)]"
                   />
                   <button
                     type="submit"
                     disabled={bindingSite}
-                    className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs cursor-pointer disabled:opacity-60"
+                    className="px-4 py-2 rounded-full bg-[var(--apple-blue)] text-white font-medium text-[12px] cursor-pointer disabled:opacity-60"
                   >
                     {bindingSite ? t.portal.activatingBtn : t.portal.activateBtn}
                   </button>
@@ -521,14 +522,14 @@ export default function CustomerPortalPage() {
               </form>
             )}
 
-            <div className="pt-4 border-t border-white/10 space-y-2.5">
-              <p className="text-xs font-[family-name:var(--font-mono)] text-slate-400 uppercase">
+            <div className="pt-4 border-t border-[var(--apple-border)] text-center space-y-2.5">
+              <p className="text-[12px] text-[var(--apple-ink-secondary)]">
                 {t.portal.previewLabel}
               </p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap justify-center gap-2">
                 <button
                   onClick={() => setActiveReport(DEMO_ACMEFLOW_REPORT)}
-                  className="px-3.5 py-2 rounded-lg border border-white/15 hover:border-emerald-400/50 bg-white/[0.03] text-xs font-[family-name:var(--font-mono)] text-slate-200 transition cursor-pointer"
+                  className="px-4 py-2 rounded-full border border-[var(--apple-border-strong)] hover:bg-[var(--apple-hover)] text-[13px] font-medium text-[var(--apple-ink)] transition cursor-pointer"
                 >
                   {t.portal.previewDemoBtn}
                 </button>
