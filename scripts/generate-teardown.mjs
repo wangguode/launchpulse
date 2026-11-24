@@ -75,6 +75,106 @@ const PRESET_TARGETS = [
     replyTemplateHint:
       "Show how Trieste keeps parallel agent branches, diffs, and dispatch queues visible in one workspace without losing git context.",
   },
+  {
+    slug: "merget",
+    productName: "Merget",
+    targetUrl: "https://merget.ai",
+    founderContact: "support@merget.ai",
+    competitorNames: ["Graphite", "Mergify", "GitHub Merge Queue"],
+    searchQueries: {
+      hn: [
+        "merge queue github",
+        "stacked PRs github",
+        "CI flaky merge",
+        "pull request merge conflict",
+      ],
+      github: [
+        "merge queue flaky CI",
+        "static analysis merge conflict",
+      ],
+      reddit: [
+        "github merge queue slow CI",
+        "stacked pull requests workflow",
+      ],
+    },
+    replyTemplateHint:
+      "Explain how deep static analysis resolves non-conflicting PRs in parallel without burning redundant CI minutes.",
+  },
+  {
+    slug: "recordhtml",
+    productName: "RecordHTML",
+    targetUrl: "https://recordhtml.com",
+    founderContact: "info@recordhtml.com",
+    competitorNames: ["Remotion", "Puppeteer Recorder", "LottieFiles"],
+    searchQueries: {
+      hn: [
+        "record html animation video",
+        "html to mp4 chrome",
+        "headless browser video export",
+        "playwright record mp4",
+      ],
+      github: [
+        "html animation to mp4",
+        "headless chrome record video",
+      ],
+      reddit: [
+        "convert html5 animation to mp4",
+        "export html css animation video",
+      ],
+    },
+    replyTemplateHint:
+      "Share how deterministic real-Chrome frame capture exports crisp MP4/WebM/GIF from HTML5 animations without dropped frames.",
+  },
+  {
+    slug: "multiplecodex",
+    productName: "Sessions Pro for Codex",
+    targetUrl: "https://multiplecodex.com",
+    founderContact: "support@multiplecodex.com",
+    competitorNames: ["Codex CLI", "Claude Code", "Cursor"],
+    searchQueries: {
+      hn: [
+        "codex rate limit",
+        "two chatgpt accounts",
+        "codex desktop app",
+        "multiple openai accounts",
+      ],
+      github: [
+        "codex multiple accounts",
+        "switch openai account codex",
+      ],
+      reddit: [
+        "codex desktop multiple accounts",
+        "two chatgpt accounts mac",
+      ],
+    },
+    replyTemplateHint:
+      "Explain how isolated desktop sessions let engineers keep work and personal Codex accounts open side-by-side without logging out.",
+  },
+  {
+    slug: "pinpoint",
+    productName: "Pinpoint 3D",
+    targetUrl: "https://pinpoint.sorzel.com",
+    founderContact: "simon@kardashevcatalyst.com",
+    competitorNames: ["Visible Body", "Complete Anatomy", "WebMD Symptom Checker"],
+    searchQueries: {
+      hn: [
+        "3d anatomy",
+        "symptom tracker",
+        "interactive 3d webgl",
+        "medical visualization",
+      ],
+      github: [
+        "3d human body anatomy web",
+        "interactive anatomy threejs",
+      ],
+      reddit: [
+        "interactive 3d human anatomy app",
+        "pain location anatomy tool",
+      ],
+    },
+    replyTemplateHint:
+      "Show how Pinpoint lets anyone click directly on an interactive 3D body model in the browser to inspect underlying anatomy instantly.",
+  },
 ];
 
 /**
@@ -165,10 +265,10 @@ async function runPassiveAudit(browser, target) {
   });
 
   const mainResp = await page.goto(target.targetUrl, {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
     timeout: 25000,
   });
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(2500);
   await page.screenshot({ path: heroPath, fullPage: false });
 
   // 向下滚动到功能/定价区截取第二张实机图
@@ -1650,33 +1750,52 @@ async function processTarget(browser, target) {
 }
 
 async function main() {
+  const onlyArgIdx = process.argv.indexOf("--only");
+  const onlySlugs =
+    onlyArgIdx !== -1 && process.argv[onlyArgIdx + 1]
+      ? new Set(
+          process.argv[onlyArgIdx + 1]
+            .split(",")
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean)
+        )
+      : null;
+
+  const selectedTargets = onlySlugs
+    ? PRESET_TARGETS.filter((t) => onlySlugs.has(t.slug))
+    : PRESET_TARGETS;
+
   const browser = await chromium.launch({
     executablePath: CHROME_PATH,
     headless: true,
   });
 
   try {
-    // 先串行跑快速扫描与 TTS，再并行录制两条 80 秒视频以把总耗时压缩一半！
     const prepared = [];
-    for (const target of PRESET_TARGETS) {
+    for (const target of selectedTargets) {
       console.log(`\n🔎 Auditing & Preparing Audio for ${target.productName}...`);
-      const auditResult = await runPassiveAudit(browser, target);
-      const buyerLeads = await fetchRealBuyerLeads(browser, target);
-      if (auditResult.leaks.length < 2 || buyerLeads.length < 3) {
-        throw new Error(
-          `[Circuit Breaker] ${target.productName} failed gate: leaks=${auditResult.leaks.length}, leads=${buyerLeads.length}`
+      try {
+        const auditResult = await runPassiveAudit(browser, target);
+        const buyerLeads = await fetchRealBuyerLeads(browser, target);
+        if (auditResult.leaks.length < 2 || buyerLeads.length < 3) {
+          console.warn(
+            `⚠️ [Circuit Breaker] Skipping ${target.productName}: leaks=${auditResult.leaks.length}, leads=${buyerLeads.length}`
+          );
+          continue;
+        }
+        const workDir = path.join(TMP_ROOT, target.slug);
+        const audioMeta = synthesizeFourActAudio(target, auditResult, buyerLeads, workDir);
+        console.log(
+          `   ✓ ${target.productName}: score=${auditResult.overallScore}/100, leaks=${auditResult.leaks.length}, leads=${buyerLeads.length}, voiceover=${audioMeta.totalDurationSec.toFixed(1)}s`
         );
+        prepared.push({ target, auditResult, buyerLeads, audioMeta, workDir });
+      } catch (err) {
+        console.warn(`⚠️ Skipping ${target.productName} due to error:`, err.message);
       }
-      const workDir = path.join(TMP_ROOT, target.slug);
-      const audioMeta = synthesizeFourActAudio(target, auditResult, buyerLeads, workDir);
-      console.log(
-        `   ✓ ${target.productName}: score=${auditResult.overallScore}/100, leaks=${auditResult.leaks.length}, leads=${buyerLeads.length}, voiceover=${audioMeta.totalDurationSec.toFixed(1)}s`
-      );
-      prepared.push({ target, auditResult, buyerLeads, audioMeta, workDir });
     }
 
     console.log(`\n🎬 Recording ${prepared.length} 720p Personalized Teardown Videos in Parallel...`);
-    const reports = await Promise.all(
+    const newReports = await Promise.all(
       prepared.map(async ({ target, auditResult, buyerLeads, audioMeta, workDir }) => {
         const videoInfo = await renderTeardownVideo(
           browser,
@@ -1709,9 +1828,26 @@ async function main() {
       })
     );
 
+    // 增量合并已有报告，绝不覆盖先前的样板
+    let existing = [];
+    if (fs.existsSync(DATA_OUT_PATH)) {
+      try {
+        existing = JSON.parse(fs.readFileSync(DATA_OUT_PATH, "utf8"));
+      } catch {
+        existing = [];
+      }
+    }
+    const mergedMap = new Map(existing.map((r) => [r.slug, r]));
+    for (const rep of newReports) {
+      mergedMap.set(rep.slug, rep);
+    }
+    const mergedReports = Array.from(mergedMap.values());
+
     fs.mkdirSync(path.dirname(DATA_OUT_PATH), { recursive: true });
-    fs.writeFileSync(DATA_OUT_PATH, JSON.stringify(reports, null, 2), "utf8");
-    console.log(`\n✅ All ${reports.length} reports & MP4 teardowns saved to ${DATA_OUT_PATH}`);
+    fs.writeFileSync(DATA_OUT_PATH, JSON.stringify(mergedReports, null, 2), "utf8");
+    console.log(
+      `\n✅ Added/updated ${newReports.length} reports (total ${mergedReports.length}) in ${DATA_OUT_PATH}`
+    );
   } finally {
     await browser.close();
   }
