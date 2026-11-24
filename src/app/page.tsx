@@ -39,6 +39,9 @@ export default function HomePage() {
             <a href="#pricing" className="hover:text-white transition">
               Pricing
             </a>
+            <Link href="/portal" className="hover:text-emerald-300 transition">
+              Customer Portal
+            </Link>
           </nav>
 
           <a

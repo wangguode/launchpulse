@@ -24,11 +24,25 @@ interface Props {
 
 export default function WarRoomClient({ report }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const lastReportedSecRef = useRef<number>(0);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [unlockedPlan, setUnlockedPlan] = useState<string | null>(null);
   const [loadingPlan, setLoadingPlan] = useState<"fixpack" | "radar" | null>(null);
   const [checkoutError, setCheckoutError] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const trackEvent = (event: "view" | "video_progress" | "buyer_click", seconds = 0) => {
+    try {
+      fetch("/api/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: report.slug, event, seconds }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -37,8 +51,11 @@ export default function WarRoomClient({ report }: Props) {
         setIsUnlocked(true);
         setUnlockedPlan(params.get("plan") || "radar");
       }
+      // 上报专属战情页打开事件到 Cloudflare D1
+      trackEvent("view");
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report.slug]);
 
   const jumpToChapter = (ratio: number) => {
     const v = videoRef.current;
@@ -285,6 +302,16 @@ export default function WarRoomClient({ report }: Props) {
               playsInline
               preload="metadata"
               poster={report.posterUrl}
+              onTimeUpdate={(e) => {
+                const sec = Math.floor(e.currentTarget.currentTime || 0);
+                if (sec >= lastReportedSecRef.current + 10) {
+                  lastReportedSecRef.current = sec;
+                  trackEvent("video_progress", sec);
+                }
+              }}
+              onEnded={(e) => {
+                trackEvent("video_progress", Math.round(e.currentTarget.duration || report.videoDurationSeconds));
+              }}
               className="w-full h-full object-contain"
             >
               <source src={report.videoUrl} type="video/mp4" />
@@ -499,6 +526,7 @@ export default function WarRoomClient({ report }: Props) {
                       href={lead.url}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={() => trackEvent("buyer_click")}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/35 text-emerald-300 text-xs font-semibold transition"
                     >
                       Open Live Thread &amp; Reply <ArrowUpRight className="w-3.5 h-3.5" />

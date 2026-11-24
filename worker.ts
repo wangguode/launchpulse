@@ -1,19 +1,35 @@
 /**
- * LaunchPulse Cloudflare Workers 边缘网关：
- * 1. POST /api/scan     — 对任意公开 HTTPS 网站执行 100% 被动无害实时 SEO/AEO/安全基线体检 + HN 真实买家线索匹配（内置防 SSRF）
- * 2. POST /api/checkout — 直连 Creem.io Live Checkout API（$19 One-Time Launch Fix Pack / $29/mo Buyer Intent Radar Pro）
- * 3. POST /api/webhook  — Creem HMAC-SHA256 签名验证
- * 4. 其余静态资产交由 ASSETS 托管并统一注入安全响应头
+ * LaunchPulse Cloudflare Workers 边缘网关（D1 动态底座版）：
+ * 1. POST /api/scan            — 100% 被动无害实时 SEO/AEO/安全头体检 + HN 真实买家匹配（内置防 SSRF）
+ * 2. POST /api/track           — 战情页热力埋点（访问次数 / 视频播放最大秒数 / 买家线索点击数）实时写入 D1
+ * 3. POST /api/checkout        — 直连 Creem.io 实时收银（$19 Fix Pack / $29/mo Radar Pro）
+ * 4. POST /api/webhook         — Creem HMAC-SHA256 验签并自动入账 D1 customers_orders + 签发 Magic Token
+ * 5. POST /api/portal/lookup   — 免密客户工作台查询（凭 Magic Token 或付款邮箱拉取已购报告与买家线索）
+ * 6. POST /api/portal/lead-status — 客户在工作台标记线索状态（new / replied / won）
+ * 7. GET  /api/admin/overview  — 受 ADMIN_API_KEY 保护的内部指挥台同步接口（对接开源 PocketBase）
  */
+
+interface D1PreparedStatement {
+  bind: (...values: unknown[]) => D1PreparedStatement;
+  first: <T = Record<string, unknown>>() => Promise<T | null>;
+  all: <T = Record<string, unknown>>() => Promise<{ results: T[] }>;
+  run: () => Promise<{ success: boolean }>;
+}
+
+interface D1Database {
+  prepare: (query: string) => D1PreparedStatement;
+}
 
 interface Env {
   ASSETS: {
     fetch: (request: Request) => Promise<Response>;
   };
+  DB?: D1Database;
   CREEM_API_KEY?: string;
   CREEM_PRODUCT_ID_FIXPACK?: string;
   CREEM_PRODUCT_ID_RADAR?: string;
   CREEM_WEBHOOK_SECRET?: string;
+  ADMIN_API_KEY?: string;
 }
 
 const PLAN_CONFIG = {
@@ -44,9 +60,6 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
-/**
- * 严格校验外部公开 HTTPS URL，拦截内网 IP、元数据地址与本地环回（防 SSRF）
- */
 function parseSafePublicHttpsUrl(rawInput: string): URL | null {
   try {
     const trimmed = rawInput.trim();
@@ -62,7 +75,6 @@ function parseSafePublicHttpsUrl(rawInput: string): URL | null {
     ) {
       return null;
     }
-    // 拦截 IPv4 私有网段与云元数据段
     if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
       const parts = host.split(".").map(Number);
       if (
@@ -117,9 +129,6 @@ function cleanEntities(raw: string): string {
     .trim();
 }
 
-/**
- * 实时被动扫描用户输入的 SaaS URL 并匹配真实 Hacker News 买家讨论
- */
 async function handleLiveScan(request: Request): Promise<Response> {
   try {
     const body = (await request.json()) as { url?: string };
@@ -236,7 +245,6 @@ async function handleLiveScan(request: Request): Promise<Response> {
       });
     }
 
-    // 提取 2–3 个核心英文实词去 HN Algolia 实时匹配真实社区讨论
     const stopWords = new Set([
       "the", "and", "for", "with", "your", "that", "from", "this", "into", "free", "app", "tool", "home", "welcome", "best", "fast", "modern",
     ]);
@@ -288,7 +296,7 @@ async function handleLiveScan(request: Request): Promise<Response> {
         }
       }
     } catch {
-      // 忽略外部超时
+      // ignore timeout
     }
 
     const score = Math.max(38, Math.min(96, 94 - leaks.length * 9));
@@ -306,6 +314,50 @@ async function handleLiveScan(request: Request): Promise<Response> {
     });
   } catch {
     return jsonResponse({ error: "Invalid scan payload." }, 400);
+  }
+}
+
+/**
+ * 战情页行为热力埋点：记录访问次数、视频播放最大秒数、点击买家外链次数
+ */
+async function handleTrack(request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return jsonResponse({ ok: true, persisted: false });
+  try {
+    const body = (await request.json()) as {
+      slug?: string;
+      event?: "view" | "video_progress" | "buyer_click";
+      seconds?: number;
+    };
+    const slug = (body.slug || "").toLowerCase().replace(/[^a-z0-9-_]/g, "").slice(0, 64);
+    const event = body.event || "view";
+    if (!slug) return jsonResponse({ error: "Missing slug" }, 400);
+
+    const sec = Math.max(0, Math.min(600, Math.round(Number(body.seconds || 0))));
+    const now = new Date().toISOString();
+
+    await env.DB.prepare(
+      `INSERT INTO outreach_logs (slug, page_views, max_video_seconds, buyer_clicks, last_event_at, last_event_type)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+       ON CONFLICT(slug) DO UPDATE SET
+         page_views = page_views + ?2,
+         max_video_seconds = MAX(max_video_seconds, ?3),
+         buyer_clicks = buyer_clicks + ?4,
+         last_event_at = ?5,
+         last_event_type = ?6`
+    )
+      .bind(
+        slug,
+        event === "view" ? 1 : 0,
+        event === "video_progress" ? sec : 0,
+        event === "buyer_click" ? 1 : 0,
+        now,
+        event
+      )
+      .run();
+
+    return jsonResponse({ ok: true, persisted: true });
+  } catch {
+    return jsonResponse({ ok: false }, 400);
   }
 }
 
@@ -351,7 +403,7 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
     const origin = request.headers.get("origin") || new URL(request.url).origin;
     const returnPath = body.slug
       ? `/audit/${encodeURIComponent(body.slug)}?unlocked=1&plan=${plan}`
-      : `/?unlocked=1&plan=${plan}`;
+      : `/portal?unlocked=1&plan=${plan}`;
 
     const creemApiKey = env.CREEM_API_KEY?.trim();
     const productId =
@@ -416,6 +468,142 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
   }
 }
 
+/**
+ * Creem 付款回调：自动写入 D1 customers_orders 并签发免密 Magic Token
+ */
+async function handleWebhook(request: Request, env: Env): Promise<Response> {
+  const secret = env.CREEM_WEBHOOK_SECRET?.trim();
+  const signature = request.headers.get("creem-signature") || "";
+  if (!secret || !signature) {
+    return jsonResponse({ error: "Missing webhook signature" }, 401);
+  }
+  const rawBody = await request.text();
+  const valid = await verifyCreemSignature(rawBody, signature, secret);
+  if (!valid) {
+    return jsonResponse({ error: "Invalid signature" }, 401);
+  }
+
+  if (env.DB) {
+    try {
+      const payload = JSON.parse(rawBody) as {
+        eventType?: string;
+        object?: {
+          id?: string;
+          customer?: { email?: string };
+          metadata?: { plan?: string; slug?: string; targetUrl?: string };
+          order?: { amount?: number };
+        };
+      };
+      const obj = payload.object || {};
+      const email = (obj.customer?.email || "").trim().toLowerCase();
+      const orderId = obj.id || `ord_${Date.now()}`;
+      const plan = obj.metadata?.plan || "radar";
+      const slug = obj.metadata?.slug || "";
+      const targetUrl = obj.metadata?.targetUrl || "";
+      const amountUsd = Math.round((obj.order?.amount || (plan === "fixpack" ? 1900 : 2900)) / 100);
+      const magicToken = crypto.randomUUID().replace(/-/g, "");
+
+      if (email) {
+        await env.DB.prepare(
+          `INSERT INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', ?7)
+           ON CONFLICT(order_id) DO UPDATE SET status = 'active'`
+        )
+          .bind(orderId, email, slug, targetUrl, plan, amountUsd, magicToken)
+          .run();
+
+        if (slug) {
+          await env.DB.prepare(
+            `UPDATE leads_targets SET status = 'paid', updated_at = datetime('now') WHERE slug = ?1`
+          )
+            .bind(slug)
+            .run();
+        }
+      }
+    } catch {
+      // 防止非订单类 webhook 报错重发
+    }
+  }
+
+  return jsonResponse({ received: true });
+}
+
+/**
+ * 免密客户工作台查询（支持 Magic Token 或付款邮箱）
+ */
+async function handlePortalLookup(request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return jsonResponse({ found: false, orders: [] });
+  try {
+    const body = (await request.json()) as { email?: string; token?: string };
+    const token = (body.token || "").trim();
+    const email = (body.email || "").trim().toLowerCase();
+
+    let order = null;
+    if (token) {
+      order = await env.DB.prepare(
+        `SELECT order_id, customer_email, slug, target_url, plan, amount_usd, status, created_at
+         FROM customers_orders WHERE magic_token = ?1 AND status = 'active' LIMIT 1`
+      )
+        .bind(token)
+        .first();
+    } else if (email && email.includes("@")) {
+      order = await env.DB.prepare(
+        `SELECT order_id, customer_email, slug, target_url, plan, amount_usd, status, created_at
+         FROM customers_orders WHERE customer_email = ?1 AND status = 'active' ORDER BY id DESC LIMIT 1`
+      )
+        .bind(email)
+        .first();
+    }
+
+    if (!order) {
+      return jsonResponse({
+        found: false,
+        message: "No active paid plan found for this email/token yet. You can preview the live demo workspace below.",
+      });
+    }
+
+    const deliveries = await env.DB.prepare(
+      `SELECT lead_id, source, community, title, excerpt, url, reply_draft, lead_status, delivered_at
+       FROM radar_deliveries WHERE customer_email = ?1 ORDER BY id DESC LIMIT 30`
+    )
+      .bind(order.customer_email)
+      .all();
+
+    return jsonResponse({
+      found: true,
+      order,
+      deliveries: deliveries.results || [],
+    });
+  } catch {
+    return jsonResponse({ error: "Invalid portal lookup" }, 400);
+  }
+}
+
+/**
+ * 内部指挥台同步接口（受 ADMIN_API_KEY 保护，供本地 PocketBase 拉取实时数据）
+ */
+async function handleAdminOverview(request: Request, env: Env): Promise<Response> {
+  const adminKey = env.ADMIN_API_KEY?.trim();
+  const provided = request.headers.get("x-admin-key") || "";
+  if (!adminKey || !provided || !timingSafeEqualHex(provided, adminKey)) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+
+  const [leads, outreach, orders] = await Promise.all([
+    env.DB.prepare(`SELECT * FROM leads_targets ORDER BY updated_at DESC LIMIT 100`).all(),
+    env.DB.prepare(`SELECT * FROM outreach_logs ORDER BY last_event_at DESC LIMIT 100`).all(),
+    env.DB.prepare(`SELECT * FROM customers_orders ORDER BY created_at DESC LIMIT 100`).all(),
+  ]);
+
+  return jsonResponse({
+    syncedAt: new Date().toISOString(),
+    leads: leads.results || [],
+    outreach: outreach.results || [],
+    orders: orders.results || [],
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -423,23 +611,20 @@ export default {
     if (url.pathname === "/api/scan" && request.method === "POST") {
       return handleLiveScan(request);
     }
-
+    if (url.pathname === "/api/track" && request.method === "POST") {
+      return handleTrack(request, env);
+    }
     if (url.pathname === "/api/checkout" && request.method === "POST") {
       return handleCheckout(request, env);
     }
-
     if (url.pathname === "/api/webhook" && request.method === "POST") {
-      const secret = env.CREEM_WEBHOOK_SECRET?.trim();
-      const signature = request.headers.get("creem-signature") || "";
-      if (!secret || !signature) {
-        return jsonResponse({ error: "Missing webhook signature" }, 401);
-      }
-      const rawBody = await request.text();
-      const valid = await verifyCreemSignature(rawBody, signature, secret);
-      if (!valid) {
-        return jsonResponse({ error: "Invalid signature" }, 401);
-      }
-      return jsonResponse({ received: true });
+      return handleWebhook(request, env);
+    }
+    if (url.pathname === "/api/portal/lookup" && request.method === "POST") {
+      return handlePortalLookup(request, env);
+    }
+    if (url.pathname === "/api/admin/overview" && request.method === "GET") {
+      return handleAdminOverview(request, env);
     }
 
     const assetResp = await env.ASSETS.fetch(request);

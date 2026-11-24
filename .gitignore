@@ -6,7 +6,9 @@ out/
 .tmp-video/
 .env
 .env.local
+.env.ops
 .dev.vars
+ops-pocketbase/
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
