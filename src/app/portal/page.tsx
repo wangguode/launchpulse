@@ -35,6 +35,9 @@ export default function CustomerPortalPage() {
   const [statusMsg, setStatusMsg] = useState("");
   const [activeReport, setActiveReport] = useState<StartupAuditReport | null>(null);
   const [activePlanLabel, setActivePlanLabel] = useState("Growth & Buyer Radar Pro ($29/mo)");
+  const [verifiedUnboundEmail, setVerifiedUnboundEmail] = useState<string | null>(null);
+  const [bindUrlInput, setBindUrlInput] = useState("");
+  const [bindingSite, setBindingSite] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [leadStatuses, setLeadStatuses] = useState<Record<string, "new" | "replied" | "won">>({});
   const [rescanLoading, setRescanLoading] = useState(false);
@@ -101,7 +104,14 @@ export default function CustomerPortalPage() {
             // ignore
           }
         }
-        setActiveReport(matched || sampleAudits[0] || null);
+        if (matched) {
+          setActiveReport(matched);
+          setVerifiedUnboundEmail(null);
+        } else {
+          // 首页直购尚无专属 slug 时，绝不误显他人样板，引导绑定自己的网站 URL 实时生成
+          setActiveReport(null);
+          setVerifiedUnboundEmail(data.order.customer_email || emailInput);
+        }
         setActivePlanLabel(
           data.order.plan === "fixpack"
             ? "One-Time Launch Fix Pack ($19)"
@@ -170,6 +180,86 @@ export default function CustomerPortalPage() {
       // ignore
     }
   }, []);
+
+  const bindCustomSite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bindUrlInput.trim()) return;
+    setBindingSite(true);
+    setStatusMsg("");
+    try {
+      const res = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: bindUrlInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStatusMsg(data.error || "Unable to scan that URL.");
+      } else {
+        const customReport: StartupAuditReport = {
+          slug: data.domain.split(".")[0],
+          productName: data.title.split(/[–—:-]/)[0].trim() || data.domain,
+          targetUrl: data.origin,
+          domain: data.domain,
+          tagline: data.tagline || data.title,
+          scannedAt: new Date().toISOString(),
+          overallScore: data.score,
+          subScores: {
+            seoAndSchema: data.score,
+            aiSearchVisibility: data.score,
+            conversionAndUx: data.score,
+            securityBaseline: data.score,
+          },
+          videoUrl: "",
+          posterUrl: "",
+          heroScreenshotUrl: "",
+          mobileScreenshotUrl: "",
+          videoDurationSeconds: 0,
+          passedChecks: [],
+          leaks: (data.leaks || []).map(
+            (
+              lk: { severity: "critical" | "high" | "medium"; category: string; title: string; evidence: string },
+              idx: number
+            ) => ({
+              id: `live-${idx}`,
+              severity: lk.severity,
+              category: lk.category as StartupAuditReport["leaks"][number]["category"],
+              title: lk.title,
+              evidence: lk.evidence,
+              impactEstimate: "Impacts organic discovery and conversion",
+              fixSummary: lk.title,
+              cursorFixPrompt: `Fix the following issue on ${data.domain}: ${lk.title}. Evidence: ${lk.evidence}`,
+            })
+          ),
+          generatedLlmsTxtPreview: `# ${data.domain}\n\n> ${data.tagline || data.title}\n\n- Website: ${data.origin}\n`,
+          buyerLeads: (data.leads || []).map(
+            (
+              ld: { source: string; author: string; postedAt: string; title: string; excerpt: string; url: string },
+              idx: number
+            ) => ({
+              id: `live-lead-${idx}`,
+              source: "Hacker News" as const,
+              community: ld.source,
+              author: ld.author,
+              postedAt: ld.postedAt,
+              title: ld.title,
+              excerpt: ld.excerpt,
+              url: ld.url,
+              intentScore: 90,
+              suggestedReplyAngle: `Share how ${data.domain} directly solves this workflow.`,
+              unlockedByDefault: true,
+            })
+          ),
+        };
+        setActiveReport(customReport);
+        setVerifiedUnboundEmail(null);
+      }
+    } catch {
+      setStatusMsg("Network error while activating your domain.");
+    } finally {
+      setBindingSite(false);
+    }
+  };
 
   const cycleLeadStatus = (lead: { id: string; source: string; community: string; title: string; url: string }) => {
     setLeadStatuses((prev) => {
@@ -271,6 +361,34 @@ export default function CustomerPortalPage() {
               <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
                 {statusMsg}
               </p>
+            )}
+
+            {verifiedUnboundEmail && (
+              <form
+                onSubmit={bindCustomSite}
+                className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 space-y-3"
+              >
+                <p className="text-xs text-emerald-200 font-semibold">
+                  ✓ Active plan verified for {verifiedUnboundEmail}! Enter your SaaS URL to activate
+                  your live Fix Pack &amp; Buyer Radar workspace:
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={bindUrlInput}
+                    onChange={(e) => setBindUrlInput(e.target.value)}
+                    placeholder="https://your-startup.com"
+                    className="flex-1 rounded-lg border border-white/15 bg-black/60 px-3 py-2 text-xs font-[family-name:var(--font-mono)] text-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={bindingSite}
+                    className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs cursor-pointer disabled:opacity-60"
+                  >
+                    {bindingSite ? "Activating..." : "Activate →"}
+                  </button>
+                </div>
+              </form>
             )}
 
             <div className="pt-4 border-t border-white/10 space-y-2.5">

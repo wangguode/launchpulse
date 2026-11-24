@@ -616,18 +616,18 @@ export default function WarRoomClient({ report }: Props) {
                     >
                       <Sparkles className="w-4 h-4" />
                       {loadingPlan === "radar"
-                        ? "Connecting to Secure Checkout..."
-                        : `Unlock All ${report.buyerLeads.length} Buyers + 24/7 Radar ($29/mo)`}
+                        ? t.pricing.loadingCheckout
+                        : t.warRoom.unlockAll}
                     </button>
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-white">
-                        Just want the one-time code fixes?
+                        {t.pricing.fixLabel}
                       </p>
                       <p className="text-xs text-slate-400">
-                        Get all Cursor/Claude prompts + custom <code>/llms.txt</code> &amp; JSON-LD.
+                        Cursor / Claude prompts + <code>/llms.txt</code> &amp; JSON-LD
                       </p>
                     </div>
                     <button
@@ -635,7 +635,7 @@ export default function WarRoomClient({ report }: Props) {
                       disabled={loadingPlan !== null}
                       className="shrink-0 px-4 py-2.5 rounded-lg border border-white/20 hover:border-white/40 bg-white/5 text-white font-semibold text-xs transition cursor-pointer disabled:opacity-60"
                     >
-                      {loadingPlan === "fixpack" ? "Opening..." : "Buy Fix Pack ($19)"}
+                      {loadingPlan === "fixpack" ? t.pricing.loadingCheckout : t.warRoom.buyFixPack}
                     </button>
                   </div>
                 </div>
