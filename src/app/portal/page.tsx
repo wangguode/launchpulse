@@ -100,6 +100,9 @@ export default function CustomerPortalPage() {
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [activeReport, setActiveReport] = useState<StartupAuditReport | null>(null);
+  const [liveDirectories, setLiveDirectories] = useState<
+    Record<string, { status: "queued" | "submitted" | "live"; liveBacklinkUrl?: string }>
+  >({});
   const [activePlanCode, setActivePlanCode] = useState<"fixpack" | "radar" | "dfy">("radar");
   const [activePlanLabel, setActivePlanLabel] = useState("Growth & Buyer Radar Pro ($29/mo)");
   const [competitorName, setCompetitorName] = useState("Legacy Competitor");
@@ -179,6 +182,17 @@ export default function CustomerPortalPage() {
           // 首页直购尚无专属 slug 时，绝不误显他人样板，引导绑定自己的网站 URL 实时生成
           setActiveReport(null);
           setVerifiedUnboundEmail(data.order.customer_email || emailInput);
+        }
+        // 加载 D1 中该客户的真实 50+ 目录提交状态与真实收录外链 URL
+        if (Array.isArray(data.directories)) {
+          const map: Record<string, { status: "queued" | "submitted" | "live"; liveBacklinkUrl?: string }> = {};
+          for (const row of data.directories) {
+            map[row.directory_id] = {
+              status: row.status || "queued",
+              liveBacklinkUrl: row.live_backlink_url || "",
+            };
+          }
+          setLiveDirectories(map);
         }
         const pCode: "fixpack" | "radar" | "dfy" =
           data.order.plan === "fixpack"
@@ -549,11 +563,15 @@ export default function CustomerPortalPage() {
                 </div>
                 <button
                   onClick={() => {
+                    const isDemo = activeReport.slug === "acmeflow-demo";
                     const csv = [
-                      "Directory,URL,DomainRating,Category,Status",
-                      ...DISTRIBUTION_DIRECTORIES.map(
-                        (d) => `"${d.name}","${d.url}",${d.dr},"${d.category}","${d.defaultStatus}"`
-                      ),
+                      "Directory,DirectoryURL,DomainRating,Category,Status,LiveBacklinkURL",
+                      ...DISTRIBUTION_DIRECTORIES.map((d) => {
+                        const live = liveDirectories[d.id];
+                        const st = isDemo ? d.defaultStatus : live?.status || "queued";
+                        const proof = live?.liveBacklinkUrl || "";
+                        return `"${d.name}","${d.url}",${d.dr},"${d.category}","${st}","${proof}"`;
+                      }),
                     ].join("\n");
                     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
                     const a = document.createElement("a");
@@ -568,30 +586,40 @@ export default function CustomerPortalPage() {
               </div>
 
               <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2.5 max-h-64 overflow-y-auto pr-1">
-                {DISTRIBUTION_DIRECTORIES.map((dir) => (
-                  <a
-                    key={dir.id}
-                    href={dir.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-lg border border-white/10 bg-black/40 hover:border-emerald-400/40 p-2.5 flex flex-col justify-between gap-1.5 transition"
-                  >
-                    <div className="flex items-center justify-between gap-1 text-[10px] font-[family-name:var(--font-mono)]">
-                      <span className="text-slate-400">DR {dir.dr}</span>
-                      <span
-                        className={`px-1.5 py-0.5 rounded uppercase ${
-                          dir.defaultStatus === "submitted"
-                            ? "bg-emerald-500/20 text-emerald-300"
-                            : "bg-white/10 text-slate-400"
-                        }`}
-                      >
-                        {dir.defaultStatus}
-                      </span>
-                    </div>
-                    <p className="text-xs font-semibold text-white truncate">{dir.name}</p>
-                    <p className="text-[10px] text-slate-500 truncate">{dir.category}</p>
-                  </a>
-                ))}
+                {DISTRIBUTION_DIRECTORIES.map((dir) => {
+                  const isDemo = activeReport.slug === "acmeflow-demo";
+                  const live = liveDirectories[dir.id];
+                  const st = isDemo ? dir.defaultStatus : live?.status || "queued";
+                  const href = live?.liveBacklinkUrl || dir.url;
+                  return (
+                    <a
+                      key={dir.id}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg border border-white/10 bg-black/40 hover:border-emerald-400/40 p-2.5 flex flex-col justify-between gap-1.5 transition"
+                    >
+                      <div className="flex items-center justify-between gap-1 text-[10px] font-[family-name:var(--font-mono)]">
+                        <span className="text-slate-400">DR {dir.dr}</span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded uppercase ${
+                            st === "live"
+                              ? "bg-emerald-500 text-slate-950 font-bold"
+                              : st === "submitted"
+                              ? "bg-emerald-500/20 text-emerald-300"
+                              : "bg-white/10 text-slate-400"
+                          }`}
+                        >
+                          {st}
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold text-white truncate">{dir.name}</p>
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {live?.liveBacklinkUrl ? "Verified Backlink ↗" : dir.category}
+                      </p>
+                    </a>
+                  );
+                })}
               </div>
             </section>
 

@@ -69,6 +69,23 @@ CREATE TABLE IF NOT EXISTS admin_audit_logs (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 7. 50+ 高权重目录真实提交与外链回执表（$39 主力商品真实交付台账）
+CREATE TABLE IF NOT EXISTS directory_submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  customer_email TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  directory_id TEXT NOT NULL,
+  directory_name TEXT NOT NULL,
+  directory_url TEXT NOT NULL,
+  dr INTEGER NOT NULL DEFAULT 50,
+  category TEXT NOT NULL DEFAULT 'SaaS Directory',
+  status TEXT NOT NULL DEFAULT 'queued', -- queued | submitted | live
+  live_backlink_url TEXT DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(customer_email, directory_id)
+);
+CREATE INDEX IF NOT EXISTS idx_dir_sub_email ON directory_submissions(customer_email);
+
 -- 5. 付费客户每日买家线索交付与整改追踪表
 CREATE TABLE IF NOT EXISTS radar_deliveries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

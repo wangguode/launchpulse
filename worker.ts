@@ -698,17 +698,26 @@ async function handlePortalLookup(request: Request, env: Env): Promise<Response>
         });
       }
 
-      const deliveries = await env.DB.prepare(
-        `SELECT lead_id, source, community, title, excerpt, url, reply_draft, lead_status, delivered_at
-         FROM radar_deliveries WHERE customer_email = ?1 ORDER BY id DESC LIMIT 30`
-      )
-        .bind(order.customer_email)
-        .all();
+      const [deliveries, directories] = await Promise.all([
+        env.DB.prepare(
+          `SELECT lead_id, source, community, title, excerpt, url, reply_draft, lead_status, delivered_at
+           FROM radar_deliveries WHERE customer_email = ?1 ORDER BY id DESC LIMIT 30`
+        )
+          .bind(order.customer_email)
+          .all(),
+        env.DB.prepare(
+          `SELECT directory_id, directory_name, directory_url, dr, category, status, live_backlink_url, updated_at
+           FROM directory_submissions WHERE customer_email = ?1 ORDER BY dr DESC`
+        )
+          .bind(order.customer_email)
+          .all(),
+      ]);
 
       return jsonResponse({
         found: true,
         order,
         deliveries: deliveries.results || [],
+        directories: directories.results || [],
       });
     }
 
@@ -932,6 +941,57 @@ export default {
         return jsonResponse({ ok: true, slug, liveUrl: `/audit/live?s=${slug}` });
       } catch {
         return jsonResponse({ error: "Invalid ingest payload" }, 400);
+      }
+    }
+
+    // 管理员回填客户真实目录外链收录结果接口（受 ADMIN_API_KEY 保护）
+    if (url.pathname === "/api/admin/directory-update" && request.method === "POST") {
+      const adminKey = env.ADMIN_API_KEY?.trim();
+      const provided = request.headers.get("x-admin-key") || "";
+      if (!adminKey || !provided || !timingSafeEqualHex(provided, adminKey)) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+      try {
+        const body = (await request.json()) as {
+          customerEmail?: string;
+          slug?: string;
+          directoryId?: string;
+          directoryName?: string;
+          directoryUrl?: string;
+          dr?: number;
+          category?: string;
+          status?: "queued" | "submitted" | "live";
+          liveBacklinkUrl?: string;
+        };
+        const email = (body.customerEmail || "").trim().toLowerCase();
+        const dirId = (body.directoryId || "").trim();
+        if (!email || !dirId) return jsonResponse({ error: "Missing customerEmail or directoryId" }, 400);
+        const st = ["queued", "submitted", "live"].includes(body.status || "")
+          ? body.status
+          : "submitted";
+        await env.DB.prepare(
+          `INSERT INTO directory_submissions (customer_email, slug, directory_id, directory_name, directory_url, dr, category, status, live_backlink_url, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, datetime('now'))
+           ON CONFLICT(customer_email, directory_id) DO UPDATE SET
+             status = ?8, live_backlink_url = ?9, updated_at = datetime('now')`
+        )
+          .bind(
+            email,
+            body.slug || "",
+            dirId,
+            body.directoryName || dirId,
+            body.directoryUrl || "",
+            Number(body.dr || 50),
+            body.category || "SaaS Directory",
+            st,
+            body.liveBacklinkUrl || ""
+          )
+          .run();
+        await logAdminAudit(env, request, "directory_update", `${body.slug || email}:${dirId}:${st}`);
+        return jsonResponse({ ok: true, directoryId: dirId, status: st });
+      } catch {
+        return jsonResponse({ error: "Invalid directory update payload" }, 400);
       }
     }
 

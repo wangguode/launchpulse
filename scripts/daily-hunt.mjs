@@ -104,15 +104,41 @@ async function main() {
   );
 
   const hnRes = await fetch(
-    "https://hn.algolia.com/api/v1/search_by_date?tags=show_hn&hitsPerPage=100"
+    "https://hn.algolia.com/api/v1/search_by_date?tags=show_hn&hitsPerPage=80"
   );
   const hnData = await hnRes.json();
+  const rawCandidates = (hnData.hits || []).map((h) => ({
+    url: (h.url || "").trim(),
+    title: (h.title || "").trim(),
+    source: "Show HN",
+  }));
+
+  // 扩展第二猎物源：DEV.to #showdev 最新独立产品发布
+  try {
+    const devRes = await fetch("https://dev.to/api/articles?tag=showdev&per_page=30");
+    if (devRes.ok) {
+      const devPosts = await devRes.json();
+      for (const p of devPosts) {
+        const descUrls = (p.description || "").match(/https:\/\/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+        if (descUrls[0]) {
+          rawCandidates.push({
+            url: descUrls[0],
+            title: p.title || "",
+            source: "DEV.to #showdev",
+          });
+        }
+      }
+    }
+  } catch {
+    // 忽略 DEV.to 瞬时限流
+  }
+
   const qualified = [];
 
-  for (const hit of hnData.hits || []) {
+  for (const hit of rawCandidates) {
     if (qualified.length >= limit) break;
-    const rawUrl = (hit.url || "").trim();
-    const title = (hit.title || "").trim();
+    const rawUrl = hit.url;
+    const title = hit.title;
     if (!rawUrl.startsWith("https://")) continue;
 
     let parsed;
