@@ -27,10 +27,75 @@ interface LiveRescanResult {
   leaks: Array<{ severity: string; category: string; title: string; evidence: string }>;
 }
 
+const DEMO_ACMEFLOW_REPORT: StartupAuditReport = {
+  slug: "acmeflow-demo",
+  productName: "AcmeFlow (Sample Demo)",
+  targetUrl: "https://acmeflow.example",
+  domain: "acmeflow.example",
+  tagline: "Interactive sample workspace showing what paid founders unlock.",
+  scannedAt: "2026-11-24T00:00:00.000Z",
+  overallScore: 61,
+  subScores: {
+    seoAndSchema: 68,
+    aiSearchVisibility: 34,
+    conversionAndUx: 64,
+    securityBaseline: 78,
+  },
+  videoUrl: "",
+  posterUrl: "",
+  heroScreenshotUrl: "",
+  mobileScreenshotUrl: "",
+  videoDurationSeconds: 82,
+  passedChecks: ["Indexable robots meta", "Valid XML sitemap"],
+  leaks: [
+    {
+      id: "demo-llms",
+      severity: "critical",
+      category: "AEO / AI Visibility",
+      title: "Missing /llms.txt AI search manifest (HTTP 404)",
+      evidence: "GET https://acmeflow.example/llms.txt -> 404 Not Found.",
+      impactEstimate: "ChatGPT & Perplexity skip your SaaS in buyer comparisons.",
+      fixSummary: "Deploy a structured Markdown /llms.txt at site root.",
+      cursorFixPrompt:
+        "Create public/llms.txt following llmstxt.org spec summarizing AcmeFlow positioning, core features, pricing tiers, and canonical URLs.",
+    },
+    {
+      id: "demo-schema",
+      severity: "high",
+      category: "Google SEO",
+      title: "Missing SoftwareApplication JSON-LD rich schema",
+      evidence: "0 SoftwareApplication JSON-LD blocks detected.",
+      impactEstimate: "-20% organic SERP click-through rate.",
+      fixSummary: "Add validated SoftwareApplication JSON-LD to root layout.",
+      cursorFixPrompt:
+        "Add a <script type='application/ld+json'> block with @type SoftwareApplication, offers, and operatingSystem to app/layout.tsx.",
+    },
+  ],
+  generatedLlmsTxtPreview:
+    "# AcmeFlow\n\n> Automated workflow orchestration for developer teams.\n\n## Core Capabilities\n- Website: https://acmeflow.example\n- Pricing: $19/mo Pro\n",
+  buyerLeads: [
+    {
+      id: "demo-lead-1",
+      source: "Hacker News",
+      community: "Ask HN",
+      author: "@sample_founder",
+      postedAt: "2026-11-22",
+      title: "Sample unlocked thread: Looking for a lightweight workflow monitor for small dev teams",
+      excerpt:
+        "Real paid workspaces unlock all 10+ fresh (<45 days) pain-point discussions with direct reply URLs and tailored non-spam reply angles.",
+      url: "https://news.ycombinator.com/",
+      intentScore: 95,
+      suggestedReplyAngle: "Share a concise technical breakdown without hard-selling.",
+      unlockedByDefault: true,
+    },
+  ],
+};
+
 export default function CustomerPortalPage() {
   const { t } = useI18n();
   const sampleAudits = getAllAudits();
   const [emailInput, setEmailInput] = useState("");
+  const [activeToken, setActiveToken] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [activeReport, setActiveReport] = useState<StartupAuditReport | null>(null);
@@ -69,12 +134,12 @@ export default function CustomerPortalPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const demoSlug = params.get("demo");
+    const demoMode = params.get("demo");
     const token = params.get("token");
-    if (demoSlug) {
-      const found = sampleAudits.find((a) => a.slug === demoSlug) || sampleAudits[0];
-      if (found) setActiveReport(found);
+    if (demoMode) {
+      setActiveReport(DEMO_ACMEFLOW_REPORT);
     } else if (token) {
+      setActiveToken(token);
       lookupPortal({ token });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -272,7 +337,7 @@ export default function CustomerPortalPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: emailInput.includes("@") ? emailInput.trim() : "demo@launchpulse.local",
+            token: activeToken,
             slug: activeReport?.slug || "",
             leadId: lead.id,
             status: next,
@@ -396,15 +461,12 @@ export default function CustomerPortalPage() {
                 {t.portal.previewLabel}
               </p>
               <div className="flex flex-wrap gap-2">
-                {sampleAudits.map((a) => (
-                  <button
-                    key={a.slug}
-                    onClick={() => setActiveReport(a)}
-                    className="px-3.5 py-2 rounded-lg border border-white/15 hover:border-emerald-400/50 bg-white/[0.03] text-xs font-[family-name:var(--font-mono)] text-slate-200 transition cursor-pointer"
-                  >
-                    Preview {a.productName} Portal →
-                  </button>
-                ))}
+                <button
+                  onClick={() => setActiveReport(DEMO_ACMEFLOW_REPORT)}
+                  className="px-3.5 py-2 rounded-lg border border-white/15 hover:border-emerald-400/50 bg-white/[0.03] text-xs font-[family-name:var(--font-mono)] text-slate-200 transition cursor-pointer"
+                >
+                  Preview Sample Demo Workspace (AcmeFlow) →
+                </button>
               </div>
             </div>
           </section>

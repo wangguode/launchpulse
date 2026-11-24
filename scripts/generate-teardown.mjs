@@ -533,13 +533,14 @@ async function fetchRealBuyerLeads(browser, target) {
   const collected = [];
   const seenUrls = new Set();
 
-  // 1. Hacker News Algolia 按相关性精准检索（强制剔除 [dead] / 招聘帖噪音）
-  const noiseRe = /^\[dead\]|^\[flagged\]|who is hiring|who wants to be hired|freelancer\?/i;
+  // 1. Hacker News Algolia 按相关性精准检索（强制剔除 Show HN 竞品自推帖 / [dead] / 招聘帖，且严格限定近 45 天内！）
+  const cutoffSec = Math.floor(Date.now() / 1000) - 45 * 86400;
+  const noiseRe = /^show hn:|^\[dead\]|^\[flagged\]|who is hiring|who wants to be hired|freelancer\?/i;
   for (const q of target.searchQueries.hn) {
     try {
       const u = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(
         q
-      )}&tags=(story,comment)&hitsPerPage=10`;
+      )}&tags=comment&numericFilters=created_at_i>${cutoffSec}&hitsPerPage=12`;
       const res = await fetch(u);
       if (res.ok) {
         const data = await res.json();

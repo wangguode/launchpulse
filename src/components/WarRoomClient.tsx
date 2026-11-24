@@ -30,6 +30,9 @@ export default function WarRoomClient({ report }: Props) {
   const lastReportedSecRef = useRef<number>(0);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [unlockedPlan, setUnlockedPlan] = useState<string | null>(null);
+  const [postCheckoutPrompt, setPostCheckoutPrompt] = useState(false);
+  const [claimEmail, setClaimEmail] = useState("");
+  const [claimFeedback, setClaimFeedback] = useState("");
   const [loadingPlan, setLoadingPlan] = useState<"fixpack" | "radar" | null>(null);
   const [checkoutError, setCheckoutError] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -51,6 +54,10 @@ export default function WarRoomClient({ report }: Props) {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const token = params.get("token")?.trim();
+      if (params.get("unlocked") === "1" && !token) {
+        // 真实付费回跳引导：绝不无条件放行，引导客户用付款邮箱收取 Magic Link 秒开
+        setPostCheckoutPrompt(true);
+      }
       if (token) {
         // 严格走服务端 D1 订单验真，彻底堵死手动拼 ?unlocked=1 白嫖漏洞
         fetch("/api/portal/verify-unlock", {
@@ -169,6 +176,44 @@ export default function WarRoomClient({ report }: Props) {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-10">
+        {postCheckoutPrompt && !isUnlocked && (
+          <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-5 space-y-3">
+            <p className="text-sm text-emerald-100 font-semibold">
+              Payment received! Check your inbox for your instant Magic Unlock Link, or enter your
+              checkout email below to resend it right now:
+            </p>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!claimEmail.includes("@")) return;
+                const r = await fetch("/api/portal/lookup", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ email: claimEmail.trim(), slug: report.slug }),
+                });
+                const d = await r.json();
+                setClaimFeedback(d.message || "Magic Link sent to your checkout email.");
+              }}
+              className="flex flex-col sm:flex-row gap-2 max-w-lg"
+            >
+              <input
+                type="email"
+                value={claimEmail}
+                onChange={(e) => setClaimEmail(e.target.value)}
+                placeholder="checkout-email@your-startup.com"
+                className="flex-1 rounded-lg border border-white/15 bg-black/50 px-3 py-2 text-xs font-[family-name:var(--font-mono)] text-white"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs cursor-pointer"
+              >
+                Send Magic Unlock Link →
+              </button>
+            </form>
+            {claimFeedback && <p className="text-xs text-emerald-300">{claimFeedback}</p>}
+          </div>
+        )}
+
         {isUnlocked && (
           <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">

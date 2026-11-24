@@ -548,44 +548,55 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
       const magicToken = crypto.randomUUID().replace(/-/g, "");
 
       if (email) {
-        await env.DB.prepare(
-          `INSERT INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', ?7)
-           ON CONFLICT(order_id) DO UPDATE SET status = 'active'`
-        )
-          .bind(orderId, email, slug, targetUrl, plan, amountUsd, magicToken)
-          .run();
+        const evt = (payload.eventType || "").toLowerCase();
+        const isRevoke = /cancel|expire|refund|dispute|revok/.test(evt);
 
-        if (slug) {
+        if (isRevoke) {
           await env.DB.prepare(
-            `UPDATE leads_targets SET status = 'paid', updated_at = datetime('now') WHERE slug = ?1`
+            `UPDATE customers_orders SET status = ?1 WHERE order_id = ?2 OR customer_email = ?3`
           )
-            .bind(slug)
+            .bind(/refund|dispute/.test(evt) ? "refunded" : "canceled", orderId, email)
             .run();
+        } else {
+          await env.DB.prepare(
+            `INSERT INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', ?7)
+             ON CONFLICT(order_id) DO UPDATE SET status = 'active'`
+          )
+            .bind(orderId, email, slug, targetUrl, plan, amountUsd, magicToken)
+            .run();
+
+          if (slug) {
+            await env.DB.prepare(
+              `UPDATE leads_targets SET status = 'paid', updated_at = datetime('now') WHERE slug = ?1`
+            )
+              .bind(slug)
+              .run();
+          }
+
+          const origin = new URL(request.url).origin;
+          const portalLink = `${origin}/portal?token=${magicToken}`;
+          const warRoomLink = slug ? `${origin}/audit/${slug}?token=${magicToken}` : portalLink;
+
+          await sendResendEmail(env, {
+            to: email,
+            subject: `Your LaunchPulse ${plan === "dfy" ? "Done-For-You Sprint" : plan === "fixpack" ? "Launch Fix Pack" : "Buyer Radar Pro"} is unlocked`,
+            text: [
+              "Welcome to LaunchPulse!",
+              "",
+              "Your payment is confirmed and your workspace is unlocked immediately (no password needed).",
+              "",
+              `• Customer Portal (Cursor prompts, /llms.txt, Re-Scan & Buyer Feed): ${portalLink}`,
+              slug ? `• Unlocked War-Room Report: ${warRoomLink}` : "",
+              "",
+              "Need anything? Simply reply to this email (hello@statementflow.win).",
+              "",
+              "— LaunchPulse Team",
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          });
         }
-
-        const origin = new URL(request.url).origin;
-        const portalLink = `${origin}/portal?token=${magicToken}`;
-        const warRoomLink = slug ? `${origin}/audit/${slug}?token=${magicToken}` : portalLink;
-
-        await sendResendEmail(env, {
-          to: email,
-          subject: `Your LaunchPulse ${plan === "dfy" ? "Done-For-You Sprint" : plan === "fixpack" ? "Launch Fix Pack" : "Buyer Radar Pro"} is unlocked`,
-          text: [
-            "Welcome to LaunchPulse!",
-            "",
-            "Your payment is confirmed and your workspace is unlocked immediately (no password needed).",
-            "",
-            `• Customer Portal (Cursor prompts, /llms.txt, Re-Scan & Buyer Feed): ${portalLink}`,
-            slug ? `• Unlocked War-Room Report: ${warRoomLink}` : "",
-            "",
-            "Need anything? Simply reply to this email (hello@statementflow.win).",
-            "",
-            "— LaunchPulse Team",
-          ]
-            .filter(Boolean)
-            .join("\n"),
-        });
       }
     } catch {
       // 防止非订单类 webhook 报错重发
@@ -596,51 +607,74 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
 }
 
 /**
- * 免密客户工作台查询（支持 Magic Token 或付款邮箱）
+ * 免密客户工作台查询（严格防撞库：凭 Magic Token 直接解锁；仅输邮箱则只发送 Magic Link 到本人收件箱，绝不直接泄露订单内容）
  */
 async function handlePortalLookup(request: Request, env: Env): Promise<Response> {
   if (!env.DB) return jsonResponse({ found: false, orders: [] });
   try {
-    const body = (await request.json()) as { email?: string; token?: string };
+    const body = (await request.json()) as { email?: string; token?: string; slug?: string };
     const token = (body.token || "").trim();
     const email = (body.email || "").trim().toLowerCase();
 
-    let order = null;
     if (token) {
-      order = await env.DB.prepare(
+      const order = await env.DB.prepare(
         `SELECT order_id, customer_email, slug, target_url, plan, amount_usd, status, created_at
          FROM customers_orders WHERE magic_token = ?1 AND status = 'active' LIMIT 1`
       )
         .bind(token)
-        .first();
-    } else if (email && email.includes("@")) {
-      order = await env.DB.prepare(
-        `SELECT order_id, customer_email, slug, target_url, plan, amount_usd, status, created_at
-         FROM customers_orders WHERE customer_email = ?1 AND status = 'active' ORDER BY id DESC LIMIT 1`
-      )
-        .bind(email)
-        .first();
-    }
+        .first<{ customer_email: string }>();
 
-    if (!order) {
+      if (!order) {
+        return jsonResponse({
+          found: false,
+          message: "Invalid or expired Magic Token. Enter your checkout email to receive a fresh login link.",
+        });
+      }
+
+      const deliveries = await env.DB.prepare(
+        `SELECT lead_id, source, community, title, excerpt, url, reply_draft, lead_status, delivered_at
+         FROM radar_deliveries WHERE customer_email = ?1 ORDER BY id DESC LIMIT 30`
+      )
+        .bind(order.customer_email)
+        .all();
+
       return jsonResponse({
-        found: false,
-        message: "No active paid plan found for this email/token yet. You can preview the live demo workspace below.",
+        found: true,
+        order,
+        deliveries: deliveries.results || [],
       });
     }
 
-    const deliveries = await env.DB.prepare(
-      `SELECT lead_id, source, community, title, excerpt, url, reply_draft, lead_status, delivered_at
-       FROM radar_deliveries WHERE customer_email = ?1 ORDER BY id DESC LIMIT 30`
-    )
-      .bind(order.customer_email)
-      .all();
+    if (email && email.includes("@")) {
+      const order = await env.DB.prepare(
+        `SELECT magic_token, slug, plan FROM customers_orders WHERE customer_email = ?1 AND status = 'active' ORDER BY id DESC LIMIT 1`
+      )
+        .bind(email)
+        .first<{ magic_token: string; slug: string; plan: string }>();
 
-    return jsonResponse({
-      found: true,
-      order,
-      deliveries: deliveries.results || [],
-    });
+      if (order) {
+        const origin = new URL(request.url).origin;
+        const targetLink =
+          body.slug || order.slug
+            ? `${origin}/audit/${encodeURIComponent(body.slug || order.slug)}?token=${order.magic_token}`
+            : `${origin}/portal?token=${order.magic_token}`;
+        await sendResendEmail(env, {
+          to: email,
+          subject: "Your LaunchPulse Magic Login Link",
+          text: `Click below to securely unlock your LaunchPulse workspace:\n\n${targetLink}\n\n— LaunchPulse`,
+        });
+      }
+
+      // 防邮箱枚举攻击：无论邮箱是否存在，均返回统一中性提示
+      return jsonResponse({
+        found: false,
+        magicLinkSent: true,
+        message:
+          "If an active paid order exists for this email, we just sent a private Magic Login Link to your inbox.",
+      });
+    }
+
+    return jsonResponse({ found: false, message: "Please provide a valid email or Magic Token." }, 400);
   } catch {
     return jsonResponse({ error: "Invalid portal lookup" }, 400);
   }
@@ -717,7 +751,7 @@ export default {
       if (!env.DB) return jsonResponse({ ok: true, persisted: false });
       try {
         const body = (await request.json()) as {
-          email?: string;
+          token?: string;
           slug?: string;
           leadId?: string;
           status?: string;
@@ -726,7 +760,19 @@ export default {
           source?: string;
           community?: string;
         };
-        const email = (body.email || "demo@launchpulse.local").trim().toLowerCase();
+        const token = (body.token || "").trim();
+        // 严禁匿名写 D1，必须持有有效付费 Magic Token 才能持久化到生产库
+        if (!token) {
+          return jsonResponse({ ok: true, persisted: false, reason: "demo_local_only" });
+        }
+        const owner = await env.DB.prepare(
+          `SELECT customer_email FROM customers_orders WHERE magic_token = ?1 AND status = 'active' LIMIT 1`
+        )
+          .bind(token)
+          .first<{ customer_email: string }>();
+        if (!owner) {
+          return jsonResponse({ error: "Unauthorized token" }, 401);
+        }
         const leadId = (body.leadId || "").slice(0, 80);
         const status = ["new", "replied", "won", "archived"].includes(body.status || "")
           ? body.status
@@ -738,7 +784,7 @@ export default {
            ON CONFLICT(customer_email, lead_id) DO UPDATE SET lead_status = ?8`
         )
           .bind(
-            email,
+            owner.customer_email,
             body.slug || "",
             leadId,
             body.source || "Community",
@@ -848,10 +894,11 @@ export default {
         const keyword = (sub.slug || sub.target_url.replace(/^https?:\/\//, "").split(".")[0] || "").trim();
         if (!keyword) continue;
         try {
+          const cutoffSec = Math.floor(Date.now() / 1000) - 48 * 3600;
           const hnRes = await fetch(
             `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(
               keyword
-            )}&tags=(story,comment)&hitsPerPage=5`
+            )}&tags=comment&numericFilters=created_at_i>${cutoffSec}&hitsPerPage=6`
           );
           if (!hnRes.ok) continue;
           const hnData = (await hnRes.json()) as {
@@ -865,7 +912,7 @@ export default {
           const freshLines: string[] = [];
           for (const hit of hnData.hits || []) {
             const title = cleanEntities(hit.story_title || hit.title || "");
-            if (!title || /^\[dead\]|who is hiring/i.test(title)) continue;
+            if (!title || /^\[dead\]|^show hn:|who is hiring/i.test(title)) continue;
             const leadUrl = `https://news.ycombinator.com/item?id=${hit.objectID}`;
             const excerpt = cleanEntities(hit.comment_text || title).slice(0, 150);
             await env.DB.prepare(
