@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "teardown": "node scripts/generate-teardown.mjs",
+    "hunt": "node scripts/daily-hunt.mjs",
     "ops:sync": "node scripts/sync-ops.mjs",
     "ops:ui": "./ops-pocketbase/pocketbase serve",
     "predeploy": "npm run build",

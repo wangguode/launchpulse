@@ -28,6 +28,7 @@ interface Env {
   CREEM_API_KEY?: string;
   CREEM_PRODUCT_ID_FIXPACK?: string;
   CREEM_PRODUCT_ID_RADAR?: string;
+  CREEM_PRODUCT_ID_DFY?: string;
   CREEM_WEBHOOK_SECRET?: string;
   ADMIN_API_KEY?: string;
 }
@@ -40,6 +41,10 @@ const PLAN_CONFIG = {
   radar: {
     name: "LaunchPulse Growth & Buyer Intent Radar Pro (Monthly)",
     amountUsd: 29,
+  },
+  dfy: {
+    name: "LaunchPulse Done-For-You Growth Sprint",
+    amountUsd: 299,
   },
 } as const;
 
@@ -398,7 +403,12 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
       targetUrl?: string;
       email?: string;
     };
-    const plan: keyof typeof PLAN_CONFIG = body.plan === "fixpack" ? "fixpack" : "radar";
+    const plan: keyof typeof PLAN_CONFIG =
+      body.plan === "fixpack"
+        ? "fixpack"
+        : body.plan === "dfy"
+        ? "dfy"
+        : "radar";
     const meta = PLAN_CONFIG[plan];
     const origin = request.headers.get("origin") || new URL(request.url).origin;
     const returnPath = body.slug
@@ -409,6 +419,8 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
     const productId =
       plan === "fixpack"
         ? env.CREEM_PRODUCT_ID_FIXPACK?.trim()
+        : plan === "dfy"
+        ? env.CREEM_PRODUCT_ID_DFY?.trim()
         : env.CREEM_PRODUCT_ID_RADAR?.trim();
 
     if (creemApiKey && productId) {

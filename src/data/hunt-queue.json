@@ -1,0 +1,51 @@
+[
+  {
+    "slug": "whistlestop",
+    "productName": "A narrated map tour of the events le",
+    "targetUrl": "https://whistlestop.guide",
+    "domain": "whistlestop.guide",
+    "founderContact": "support@whistlestop.guide",
+    "detectedLeaks": [
+      "missing_csp",
+      "missing_xfo",
+      "missing_vs_pages"
+    ],
+    "hnTitle": "Show HN: A narrated map tour of the events leading up to the Texas Revolution"
+  },
+  {
+    "slug": "merget",
+    "productName": "Merget",
+    "targetUrl": "https://merget.ai",
+    "domain": "merget.ai",
+    "founderContact": "support@merget.ai",
+    "detectedLeaks": [
+      "missing_csp",
+      "missing_xfo"
+    ],
+    "hnTitle": "Show HN: Merget – Merge queue using deep static analysis to resolve GitHub PRs"
+  },
+  {
+    "slug": "wordspies",
+    "productName": "Game that determines which LLMs you ",
+    "targetUrl": "https://wordspies.com",
+    "domain": "wordspies.com",
+    "founderContact": "daluan217@wordspies.com",
+    "detectedLeaks": [
+      "missing_xfo",
+      "missing_vs_pages"
+    ],
+    "hnTitle": "Show HN: Game that determines which LLMs you can beat at Language Processing"
+  },
+  {
+    "slug": "bindler",
+    "productName": "Tether",
+    "targetUrl": "https://bindler.co",
+    "domain": "bindler.co",
+    "founderContact": "bindler540@gmail.com",
+    "detectedLeaks": [
+      "missing_xfo",
+      "missing_vs_pages"
+    ],
+    "hnTitle": "Show HN: Tether – ask your dev machine a question from your phone"
+  }
+]

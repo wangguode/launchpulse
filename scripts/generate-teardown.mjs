@@ -1750,6 +1750,7 @@ async function processTarget(browser, target) {
 }
 
 async function main() {
+  const fromQueue = process.argv.includes("--from-queue");
   const onlyArgIdx = process.argv.indexOf("--only");
   const onlySlugs =
     onlyArgIdx !== -1 && process.argv[onlyArgIdx + 1]
@@ -1761,9 +1762,38 @@ async function main() {
         )
       : null;
 
-  const selectedTargets = onlySlugs
+  let selectedTargets = onlySlugs
     ? PRESET_TARGETS.filter((t) => onlySlugs.has(t.slug))
     : PRESET_TARGETS;
+
+  if (fromQueue) {
+    const qPath = path.join(ROOT, "src", "data", "hunt-queue.json");
+    if (fs.existsSync(qPath)) {
+      const queued = JSON.parse(fs.readFileSync(qPath, "utf8"));
+      selectedTargets = queued.slice(0, 3).map((q) => {
+        const words = (q.hnTitle || q.productName || q.domain)
+          .replace(/^Show HN:\s*/i, "")
+          .replace(/[^a-zA-Z0-9\s]/g, " ")
+          .split(/\s+/)
+          .filter((w) => w.length >= 4)
+          .slice(0, 3);
+        const phrase = words.join(" ") || q.productName;
+        return {
+          slug: q.slug,
+          productName: q.productName,
+          targetUrl: q.targetUrl,
+          founderContact: q.founderContact,
+          competitorNames: ["legacy alternatives"],
+          searchQueries: {
+            hn: [phrase, words[0] || q.productName],
+            github: [phrase],
+            reddit: [phrase],
+          },
+          replyTemplateHint: `Show how ${q.productName} directly solves this workflow without heavy setup.`,
+        };
+      });
+    }
+  }
 
   const browser = await chromium.launch({
     executablePath: CHROME_PATH,

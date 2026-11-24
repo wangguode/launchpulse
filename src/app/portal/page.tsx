@@ -36,6 +36,29 @@ export default function CustomerPortalPage() {
   const [leadStatuses, setLeadStatuses] = useState<Record<string, "new" | "replied" | "won">>({});
   const [rescanLoading, setRescanLoading] = useState(false);
   const [rescanResult, setRescanResult] = useState<LiveRescanResult | null>(null);
+  const [dfyLoading, setDfyLoading] = useState(false);
+
+  const startDfyCheckout = async () => {
+    if (!activeReport) return;
+    setDfyLoading(true);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan: "dfy",
+          slug: activeReport.slug,
+          targetUrl: activeReport.targetUrl,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      }
+    } finally {
+      setDfyLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -407,14 +430,15 @@ export default function CustomerPortalPage() {
                     headers, ships 5 competitor <code>/vs/</code> pages, and runs a 7-day
                     non-spam buyer outreach sprint for you.
                   </p>
-                  <a
-                    href={`mailto:hello@statementflow.win?subject=Done-For-You%20Sprint%20for%20${encodeURIComponent(
-                      activeReport.domain
-                    )}`}
-                    className="inline-flex items-center gap-1.5 mt-1 px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition"
+                  <button
+                    onClick={startDfyCheckout}
+                    disabled={dfyLoading}
+                    className="inline-flex items-center gap-1.5 mt-1 px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition cursor-pointer disabled:opacity-60"
                   >
-                    Request $299 Done-For-You Sprint →
-                  </a>
+                    {dfyLoading
+                      ? "Opening Secure Checkout..."
+                      : "Book $299 Done-For-You Sprint →"}
+                  </button>
                 </div>
               </div>
             </div>
