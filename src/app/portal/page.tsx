@@ -99,7 +99,9 @@ export default function CustomerPortalPage() {
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [activeReport, setActiveReport] = useState<StartupAuditReport | null>(null);
+  const [activePlanCode, setActivePlanCode] = useState<"fixpack" | "radar" | "dfy">("radar");
   const [activePlanLabel, setActivePlanLabel] = useState("Growth & Buyer Radar Pro ($29/mo)");
+  const [competitorName, setCompetitorName] = useState("Legacy Competitor");
   const [verifiedUnboundEmail, setVerifiedUnboundEmail] = useState<string | null>(null);
   const [bindUrlInput, setBindUrlInput] = useState("");
   const [bindingSite, setBindingSite] = useState(false);
@@ -177,10 +179,17 @@ export default function CustomerPortalPage() {
           setActiveReport(null);
           setVerifiedUnboundEmail(data.order.customer_email || emailInput);
         }
-        setActivePlanLabel(
+        const pCode: "fixpack" | "radar" | "dfy" =
           data.order.plan === "fixpack"
-            ? "One-Time Launch Fix Pack ($19)"
+            ? "fixpack"
             : data.order.plan === "dfy"
+            ? "dfy"
+            : "radar";
+        setActivePlanCode(pCode);
+        setActivePlanLabel(
+          pCode === "fixpack"
+            ? "One-Time Launch Fix Pack ($19)"
+            : pCode === "dfy"
             ? "Done-For-You Growth Sprint ($299)"
             : "Growth & Buyer Radar Pro ($29/mo)"
         );
@@ -600,49 +609,113 @@ export default function CustomerPortalPage() {
                 </div>
 
                 <div className="space-y-3">
-                  {activeReport.buyerLeads.map((lead) => {
-                    const st = leadStatuses[lead.id] || "new";
-                    return (
-                      <div
-                        key={lead.id}
-                        className="rounded-xl border border-white/10 bg-[#0c1018] p-4 space-y-2.5"
+                  {activePlanCode === "fixpack" ? (
+                    <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-5 space-y-3">
+                      <p className="text-sm font-bold text-white">
+                        24/7 Buyer Intent Radar is included in Radar Pro ($29/mo)
+                      </p>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        Your One-Time Fix Pack ($19) unlocks all Cursor prompts, /llms.txt, and
+                        unlimited Re-Scans on the left. Upgrade to Radar Pro to unlock daily fresh
+                        community buyer threads and weekly competitor /vs/ landing pages.
+                      </p>
+                      <button
+                        onClick={async () => {
+                          const r = await fetch("/api/checkout", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              plan: "radar",
+                              slug: activeReport.slug,
+                              targetUrl: activeReport.targetUrl,
+                            }),
+                          });
+                          const d = await r.json();
+                          if (r.ok && d.checkoutUrl) window.location.href = d.checkoutUrl;
+                        }}
+                        className="px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs cursor-pointer"
                       >
-                        <div className="flex items-center justify-between gap-2 text-xs font-[family-name:var(--font-mono)]">
-                          <span className="text-emerald-300">
-                            {lead.source} · {lead.community} · {lead.postedAt}
-                          </span>
-                          <button
-                            onClick={() => cycleLeadStatus(lead)}
-                            className={`px-2 py-0.5 rounded uppercase text-[10px] font-bold cursor-pointer ${
-                              st === "won"
-                                ? "bg-emerald-500 text-slate-950"
-                                : st === "replied"
-                                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                                : "bg-white/10 text-slate-300"
-                            }`}
-                          >
-                            {st}
-                          </button>
+                        Upgrade to Buyer Radar Pro ($29/mo) →
+                      </button>
+                    </div>
+                  ) : (
+                    activeReport.buyerLeads.map((lead) => {
+                      const st = leadStatuses[lead.id] || "new";
+                      return (
+                        <div
+                          key={lead.id}
+                          className="rounded-xl border border-white/10 bg-[#0c1018] p-4 space-y-2.5"
+                        >
+                          <div className="flex items-center justify-between gap-2 text-xs font-[family-name:var(--font-mono)]">
+                            <span className="text-emerald-300">
+                              {lead.source} · {lead.community} · {lead.postedAt}
+                            </span>
+                            <button
+                              onClick={() => cycleLeadStatus(lead)}
+                              className={`px-2 py-0.5 rounded uppercase text-[10px] font-bold cursor-pointer ${
+                                st === "won"
+                                  ? "bg-emerald-500 text-slate-950"
+                                  : st === "replied"
+                                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                                  : "bg-white/10 text-slate-300"
+                              }`}
+                            >
+                              {st}
+                            </button>
+                          </div>
+                          <h3 className="text-sm font-semibold text-white">{lead.title}</h3>
+                          <p className="text-xs text-slate-400 leading-relaxed">{lead.excerpt}</p>
+                          <p className="text-[11px] text-emerald-300/90 bg-emerald-500/10 border border-emerald-500/20 rounded p-2">
+                            <strong>Suggested reply angle:</strong> {lead.suggestedReplyAngle}
+                          </p>
+                          <div className="flex justify-end">
+                            <a
+                              href={lead.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:underline"
+                            >
+                              Open Live Thread &amp; Reply <ArrowUpRight className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
                         </div>
-                        <h3 className="text-sm font-semibold text-white">{lead.title}</h3>
-                        <p className="text-xs text-slate-400 leading-relaxed">{lead.excerpt}</p>
-                        <p className="text-[11px] text-emerald-300/90 bg-emerald-500/10 border border-emerald-500/20 rounded p-2">
-                          <strong>Suggested reply angle:</strong> {lead.suggestedReplyAngle}
-                        </p>
-                        <div className="flex justify-end">
-                          <a
-                            href={lead.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:underline"
-                          >
-                            Open Live Thread &amp; Reply <ArrowUpRight className="w-3.5 h-3.5" />
-                          </a>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
+
+                {/* V42：一键生成 SEO 竞品对比落地页 (/vs/competitor) 源码 */}
+                {activePlanCode !== "fixpack" && (
+                  <div className="rounded-xl border border-white/10 bg-[#0c1018] p-5 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-400 uppercase font-semibold">
+                        SEO Competitor /vs/ Page Generator
+                      </span>
+                      <button
+                        onClick={() =>
+                          copyText(
+                            "vs-page",
+                            `# ${activeReport.productName} vs ${competitorName} (2026 Comparison)\n\nLooking for a faster, simpler alternative to ${competitorName}? Here is an honest side-by-side breakdown.\n\n## Why teams switch to ${activeReport.productName}\n- Positioning: ${activeReport.tagline}\n- Zero bloat setup at ${activeReport.targetUrl}\n- Transparent developer-first pricing\n\n## Quick Migration Checklist\n1. Export your existing config from ${competitorName}\n2. Connect your workspace in ${activeReport.productName}\n3. Verify live alerts & workflows in under 5 minutes\n`
+                          )
+                        }
+                        className="text-xs px-2.5 py-1 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 cursor-pointer"
+                      >
+                        {copiedId === "vs-page" ? "Copied Markdown!" : "Copy /vs/ Markdown"}
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={competitorName}
+                      onChange={(e) => setCompetitorName(e.target.value)}
+                      placeholder="Competitor name (e.g. UptimeRobot)"
+                      className="w-full rounded-lg border border-white/15 bg-black/50 px-3 py-2 text-xs font-[family-name:var(--font-mono)] text-white"
+                    />
+                    <p className="text-[11px] text-slate-400">
+                      Generates a ready-to-publish <code>/vs/{competitorName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}</code>{" "}
+                      comparison page targeting high-intent buyers searching &ldquo;{competitorName} alternative&rdquo;.
+                    </p>
+                  </div>
+                )}
 
                 {/* $299 Done-For-You 高毛利升级入口 */}
                 <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 p-5 space-y-2.5">

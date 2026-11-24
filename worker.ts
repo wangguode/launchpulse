@@ -57,6 +57,38 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Content-Security-Policy": "frame-ancestors 'none'",
 };
 
+/**
+ * V07：基于 CF-Connecting-IP 的轻量滑动窗口限流（单实例每分钟上限 25 次，防刷爆 D1/扫描配额）
+ */
+const ipRateWindow = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(request: Request, maxPerMinute = 25): boolean {
+  const ip = request.headers.get("cf-connecting-ip") || "unknown";
+  const now = Date.now();
+  const entry = ipRateWindow.get(ip);
+  if (!entry || now > entry.resetAt) {
+    ipRateWindow.set(ip, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (entry.count >= maxPerMinute) return false;
+  entry.count += 1;
+  return true;
+}
+
+async function logAdminAudit(env: Env, request: Request, action: string, targetSlug = "") {
+  if (!env.DB) return;
+  try {
+    const ip = request.headers.get("cf-connecting-ip") || "";
+    await env.DB.prepare(
+      `INSERT INTO admin_audit_logs (action, target_slug, ip) VALUES (?1, ?2, ?3)`
+    )
+      .bind(action, targetSlug, ip)
+      .run();
+  } catch {
+    // ignore
+  }
+}
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -150,11 +182,13 @@ async function handleLiveScan(request: Request): Promise<Response> {
     const origin = target.origin;
     const domain = target.hostname.replace(/^www\./, "");
 
+    const t0 = Date.now();
     const [homeRes, llmsRes, sitemapRes] = await Promise.all([
       safeGet(target.toString(), 6500),
       safeGet(`${origin}/llms.txt`, 4500),
       safeGet(`${origin}/sitemap.xml`, 4500),
     ]);
+    const ttfbMs = Date.now() - t0;
 
     if (!homeRes.status) {
       return jsonResponse(
@@ -249,6 +283,14 @@ async function handleLiveScan(request: Request): Promise<Response> {
           ? "Missing OpenGraph og:image social preview card"
           : `Short meta description (${metaDesc.length} chars vs 145–158 optimal)`,
         evidence: `Sub-optimal social & SERP preview snippet on ${domain}.`,
+      });
+    }
+    if (ttfbMs > 1200) {
+      leaks.push({
+        severity: "high",
+        category: "Conversion UX",
+        title: `Slow initial server response (${ttfbMs}ms TTFB > 1,200ms threshold)`,
+        evidence: `Edge probe to ${origin} took ${ttfbMs}ms; slow first paint increases mobile bounce rates by 15%+.`,
       });
     }
 
@@ -550,20 +592,36 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
       if (email) {
         const evt = (payload.eventType || "").toLowerCase();
         const isRevoke = /cancel|expire|refund|dispute|revok/.test(evt);
+        const isPaymentFailed = /payment_failed|failed|past_due/.test(evt);
 
-        if (isRevoke) {
+        if (isPaymentFailed) {
+          // V13：续费失败自动发送宽限期提醒邮件
+          await sendResendEmail(env, {
+            to: email,
+            subject: "Action needed: Update payment method for LaunchPulse Buyer Radar",
+            text: [
+              "Hi there,",
+              "",
+              "Your recent renewal payment for LaunchPulse Buyer Radar Pro could not be processed.",
+              "Your workspace remains active during a 3-day grace period. Please update your billing card in Creem or reply to hello@statementflow.win for help.",
+              "",
+              "— LaunchPulse Team",
+            ].join("\n"),
+          });
+        } else if (isRevoke) {
           await env.DB.prepare(
             `UPDATE customers_orders SET status = ?1 WHERE order_id = ?2 OR customer_email = ?3`
           )
             .bind(/refund|dispute/.test(evt) ? "refunded" : "canceled", orderId, email)
             .run();
         } else {
+          const expiresAt = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
           await env.DB.prepare(
-            `INSERT INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', ?7)
-             ON CONFLICT(order_id) DO UPDATE SET status = 'active'`
+            `INSERT INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token, token_expires_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', ?7, ?8)
+             ON CONFLICT(order_id) DO UPDATE SET status = 'active', token_expires_at = ?8`
           )
-            .bind(orderId, email, slug, targetUrl, plan, amountUsd, magicToken)
+            .bind(orderId, email, slug, targetUrl, plan, amountUsd, magicToken, expiresAt)
             .run();
 
           if (slug) {
@@ -618,16 +676,20 @@ async function handlePortalLookup(request: Request, env: Env): Promise<Response>
 
     if (token) {
       const order = await env.DB.prepare(
-        `SELECT order_id, customer_email, slug, target_url, plan, amount_usd, status, created_at
+        `SELECT order_id, customer_email, slug, target_url, plan, amount_usd, status, token_expires_at, created_at
          FROM customers_orders WHERE magic_token = ?1 AND status = 'active' LIMIT 1`
       )
         .bind(token)
-        .first<{ customer_email: string }>();
+        .first<{ customer_email: string; token_expires_at?: string }>();
 
-      if (!order) {
+      const isExpired =
+        Boolean(order?.token_expires_at) &&
+        new Date(order!.token_expires_at!).getTime() < Date.now();
+
+      if (!order || isExpired) {
         return jsonResponse({
           found: false,
-          message: "Invalid or expired Magic Token. Enter your checkout email to receive a fresh login link.",
+          message: "Invalid or expired Magic Token. Enter your checkout email to receive a fresh 30-day login link.",
         });
       }
 
@@ -653,14 +715,23 @@ async function handlePortalLookup(request: Request, env: Env): Promise<Response>
         .first<{ magic_token: string; slug: string; plan: string }>();
 
       if (order) {
+        // V08：每次重发 Magic Link 自动轮换新 Token 并续期 30 天
+        const rotatedToken = crypto.randomUUID().replace(/-/g, "");
+        const newExpiry = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
+        await env.DB.prepare(
+          `UPDATE customers_orders SET magic_token = ?1, token_expires_at = ?2 WHERE customer_email = ?3 AND status = 'active'`
+        )
+          .bind(rotatedToken, newExpiry, email)
+          .run();
+
         const origin = new URL(request.url).origin;
         const targetLink =
           body.slug || order.slug
-            ? `${origin}/audit/${encodeURIComponent(body.slug || order.slug)}?token=${order.magic_token}`
-            : `${origin}/portal?token=${order.magic_token}`;
+            ? `${origin}/audit/${encodeURIComponent(body.slug || order.slug)}?token=${rotatedToken}`
+            : `${origin}/portal?token=${rotatedToken}`;
         await sendResendEmail(env, {
           to: email,
-          subject: "Your LaunchPulse Magic Login Link",
+          subject: "Your LaunchPulse Magic Login Link (Valid 30 Days)",
           text: `Click below to securely unlock your LaunchPulse workspace:\n\n${targetLink}\n\n— LaunchPulse`,
         });
       }
@@ -710,18 +781,22 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/scan" && request.method === "POST") {
+      if (!checkRateLimit(request, 20)) return jsonResponse({ error: "Rate limit exceeded. Try again in 60s." }, 429);
       return handleLiveScan(request);
     }
     if (url.pathname === "/api/track" && request.method === "POST") {
+      if (!checkRateLimit(request, 60)) return jsonResponse({ ok: true, throttled: true }, 429);
       return handleTrack(request, env);
     }
     if (url.pathname === "/api/checkout" && request.method === "POST") {
+      if (!checkRateLimit(request, 15)) return jsonResponse({ error: "Too many checkout attempts." }, 429);
       return handleCheckout(request, env);
     }
     if (url.pathname === "/api/webhook" && request.method === "POST") {
       return handleWebhook(request, env);
     }
     if (url.pathname === "/api/portal/lookup" && request.method === "POST") {
+      if (!checkRateLimit(request, 15)) return jsonResponse({ error: "Too many lookup attempts." }, 429);
       return handlePortalLookup(request, env);
     }
     if (url.pathname === "/api/portal/verify-unlock" && request.method === "POST") {
@@ -800,6 +875,7 @@ export default {
       }
     }
     if (url.pathname === "/api/admin/overview" && request.method === "GET") {
+      await logAdminAudit(env, request, "overview_read");
       return handleAdminOverview(request, env);
     }
 
@@ -828,6 +904,7 @@ export default {
         if (!slug || !rep.productName || !rep.targetUrl) {
           return jsonResponse({ error: "Missing required report fields" }, 400);
         }
+        await logAdminAudit(env, request, "ingest_report", slug);
         await env.DB.prepare(
           `INSERT INTO audits_assets (slug, product_name, target_url, domain, overall_score, leaks_count, leads_count, video_url, poster_url, report_json, scanned_at)
            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, datetime('now'))

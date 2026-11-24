@@ -9,6 +9,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import dns from "node:dns/promises";
 
 const ROOT = process.cwd();
 const EXISTING_AUDITS_PATH = path.join(ROOT, "src", "data", "generated-audits.json");
@@ -44,19 +45,35 @@ const BAD_EMAIL_FRAGMENTS = [
   "name@",
 ];
 
-function loadExistingDomains() {
-  const set = new Set();
+function loadExistingTrackers() {
+  const domains = new Set();
+  const emails = new Set();
   if (fs.existsSync(EXISTING_AUDITS_PATH)) {
     try {
       const arr = JSON.parse(fs.readFileSync(EXISTING_AUDITS_PATH, "utf8"));
       for (const item of arr) {
-        if (item.domain) set.add(item.domain.toLowerCase());
+        if (item.domain) domains.add(item.domain.toLowerCase());
+        if (item.founderContact) emails.add(item.founderContact.toLowerCase());
       }
     } catch {
       // ignore
     }
   }
-  return set;
+  return { domains, emails };
+}
+
+/**
+ * V35：前置验活目标邮箱域名 MX 记录，过滤无效死邮箱以保护发信信誉
+ */
+async function hasValidEmailMx(email) {
+  const domain = (email.split("@")[1] || "").trim().toLowerCase();
+  if (!domain) return false;
+  try {
+    const mx = await dns.resolveMx(domain);
+    return Array.isArray(mx) && mx.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 async function passiveFetch(url, timeoutMs = 6000) {
@@ -81,8 +98,10 @@ async function passiveFetch(url, timeoutMs = 6000) {
 
 async function main() {
   const limit = Number(process.argv[2] || 6);
-  const existingDomains = loadExistingDomains();
-  console.log(`🔎 Hunting fresh commercial SaaS launches (already tracked: ${existingDomains.size})...`);
+  const { domains: existingDomains, emails: existingEmails } = loadExistingTrackers();
+  console.log(
+    `🔎 Hunting fresh commercial SaaS launches (tracked domains: ${existingDomains.size}, emails: ${existingEmails.size})...`
+  );
 
   const hnRes = await fetch(
     "https://hn.algolia.com/api/v1/search_by_date?tags=show_hn&hitsPerPage=100"
@@ -119,9 +138,13 @@ async function main() {
 
     const rawEmails = home.text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
     const emails = [...new Set(rawEmails)].filter(
-      (e) => !BAD_EMAIL_FRAGMENTS.some((bad) => e.toLowerCase().includes(bad))
+      (e) =>
+        !BAD_EMAIL_FRAGMENTS.some((bad) => e.toLowerCase().includes(bad)) &&
+        !existingEmails.has(e.toLowerCase())
     );
     if (emails.length === 0) continue;
+    const validMx = await hasValidEmailMx(emails[0]);
+    if (!validMx) continue;
 
     const llms = await passiveFetch(`${parsed.origin}/llms.txt`, 4000);
     const llmsMissing = !llms.ok || /<!doctype html|<html[\s>]/i.test(llms.text.slice(0, 300));

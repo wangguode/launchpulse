@@ -1815,6 +1815,14 @@ async function main() {
           console.warn(
             `⚠️ [Circuit Breaker] Skipping ${target.productName}: leaks=${auditResult.leaks.length}, leads=${buyerLeads.length}`
           );
+          // V27：熔断跳过自动清理临时截图，永不残留废图
+          for (const p of [
+            auditResult.screenshots.heroPath,
+            auditResult.screenshots.midPath,
+            auditResult.screenshots.mobilePath,
+          ]) {
+            if (p && fs.existsSync(p)) fs.unlinkSync(p);
+          }
           continue;
         }
         const workDir = path.join(TMP_ROOT, target.slug);

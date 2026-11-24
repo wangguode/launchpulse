@@ -88,10 +88,22 @@ async function main() {
   }
   fs.writeFileSync(path.join(OPS_DATA_DIR, "crm-outreach.csv"), csvLines.join("\n"), "utf8");
 
-  console.log(`\n📊 LaunchPulse Live Ops Snapshot (${data.syncedAt})`);
+  const totalSent = (data.outreach || []).length;
+  const openedCount = (data.outreach || []).filter((r) => Number(r.page_views || 0) > 0).length;
+  const openRatePct = totalSent > 0 ? Math.round((openedCount / totalSent) * 100) : 0;
+  const activeOrders = (data.orders || []).filter((o) => o.status === "active");
+  const totalRevenueUsd = activeOrders.reduce((acc, o) => acc + Number(o.amount_usd || 0), 0);
+  const activeMrrUsd = activeOrders
+    .filter((o) => o.plan === "radar")
+    .reduce((acc, o) => acc + Number(o.amount_usd || 0), 0);
+
+  console.log(`\n📊 LaunchPulse Live Ops & Revenue Snapshot (${data.syncedAt})`);
   console.log("=".repeat(68));
   console.log(
-    `Targets: ${data.leads.length} | Emailed/Tracked: ${data.outreach.length} | Paid Orders: ${data.orders.length} | Hot Follow-ups: ${hotFollowups.length}`
+    `Targets: ${data.leads.length} | Sent: ${totalSent} | Open Rate: ${openRatePct}% | Hot Follow-ups: ${hotFollowups.length}`
+  );
+  console.log(
+    `💰 Active Orders: ${activeOrders.length} | Total Revenue: $${totalRevenueUsd} | Active MRR: $${activeMrrUsd}/mo`
   );
   console.log("\n🔥 Outreach & Video Watch Heatmap:");
   for (const row of data.outreach) {

@@ -690,6 +690,16 @@ export default function WarRoomClient({ report }: Props) {
         </section>
       </main>
 
+      {/* V39：右下角极简即时提问浮窗，降低付费前最后一秒顾虑 */}
+      <a
+        href={`mailto:hello@statementflow.win?subject=${encodeURIComponent(
+          `Question about ${report.productName} LaunchPulse teardown`
+        )}`}
+        className="fixed bottom-5 right-5 z-40 px-3.5 py-2 rounded-full bg-[#0f1724]/95 border border-emerald-500/40 hover:border-emerald-400 text-xs font-[family-name:var(--font-mono)] text-emerald-300 shadow-xl backdrop-blur-md transition"
+      >
+        Questions? Email Founder →
+      </a>
+
       <footer className="border-t border-white/10 py-8 mt-12 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p>

@@ -56,6 +56,16 @@ CREATE TABLE IF NOT EXISTS customers_orders (
   amount_usd INTEGER NOT NULL DEFAULT 19,
   status TEXT NOT NULL DEFAULT 'active', -- active | canceled | refunded
   magic_token TEXT UNIQUE NOT NULL,
+  token_expires_at TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 6. 内部管理后台操作审计日志（V09）
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  action TEXT NOT NULL,
+  target_slug TEXT DEFAULT '',
+  ip TEXT DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
