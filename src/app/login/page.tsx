@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
+import BrandMark from "@/components/BrandMark";
 import LangSwitcher from "@/components/LangSwitcher";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { V2_DICTIONARIES } from "@/lib/v2-i18n";
@@ -55,51 +56,49 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#07090d] text-slate-100 obsidian-grid flex flex-col">
-      <header className="border-b border-white/10 bg-[#07090d]/90 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+    <div className="min-h-screen bg-[var(--apple-bg)] text-[var(--apple-ink)] flex flex-col">
+      <header className="sticky top-0 z-30 apple-glass border-b border-[var(--apple-border)]">
+        <div className="max-w-[1080px] mx-auto px-4 sm:px-6 h-12 flex items-center justify-between">
           <Link
             href="/"
-            className="flex items-center gap-2 font-[family-name:var(--font-display)] font-bold text-white tracking-tight"
+            className="flex items-center gap-2 font-semibold text-[15px] tracking-tight text-[var(--apple-ink)]"
           >
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#10b981]" />
+            <BrandMark className="w-5 h-5" />
             <span>LaunchPulse</span>
           </Link>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <ThemeSwitcher />
             <LangSwitcher />
-            <Link href="/" className="text-xs text-slate-400 hover:text-white transition">
-              {t.common.backToHome}
-            </Link>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0c1018] p-7 sm:p-8 shadow-2xl space-y-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-[11px] font-[family-name:var(--font-mono)]">
-              <ShieldCheck className="w-3.5 h-3.5" /> {v2.auth.badge}
+      <main className="flex-1 flex items-center justify-center px-4 py-14">
+        <div className="w-full max-w-[400px] rounded-[24px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-8 shadow-[var(--apple-shadow)] space-y-6">
+          <div className="text-center space-y-2">
+            <div className="flex justify-center">
+              <BrandMark className="w-9 h-9" />
             </div>
-            <h1 className="text-2xl font-[family-name:var(--font-display)] font-bold text-white">
+            <h1 className="apple-display text-2xl font-semibold text-[var(--apple-ink)]">
               {mode === "login" ? v2.auth.loginTitle : v2.auth.registerTitle}
             </h1>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <p className="text-[13px] text-[var(--apple-ink-secondary)] leading-relaxed">
               {mode === "login" ? v2.auth.loginSub : v2.auth.registerSub}
             </p>
           </div>
 
-          <div className="grid grid-cols-2 rounded-xl bg-black/40 p-1 border border-white/10 text-xs font-semibold">
+          {/* Apple 分段切换器 */}
+          <div className="grid grid-cols-2 rounded-lg bg-[var(--apple-bg-alt)] border border-[var(--apple-border)] p-0.5 text-[13px]">
             <button
               type="button"
               onClick={() => {
                 setMode("register");
                 setError("");
               }}
-              className={`py-2 rounded-lg transition cursor-pointer ${
+              className={`py-1.5 rounded-md transition cursor-pointer ${
                 mode === "register"
-                  ? "bg-emerald-500 text-slate-950 font-bold"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-[var(--apple-surface)] text-[var(--apple-ink)] font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                  : "text-[var(--apple-ink-secondary)] hover:text-[var(--apple-ink)]"
               }`}
             >
               {v2.auth.tabRegister}
@@ -110,10 +109,10 @@ export default function LoginPage() {
                 setMode("login");
                 setError("");
               }}
-              className={`py-2 rounded-lg transition cursor-pointer ${
+              className={`py-1.5 rounded-md transition cursor-pointer ${
                 mode === "login"
-                  ? "bg-emerald-500 text-slate-950 font-bold"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-[var(--apple-surface)] text-[var(--apple-ink)] font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                  : "text-[var(--apple-ink-secondary)] hover:text-[var(--apple-ink)]"
               }`}
             >
               {v2.auth.tabLogin}
@@ -123,31 +122,37 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "register" && (
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-300">{v2.auth.nameLabel}</label>
+                <label className="text-[12px] font-medium text-[var(--apple-ink-secondary)]">
+                  {v2.auth.nameLabel}
+                </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={v2.auth.namePlaceholder}
-                  className="w-full rounded-xl border border-white/15 bg-black/50 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
+                  className="w-full rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[16px] sm:text-[14px] text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
                 />
               </div>
             )}
 
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-300">{v2.auth.emailLabel}</label>
+              <label className="text-[12px] font-medium text-[var(--apple-ink-secondary)]">
+                {v2.auth.emailLabel}
+              </label>
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={v2.auth.emailPlaceholder}
-                className="w-full rounded-xl border border-white/15 bg-black/50 px-3.5 py-2.5 text-sm font-[family-name:var(--font-mono)] text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
+                className="w-full rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[16px] sm:text-[14px] text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-300">{v2.auth.passwordLabel}</label>
+              <label className="text-[12px] font-medium text-[var(--apple-ink-secondary)]">
+                {v2.auth.passwordLabel}
+              </label>
               <input
                 type="password"
                 required
@@ -155,41 +160,36 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={v2.auth.passwordPlaceholder}
-                className="w-full rounded-xl border border-white/15 bg-black/50 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
+                className="w-full rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[16px] sm:text-[14px] text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
               />
             </div>
 
-            {error && (
-              <p className="text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-                {error}
-              </p>
-            )}
+            {error && <p className="text-[12px] text-[var(--apple-red)]">{error}</p>}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+              className="w-full py-2.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white font-medium text-[14px] transition inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
             >
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" /> {v2.auth.submitting}
                 </>
+              ) : mode === "login" ? (
+                v2.auth.loginBtn
               ) : (
-                <>
-                  {mode === "login" ? v2.auth.loginBtn : v2.auth.registerBtn}
-                  <ArrowRight className="w-4 h-4" />
-                </>
+                v2.auth.registerBtn
               )}
             </button>
           </form>
 
-          <div className="pt-4 border-t border-white/10 flex flex-col gap-1.5 text-xs text-slate-400">
-            <span>{v2.auth.portalHint}</span>
+          <div className="pt-4 border-t border-[var(--apple-border)] text-center space-y-1 text-[12px] text-[var(--apple-ink-secondary)]">
+            <p>{v2.auth.portalHint}</p>
             <Link
               href="/portal"
-              className="inline-flex items-center gap-1.5 text-emerald-400 hover:underline font-medium"
+              className="inline-flex items-center gap-0.5 text-[var(--apple-blue)] hover:underline"
             >
-              <KeyRound className="w-3.5 h-3.5" /> {v2.auth.portalLink}
+              {v2.auth.portalLink} <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         </div>

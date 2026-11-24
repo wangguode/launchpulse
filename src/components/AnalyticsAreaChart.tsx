@@ -16,8 +16,8 @@ interface Props {
 }
 
 /**
- * 业界标准（Dub.co / Plausible 风格）交互式双曲线面积图
- * 支持 7D / 14D / 30D 切换、悬停精准 Tooltip、自适应亮/暗双主题
+ * Apple App Store Connect 风格交互式面积折线图
+ * 单一品牌蓝主曲线 + 克制次级虚线 + 3 条极淡水平网格线 + Apple 分段周期切换器
  */
 export default function AnalyticsAreaChart({
   series,
@@ -30,11 +30,11 @@ export default function AnalyticsAreaChart({
 
   const visible = series.slice(-range);
   const width = 760;
-  const height = 220;
-  const padL = 36;
-  const padR = 16;
-  const padT = 16;
-  const padB = 28;
+  const height = 210;
+  const padL = 34;
+  const padR = 14;
+  const padT = 14;
+  const padB = 26;
   const innerW = width - padL - padR;
   const innerH = height - padT - padB;
 
@@ -57,23 +57,23 @@ export default function AnalyticsAreaChart({
   const hovered = hoverIdx !== null ? visible[hoverIdx] : null;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-5 sm:p-6 space-y-4">
+    <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-5 sm:p-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <h2 className="text-base font-bold text-white">{title}</h2>
-          <div className="flex items-center gap-4 text-xs">
-            <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+          <h2 className="text-[15px] font-semibold text-[var(--apple-ink)]">{title}</h2>
+          <div className="flex items-center gap-4 text-[12px] text-[var(--apple-ink-secondary)]">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[var(--apple-blue)]" />
               {clicksLabel}
             </span>
-            <span className="inline-flex items-center gap-1.5 text-amber-400 font-medium">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[var(--apple-green-dot)]" />
               {conversionsLabel}
             </span>
           </div>
         </div>
 
-        <div className="inline-flex items-center rounded-lg border border-white/15 bg-black/40 p-0.5 text-xs font-[family-name:var(--font-mono)]">
+        <div className="inline-flex items-center rounded-lg bg-[var(--apple-bg-alt)] border border-[var(--apple-border)] p-0.5 text-[12px]">
           {([7, 14, 30] as const).map((r) => (
             <button
               key={r}
@@ -82,10 +82,10 @@ export default function AnalyticsAreaChart({
                 setRange(r);
                 setHoverIdx(null);
               }}
-              className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+              className={`px-3 py-1 rounded-md transition cursor-pointer ${
                 range === r
-                  ? "bg-emerald-500 text-slate-950 font-bold"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-[var(--apple-surface)] text-[var(--apple-ink)] font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                  : "text-[var(--apple-ink-secondary)] hover:text-[var(--apple-ink)]"
               }`}
             >
               {r}D
@@ -94,20 +94,20 @@ export default function AnalyticsAreaChart({
         </div>
       </div>
 
-      {/* 悬停实时数据条 */}
-      <div className="h-6 flex items-center text-xs font-[family-name:var(--font-mono)] text-slate-400 tabular-nums">
+      <div className="h-5 flex items-center text-[12px] text-[var(--apple-ink-secondary)] tabular-nums">
         {hovered ? (
           <div className="flex flex-wrap items-center gap-4">
-            <span className="text-white font-semibold">{hovered.date}</span>
-            <span className="text-emerald-400">
-              {clicksLabel}: <strong>{hovered.clicks}</strong>
+            <span className="font-semibold text-[var(--apple-ink)]">{hovered.date}</span>
+            <span>
+              {clicksLabel}: <strong className="text-[var(--apple-blue)]">{hovered.clicks}</strong>
             </span>
-            <span className="text-amber-400">
-              {conversionsLabel}: <strong>{hovered.conversions}</strong>
+            <span>
+              {conversionsLabel}:{" "}
+              <strong className="text-[var(--apple-green)]">{hovered.conversions}</strong>
             </span>
             <span>
               CVR:{" "}
-              <strong>
+              <strong className="text-[var(--apple-ink)]">
                 {hovered.clicks > 0
                   ? `${((hovered.conversions / hovered.clicks) * 100).toFixed(1)}%`
                   : "0.0%"}
@@ -124,17 +124,16 @@ export default function AnalyticsAreaChart({
       <div className="w-full overflow-x-auto">
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-52 sm:h-56 select-none overflow-visible"
+          className="w-full h-52 select-none overflow-visible"
           onMouseLeave={() => setHoverIdx(null)}
         >
           <defs>
-            <linearGradient id="lpClicksGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.32" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+            <linearGradient id="appleBlueGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--apple-blue)" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="var(--apple-blue)" stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
-          {/* 水平参考网格线与 Y 轴刻度 */}
           {yTicks.map((tick) => {
             const y = getY(tick);
             return (
@@ -145,16 +144,15 @@ export default function AnalyticsAreaChart({
                   x2={width - padR}
                   y2={y}
                   stroke="currentColor"
-                  strokeOpacity={0.12}
-                  strokeDasharray="4 4"
+                  strokeOpacity={0.09}
                 />
                 <text
                   x={padL - 8}
-                  y={y + 4}
+                  y={y + 3.5}
                   textAnchor="end"
                   fontSize="10"
                   fill="currentColor"
-                  opacity={0.55}
+                  opacity={0.48}
                 >
                   {tick}
                 </text>
@@ -162,14 +160,13 @@ export default function AnalyticsAreaChart({
             );
           })}
 
-          {/* 面积填充 + 折线 */}
-          {clickAreaPath && <path d={clickAreaPath} fill="url(#lpClicksGrad)" />}
+          {clickAreaPath && <path d={clickAreaPath} fill="url(#appleBlueGrad)" />}
           {clickLinePath && (
             <path
               d={clickLinePath}
               fill="none"
-              stroke="#10b981"
-              strokeWidth="2.4"
+              stroke="var(--apple-blue)"
+              strokeWidth="2.2"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
@@ -178,15 +175,14 @@ export default function AnalyticsAreaChart({
             <path
               d={convLinePath}
               fill="none"
-              stroke="#f59e0b"
-              strokeWidth="2"
-              strokeDasharray="5 3"
+              stroke="var(--apple-green-dot)"
+              strokeWidth="1.8"
+              strokeDasharray="4 3"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           )}
 
-          {/* X 轴标签 + 交互热区 */}
           {visible.map((d, i) => {
             const x = getX(i);
             const showLabel =
@@ -201,7 +197,7 @@ export default function AnalyticsAreaChart({
                     textAnchor="middle"
                     fontSize="10"
                     fill="currentColor"
-                    opacity={0.55}
+                    opacity={0.48}
                   >
                     {d.date.slice(5)}
                   </text>
@@ -213,12 +209,12 @@ export default function AnalyticsAreaChart({
                       y1={padT}
                       x2={x}
                       y2={padT + innerH}
-                      stroke="#10b981"
-                      strokeOpacity={0.45}
+                      stroke="var(--apple-blue)"
+                      strokeOpacity={0.35}
                       strokeWidth="1"
                     />
-                    <circle cx={x} cy={getY(d.clicks)} r="4.5" fill="#10b981" />
-                    <circle cx={x} cy={getY(d.conversions)} r="3.5" fill="#f59e0b" />
+                    <circle cx={x} cy={getY(d.clicks)} r="4" fill="var(--apple-blue)" />
+                    <circle cx={x} cy={getY(d.conversions)} r="3.2" fill="var(--apple-green-dot)" />
                   </>
                 )}
                 <rect

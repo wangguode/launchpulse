@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ShieldCheck, Sparkles } from "lucide-react";
+import { Check, ShieldCheck } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 
 export default function PricingCheckoutButtons() {
@@ -32,85 +32,90 @@ export default function PricingCheckoutButtons() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {error && (
-        <div className="max-w-xl mx-auto rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs text-red-200 text-center">
+        <div className="max-w-xl mx-auto rounded-2xl border border-[var(--apple-border)] bg-[var(--apple-surface)] px-4 py-3 text-[13px] text-[var(--apple-red)] text-center">
           {error}
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6 items-stretch">
-        {/* Tier 1: Free Snapshot */}
-        <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-7 flex flex-col justify-between">
+      <div className="grid lg:grid-cols-3 gap-5 items-stretch">
+        {/* Tier 1: Free */}
+        <div className="rounded-[24px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-8 flex flex-col justify-between">
           <div className="space-y-4">
             <div>
-              <p className="text-xs font-[family-name:var(--font-mono)] text-slate-400 uppercase">
+              <p className="text-[12px] font-semibold text-[var(--apple-ink-tertiary)]">
                 {t.pricing.freeLabel}
               </p>
-              <div className="mt-2 flex items-baseline gap-1 tabular-nums">
-                <span className="text-4xl font-[family-name:var(--font-display)] font-bold text-white">
+              <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
+                <span className="apple-display text-4xl font-semibold text-[var(--apple-ink)]">
                   $0
                 </span>
-                <span className="text-xs text-slate-500">{t.pricing.freePeriod}</span>
+                <span className="text-[13px] text-[var(--apple-ink-tertiary)]">
+                  {t.pricing.freePeriod}
+                </span>
               </div>
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed">{t.pricing.freeDesc}</p>
-            <ul className="space-y-2.5 text-xs text-slate-300 pt-2">
-              <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{t.pricing.freeF1}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{t.pricing.freeF2}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{t.pricing.freeF3}</span>
-              </li>
+            <p className="text-[14px] text-[var(--apple-ink-secondary)] leading-relaxed">
+              {t.pricing.freeDesc}
+            </p>
+            <ul className="space-y-2.5 text-[13px] text-[var(--apple-ink-secondary)] pt-2">
+              {[t.pricing.freeF1, t.pricing.freeF2, t.pricing.freeF3].map((f) => (
+                <li key={f} className="flex items-start gap-2.5">
+                  <Check className="w-4 h-4 text-[var(--apple-blue)] shrink-0 mt-0.5" />
+                  <span>{f}</span>
+                </li>
+              ))}
             </ul>
           </div>
 
           <a
             href="#"
-            className="mt-8 w-full py-3 rounded-xl border border-white/15 hover:border-white/35 text-center text-xs font-semibold text-white transition"
+            className="mt-8 w-full py-2.5 rounded-full border border-[var(--apple-border-strong)] hover:bg-[var(--apple-hover)] text-center text-[14px] font-medium text-[var(--apple-ink)] transition"
           >
             {t.pricing.freeBtn}
           </a>
         </div>
 
-        {/* Tier 2: 50+ Directory Distribution Blitz ($39) */}
-        <div className="rounded-2xl border border-amber-500/40 bg-[#0d121c] p-7 flex flex-col justify-between">
+        {/* Tier 2: $39 50+ Directory Blitz */}
+        <div className="rounded-[24px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-8 flex flex-col justify-between">
           <div className="space-y-4">
             <div>
-              <p className="text-xs font-[family-name:var(--font-mono)] text-amber-300 uppercase">
+              <p className="text-[12px] font-semibold text-[var(--apple-ink-tertiary)]">
                 {t.pricing.fixLabel}
               </p>
-              <div className="mt-2 flex items-baseline gap-1 tabular-nums">
-                <span className="text-4xl font-[family-name:var(--font-display)] font-bold text-white">
+              <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
+                <span className="apple-display text-4xl font-semibold text-[var(--apple-ink)]">
                   $39
                 </span>
-                <span className="text-xs text-slate-400">{t.pricing.fixPeriod}</span>
+                <span className="text-[13px] text-[var(--apple-ink-tertiary)]">
+                  {t.pricing.fixPeriod}
+                </span>
               </div>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">{t.pricing.fixDesc}</p>
-            <ul className="space-y-2.5 text-xs text-slate-200 pt-2">
-              <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+            <p className="text-[14px] text-[var(--apple-ink-secondary)] leading-relaxed">
+              {t.pricing.fixDesc}
+            </p>
+            <ul className="space-y-2.5 text-[13px] text-[var(--apple-ink-secondary)] pt-2">
+              <li className="flex items-start gap-2.5">
+                <Check className="w-4 h-4 text-[var(--apple-blue)] shrink-0 mt-0.5" />
                 <span>{t.pricing.fixF1}</span>
               </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+              <li className="flex items-start gap-2.5">
+                <Check className="w-4 h-4 text-[var(--apple-blue)] shrink-0 mt-0.5" />
                 <span>{t.pricing.fixF2}</span>
               </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+              <li className="flex items-start gap-2.5">
+                <Check className="w-4 h-4 text-[var(--apple-blue)] shrink-0 mt-0.5" />
                 <span>{t.pricing.fixF3}</span>
               </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+              <li className="flex items-start gap-2.5">
+                <Check className="w-4 h-4 text-[var(--apple-blue)] shrink-0 mt-0.5" />
                 <span>
-                  <strong>{t.pricing.fixF4Prefix}</strong> {t.pricing.fixF4Text}
+                  <strong className="text-[var(--apple-ink)] font-medium">
+                    {t.pricing.fixF4Prefix}
+                  </strong>{" "}
+                  {t.pricing.fixF4Text}
                 </span>
               </li>
             </ul>
@@ -119,87 +124,82 @@ export default function PricingCheckoutButtons() {
           <button
             onClick={() => startCheckout("blitz")}
             disabled={loading !== null}
-            className="mt-8 w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition cursor-pointer disabled:opacity-60"
+            className="mt-8 w-full py-2.5 rounded-full bg-[var(--apple-ink)] hover:opacity-90 text-[var(--apple-bg)] font-medium text-[14px] transition cursor-pointer disabled:opacity-60"
           >
             {loading === "blitz" ? t.pricing.loadingCheckout : t.pricing.fixBtn}
           </button>
         </div>
 
-        {/* Tier 3: Growth & Buyer Radar Pro ($29/mo) */}
-        <div className="rounded-2xl border-2 border-emerald-500/60 bg-[#0c1520] p-7 flex flex-col justify-between relative shadow-[0_16px_50px_rgba(16,185,129,0.12)]">
-          <span className="absolute -top-3 right-6 px-3 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-bold uppercase tracking-wider">
+        {/* Tier 3: $29/mo Buyer Radar Pro */}
+        <div className="rounded-[24px] border-2 border-[var(--apple-blue)] bg-[var(--apple-surface)] p-8 flex flex-col justify-between relative shadow-[var(--apple-shadow)]">
+          <span className="absolute -top-3 right-7 px-3 py-0.5 rounded-full bg-[var(--apple-blue)] text-white text-[11px] font-medium">
             {t.pricing.radarBadge}
           </span>
 
           <div className="space-y-4">
             <div>
-              <p className="text-xs font-[family-name:var(--font-mono)] text-emerald-300 uppercase">
+              <p className="text-[12px] font-semibold text-[var(--apple-blue)]">
                 {t.pricing.radarLabel}
               </p>
-              <div className="mt-2 flex items-baseline gap-1 tabular-nums">
-                <span className="text-4xl font-[family-name:var(--font-display)] font-bold text-white">
+              <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
+                <span className="apple-display text-4xl font-semibold text-[var(--apple-ink)]">
                   $29
                 </span>
-                <span className="text-xs text-slate-400">{t.pricing.radarPeriod}</span>
+                <span className="text-[13px] text-[var(--apple-ink-tertiary)]">
+                  {t.pricing.radarPeriod}
+                </span>
               </div>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">{t.pricing.radarDesc}</p>
-            <ul className="space-y-2.5 text-xs text-slate-100 pt-2">
-              <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{t.pricing.radarF1}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{t.pricing.radarF2}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{t.pricing.radarF3}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{t.pricing.radarF4}</span>
-              </li>
+            <p className="text-[14px] text-[var(--apple-ink-secondary)] leading-relaxed">
+              {t.pricing.radarDesc}
+            </p>
+            <ul className="space-y-2.5 text-[13px] text-[var(--apple-ink-secondary)] pt-2">
+              {[t.pricing.radarF1, t.pricing.radarF2, t.pricing.radarF3, t.pricing.radarF4].map(
+                (f) => (
+                  <li key={f} className="flex items-start gap-2.5">
+                    <Check className="w-4 h-4 text-[var(--apple-blue)] shrink-0 mt-0.5" />
+                    <span>{f}</span>
+                  </li>
+                )
+              )}
             </ul>
           </div>
 
           <button
             onClick={() => startCheckout("radar")}
             disabled={loading !== null}
-            className="mt-8 w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+            className="mt-8 w-full py-2.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white font-medium text-[14px] transition cursor-pointer disabled:opacity-60"
           >
-            <Sparkles className="w-3.5 h-3.5" />
             {loading === "radar" ? t.pricing.loadingCheckout : t.pricing.radarBtn}
           </button>
         </div>
       </div>
 
-      {/* 高信任感支付保障条（Creem MoR + 7天退款 + 实时发票） */}
-      <div className="rounded-xl border border-white/10 bg-[#0c1018] px-5 py-3.5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-slate-400">
-        <span className="inline-flex items-center gap-1.5 text-slate-200 font-medium">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+      {/* Apple 风格极简信任保障条 */}
+      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12px] text-[var(--apple-ink-secondary)] pt-2">
+        <span className="inline-flex items-center gap-1.5 font-medium text-[var(--apple-ink)]">
+          <ShieldCheck className="w-4 h-4 text-[var(--apple-blue)]" />
           {locale === "zh"
-            ? "Creem.io 合规安全收单（支持信用卡 / Apple Pay）"
+            ? "Creem.io 合规安全收单（信用卡 / Apple Pay）"
             : locale === "ja"
             ? "Creem.io 安全決済（カード / Apple Pay 対応）"
             : "Secured by Creem.io (Card & Apple Pay)"}
         </span>
-        <span>·</span>
+        <span className="opacity-30">·</span>
         <span>
           {locale === "zh"
-            ? "7 天不满意全额退款保障"
+            ? "7 天无理由退款保障"
             : locale === "ja"
             ? "7日間全額返金保証"
             : "7-Day Money-Back Guarantee"}
         </span>
-        <span>·</span>
+        <span className="opacity-30">·</span>
         <span>
           {locale === "zh"
-            ? "订阅随时一键取消 · 自动开具发票"
+            ? "订阅随时一键取消"
             : locale === "ja"
-            ? "いつでも解約可能 · 領収書発行"
-            : "Cancel Anytime · Instant Invoice"}
+            ? "いつでもワンクリック解約"
+            : "Cancel Anytime"}
         </span>
       </div>
     </div>

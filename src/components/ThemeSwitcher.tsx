@@ -14,7 +14,7 @@ export default function ThemeSwitcher() {
 
   return (
     <div
-      className="inline-flex items-center rounded-lg border border-white/15 bg-black/40 p-0.5"
+      className="inline-flex items-center rounded-md border border-[var(--app-border)] bg-[var(--app-subtle)] p-0.5"
       role="group"
       aria-label="Theme switcher"
     >
@@ -27,10 +27,10 @@ export default function ThemeSwitcher() {
             title={item.label}
             aria-label={item.label}
             onClick={() => setMode(item.key)}
-            className={`p-1.5 rounded-md transition cursor-pointer ${
+            className={`p-1 rounded transition cursor-pointer ${
               active
-                ? "bg-emerald-500 text-slate-950"
-                : "text-slate-400 hover:text-white"
+                ? "bg-[var(--app-surface)] text-[var(--app-ink)] shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                : "text-[var(--app-ink-muted)] hover:text-[var(--app-ink)]"
             }`}
           >
             {item.icon}

@@ -1,16 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  AlertCircle,
-  Loader2,
-  Lock,
-  Radar,
-  ShieldAlert,
-  Sparkles,
-} from "lucide-react";
+import { AlertCircle, ChevronRight, Loader2, Lock } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 import {
   decodeHtmlEntities,
@@ -103,7 +94,7 @@ export default function LiveScannerHero() {
     <div className="space-y-8">
       <form
         onSubmit={runLiveScan}
-        className="max-w-2xl mx-auto rounded-2xl border border-white/15 bg-[#0c111b] p-2 shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col sm:flex-row gap-2"
+        className="max-w-xl mx-auto rounded-full border border-[var(--apple-border-strong)] bg-[var(--apple-surface)] p-1.5 shadow-[var(--apple-shadow)] flex flex-col sm:flex-row gap-1.5 focus-within:border-[var(--apple-blue)] transition"
       >
         <input
           type="text"
@@ -111,99 +102,88 @@ export default function LiveScannerHero() {
           onChange={(e) => setUrlInput(e.target.value)}
           placeholder={t.hero.placeholder}
           aria-label={t.hero.placeholder}
-          className="flex-1 bg-transparent px-4 py-3.5 text-sm sm:text-base font-[family-name:var(--font-mono)] text-white placeholder:text-slate-500 focus:outline-none"
+          className="flex-1 bg-transparent px-5 py-2.5 text-[16px] sm:text-[15px] text-[var(--apple-ink)] placeholder:text-[var(--apple-ink-tertiary)] focus:outline-none"
         />
         <button
           type="submit"
           disabled={scanning}
-          className="px-6 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition inline-flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-60"
+          className="px-6 py-2.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white font-medium text-[14px] transition inline-flex items-center justify-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-60"
         >
           {scanning ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" /> {t.hero.scanningBtn}
             </>
           ) : (
-            <>
-              {t.hero.scanBtn} <ArrowRight className="w-4 h-4" />
-            </>
+            t.hero.scanBtn
           )}
         </button>
       </form>
 
       {error && (
-        <div className="max-w-2xl mx-auto rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs sm:text-sm text-red-200 flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+        <div className="max-w-xl mx-auto rounded-2xl border border-[var(--apple-border)] bg-[var(--apple-bg-alt)] px-4 py-3 text-[13px] text-[var(--apple-red)] flex items-center justify-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* 实时边缘无害体检快照面板 */}
       {result && (
-        <div className="max-w-5xl mx-auto rounded-2xl border border-emerald-500/35 bg-[#0b1019] p-6 sm:p-8 text-left space-y-6 shadow-2xl">
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
+        <div className="max-w-4xl mx-auto rounded-[24px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-6 sm:p-8 text-left space-y-6 shadow-[var(--apple-shadow)]">
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[var(--apple-border)]">
             <div>
-              <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-400 uppercase">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--apple-blue)]">
                 {t.scanner.liveSnapshot} · {result.domain}
-              </span>
-              <h3 className="text-xl sm:text-2xl font-[family-name:var(--font-display)] font-bold text-white mt-1">
+              </p>
+              <h3 className="apple-display text-xl sm:text-2xl font-semibold text-[var(--apple-ink)] mt-1">
                 {decodeHtmlEntities(result.title)}
               </h3>
             </div>
-            <div className="flex items-center gap-4 tabular-nums">
-              <div className="text-right">
-                <p className="text-[11px] font-[family-name:var(--font-mono)] text-slate-400">
-                  {t.scanner.readinessScore}
-                </p>
-                <p className="text-3xl font-bold text-amber-400">
-                  {result.score}
-                  <span className="text-sm text-slate-500">/100</span>
-                </p>
-              </div>
+            <div className="text-right tabular-nums">
+              <p className="text-[11px] uppercase tracking-wider text-[var(--apple-ink-tertiary)]">
+                {t.scanner.readinessScore}
+              </p>
+              <p className="text-3xl font-semibold text-[var(--apple-ink)]">
+                {result.score}
+                <span className="text-sm text-[var(--apple-ink-tertiary)] font-normal">/100</span>
+              </p>
             </div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            {/* 左列：实时检出的漏洞 */}
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                <ShieldAlert className="w-4 h-4 text-red-400" />
-                <span>
-                  {t.scanner.detectedLeaks} ({result.leaksCount})
-                </span>
-              </div>
+              <p className="text-[13px] font-semibold text-[var(--apple-ink)]">
+                {t.scanner.detectedLeaks} ({result.leaksCount})
+              </p>
               {result.leaks.map((lk, i) => (
                 <div
                   key={i}
-                  className="rounded-xl border border-white/10 bg-black/40 p-3.5 space-y-1"
+                  className="rounded-2xl border border-[var(--apple-border)] bg-[var(--apple-bg-alt)] p-4 space-y-1"
                 >
-                  <span className="text-[10px] font-[family-name:var(--font-mono)] uppercase text-red-300 bg-red-500/15 px-2 py-0.5 rounded">
+                  <p className="text-[11px] font-medium text-[var(--apple-ink-tertiary)]">
                     {localizeSeverity(lk.severity, locale)} ·{" "}
                     {localizeCategory(lk.category, locale)}
-                  </span>
-                  <p className="text-sm font-semibold text-white">
+                  </p>
+                  <p className="text-[14px] font-medium text-[var(--apple-ink)]">
                     {localizeLeakTitle(lk.title, locale)}
                   </p>
-                  <p className="text-xs text-slate-400 break-words">{lk.evidence}</p>
+                  <p className="text-[12px] text-[var(--apple-ink-secondary)] break-words">
+                    {lk.evidence}
+                  </p>
                 </div>
               ))}
             </div>
 
-            {/* 右列：实时抓到的社区讨论线索 */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                  <Radar className="w-4 h-4 text-emerald-400" />
-                  <span>
-                    {t.scanner.matchedDiscussions} (&ldquo;{result.queryTerm}&rdquo;)
-                  </span>
-                </div>
-                <span className="text-[11px] font-[family-name:var(--font-mono)] text-emerald-300">
+                <p className="text-[13px] font-semibold text-[var(--apple-ink)]">
+                  {t.scanner.matchedDiscussions}
+                </p>
+                <span className="text-[11px] text-[var(--apple-blue)] font-medium">
                   {t.scanner.first3Free}
                 </span>
               </div>
 
               {result.leads.length === 0 ? (
-                <div className="rounded-xl border border-white/10 bg-black/30 p-4 text-xs text-slate-400">
+                <div className="rounded-2xl border border-[var(--apple-border)] bg-[var(--apple-bg-alt)] p-4 text-[13px] text-[var(--apple-ink-secondary)]">
                   {t.scanner.noLeadsFallback} <strong>{result.domain}</strong>.
                 </div>
               ) : (
@@ -211,38 +191,38 @@ export default function LiveScannerHero() {
                   ld.unlocked ? (
                     <div
                       key={idx}
-                      className="rounded-xl border border-emerald-500/30 bg-[#0d1520] p-3.5 space-y-1.5"
+                      className="rounded-2xl border border-[var(--apple-border)] bg-[var(--apple-bg-alt)] p-4 space-y-1.5"
                     >
-                      <div className="flex justify-between text-[11px] font-[family-name:var(--font-mono)] text-emerald-300">
+                      <div className="flex justify-between text-[11px] text-[var(--apple-ink-tertiary)]">
                         <span>
                           #{idx + 1} {ld.source} · {ld.author}
                         </span>
                         <span>{ld.postedAt}</span>
                       </div>
-                      <p className="text-xs font-semibold text-white">
+                      <p className="text-[13px] font-medium text-[var(--apple-ink)]">
                         {decodeHtmlEntities(ld.title)}
                       </p>
-                      <p className="text-xs text-slate-400 line-clamp-2">
+                      <p className="text-[12px] text-[var(--apple-ink-secondary)] line-clamp-2">
                         {decodeHtmlEntities(ld.excerpt)}
                       </p>
                       <a
                         href={ld.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-emerald-400 hover:underline pt-1"
+                        className="inline-flex items-center gap-0.5 text-[12px] text-[var(--apple-blue)] hover:underline pt-1"
                       >
-                        {t.scanner.openLiveThread} <ArrowUpRight className="w-3 h-3" />
+                        {t.scanner.openLiveThread} <ChevronRight className="w-3.5 h-3.5" />
                       </a>
                     </div>
                   ) : (
                     <div
                       key={idx}
-                      className="rounded-xl border border-white/10 bg-black/35 p-3 flex items-center justify-between"
+                      className="rounded-2xl border border-[var(--apple-border)] bg-[var(--apple-bg-alt)] p-3 flex items-center justify-between"
                     >
-                      <span className="text-xs text-slate-400 blur-[4px] select-none truncate">
-                        {decodeHtmlEntities(ld.title)} — {decodeHtmlEntities(ld.excerpt)}
+                      <span className="text-[12px] text-[var(--apple-ink-tertiary)] blur-[4px] select-none truncate">
+                        {decodeHtmlEntities(ld.title)}
                       </span>
-                      <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <Lock className="w-3.5 h-3.5 text-[var(--apple-ink-tertiary)] shrink-0" />
                     </div>
                   )
                 )
@@ -250,8 +230,8 @@ export default function LiveScannerHero() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-slate-300">
+          <div className="pt-5 border-t border-[var(--apple-border)] flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-[13px] text-[var(--apple-ink-secondary)]">
               {t.scanner.upsellPromptPrefix} <strong>{result.domain}</strong>
               {t.scanner.upsellPromptSuffix}
             </p>
@@ -259,16 +239,15 @@ export default function LiveScannerHero() {
               <button
                 onClick={() => triggerCheckout("blitz", result.origin)}
                 disabled={checkoutLoading !== null}
-                className="px-4 py-2.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-xs font-bold text-slate-950 cursor-pointer disabled:opacity-60"
+                className="px-4 py-2 rounded-full border border-[var(--apple-border-strong)] hover:bg-[var(--apple-hover)] text-[13px] font-medium text-[var(--apple-ink)] cursor-pointer transition"
               >
                 {checkoutLoading === "blitz" ? t.common.loading : t.scanner.getBlitzBtn}
               </button>
               <button
                 onClick={() => triggerCheckout("radar", result.origin)}
                 disabled={checkoutLoading !== null}
-                className="px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                className="px-4 py-2 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white text-[13px] font-medium cursor-pointer transition"
               >
-                <Sparkles className="w-3.5 h-3.5" />
                 {checkoutLoading === "radar" ? t.common.loading : t.scanner.startRadarBtn}
               </button>
             </div>

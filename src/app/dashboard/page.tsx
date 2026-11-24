@@ -4,33 +4,28 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Activity,
   ArrowUpRight,
   BarChart3,
   Check,
   Copy,
   CreditCard,
-  DollarSign,
   Globe,
   Link2,
   Loader2,
   LogOut,
   Monitor,
-  MousePointerClick,
-  Percent,
   Radar,
   Rocket,
   ShieldCheck,
   Smartphone,
-  Sparkles,
-  TrendingUp,
 } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
+import BrandMark from "@/components/BrandMark";
 import LangSwitcher from "@/components/LangSwitcher";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import AnalyticsAreaChart from "@/components/AnalyticsAreaChart";
+import DirectoryTable from "@/components/console/DirectoryTable";
 import { V2_DICTIONARIES } from "@/lib/v2-i18n";
-import { DISTRIBUTION_DIRECTORIES } from "@/data/directories";
 
 interface DashboardPayload {
   user: { id: number; email: string; name: string; role: string };
@@ -102,6 +97,8 @@ export default function DashboardPage() {
   const { locale, t } = useI18n();
   const v2 = V2_DICTIONARIES[locale];
   const router = useRouter();
+  const isZh = locale === "zh";
+  const isJa = locale === "ja";
 
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,7 +115,6 @@ export default function DashboardPage() {
   const [newLinkLabel, setNewLinkLabel] = useState("");
   const [newLinkChannel, setNewLinkChannel] = useState("directory");
   const [creatingLink, setCreatingLink] = useState(false);
-
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
@@ -232,16 +228,15 @@ export default function DashboardPage() {
 
   if (loading || !data) {
     return (
-      <main className="min-h-screen bg-[#07090d] text-slate-200 flex flex-col items-center justify-center gap-3">
-        <Loader2 className="w-6 h-6 text-emerald-400 animate-spin" />
-        <p className="text-xs font-[family-name:var(--font-mono)] text-slate-400">
-          {v2.dash.loading}
-        </p>
+      <main className="min-h-screen bg-[var(--apple-bg)] text-[var(--apple-ink-secondary)] flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-5 h-5 text-[var(--apple-blue)] animate-spin" />
+        <p className="text-[13px]">{v2.dash.loading}</p>
       </main>
     );
   }
 
   const activeOrder = data.orders.find((o) => o.status === "active");
+  const activeCampaign = data.campaigns[0];
   const dirMap = new Map(data.directories.map((d) => [d.directory_id, d]));
   const countries = data.stats.countryBreakdown || [];
   const devices = data.stats.deviceBreakdown || [];
@@ -258,292 +253,287 @@ export default function DashboardPage() {
     { key: "billing", label: v2.dash.menuBilling, icon: <CreditCard className="w-4 h-4" /> },
   ];
 
-  const isZh = locale === "zh";
-  const isJa = locale === "ja";
+  const currentMenu = menuItems.find((m) => m.key === tab) || menuItems[0];
 
   return (
-    <div className="min-h-screen bg-[#07090d] text-slate-100 flex flex-col lg:flex-row">
-      {/* 左侧标准 SaaS 导航栏 */}
-      <aside className="lg:w-64 border-b lg:border-b-0 lg:border-r border-white/10 bg-[#0a0e16] flex flex-col justify-between shrink-0">
-        <div className="p-5 space-y-6">
-          <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-[var(--apple-bg)] text-[var(--apple-ink)] flex flex-col lg:flex-row">
+      {/* Apple macOS 极简左侧导航栏 */}
+      <aside className="lg:w-60 border-b lg:border-b-0 lg:border-r border-[var(--apple-border)] bg-[var(--apple-bg-alt)] flex flex-col justify-between shrink-0">
+        <div className="p-4 space-y-5">
+          <div className="flex items-center justify-between px-2 pt-1">
             <Link
               href="/"
-              className="flex items-center gap-2 font-[family-name:var(--font-display)] font-bold text-white tracking-tight"
+              className="flex items-center gap-2 font-semibold text-[15px] tracking-tight text-[var(--apple-ink)]"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#10b981]" />
+              <BrandMark className="w-5 h-5" />
               <span>LaunchPulse</span>
             </Link>
-            <ThemeSwitcher />
           </div>
 
-          <nav className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-1.5">
-            {menuItems.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => setTab(item.key)}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition cursor-pointer text-left ${
-                  tab === item.key
-                    ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold"
-                    : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
-                }`}
-              >
-                {item.icon}
-                <span className="truncate">{item.label}</span>
-              </button>
-            ))}
+          <nav className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-1">
+            {menuItems.map((item) => {
+              const active = tab === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => setTab(item.key)}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition cursor-pointer text-left ${
+                    active
+                      ? "bg-[var(--apple-active)] text-[var(--apple-ink)] font-semibold"
+                      : "text-[var(--apple-ink-secondary)] hover:bg-[var(--apple-hover)] hover:text-[var(--apple-ink)]"
+                  }`}
+                >
+                  <span className={active ? "text-[var(--apple-blue)]" : "opacity-75"}>
+                    {item.icon}
+                  </span>
+                  <span className="truncate">{item.label}</span>
+                </button>
+              );
+            })}
           </nav>
         </div>
 
-        <div className="p-4 border-t border-white/10 space-y-3">
-          <div className="flex items-center justify-between gap-2">
+        <div className="p-4 border-t border-[var(--apple-border)] space-y-3">
+          <div className="flex items-center justify-between gap-2 px-1">
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-white truncate">{data.user.name}</p>
-              <p className="text-[11px] font-[family-name:var(--font-mono)] text-slate-400 truncate">
+              <p className="text-[13px] font-medium text-[var(--apple-ink)] truncate">
+                {data.user.name}
+              </p>
+              <p className="text-[11px] text-[var(--apple-ink-tertiary)] truncate">
                 {data.user.email}
               </p>
             </div>
             <button
               onClick={handleLogout}
               title={v2.dash.logout}
-              className="p-2 rounded-lg border border-white/10 text-slate-400 hover:text-red-300 hover:border-red-500/40 transition cursor-pointer"
+              className="p-1.5 rounded-md text-[var(--apple-ink-tertiary)] hover:text-[var(--apple-red)] hover:bg-[var(--apple-hover)] transition cursor-pointer"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
-          <div className="flex items-center justify-between">
-            <LangSwitcher />
-            <Link href="/admin" className="text-[11px] text-slate-500 hover:text-slate-300">
+          <div className="flex items-center justify-between px-1">
+            <Link
+              href="/admin"
+              className="text-[11px] text-[var(--apple-ink-tertiary)] hover:text-[var(--apple-ink)]"
+            >
               {v2.nav.admin}
             </Link>
+            <span className="text-[11px] text-[var(--apple-ink-tertiary)]">
+              {activeOrder ? activeOrder.plan.toUpperCase() : "FREE"}
+            </span>
           </div>
         </div>
       </aside>
 
-      {/* 右侧主内容区 */}
-      <main className="flex-1 p-5 sm:p-8 max-w-6xl w-full mx-auto space-y-7 overflow-x-hidden">
-        {/* 顶部欢迎与套餐状态条 */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-white/10">
-          <div>
-            <h1 className="text-2xl font-[family-name:var(--font-display)] font-bold text-white">
-              {v2.dash.welcomePrefix} {data.user.name}
+      {/* 右侧 Apple 风格工作画布 */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* 56px 毛玻璃顶部工具条 */}
+        <header className="sticky top-0 z-30 h-14 apple-glass border-b border-[var(--apple-border)] px-5 sm:px-8 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <h1 className="text-[15px] font-semibold text-[var(--apple-ink)] truncate">
+              {currentMenu.label}
             </h1>
-            <p className="text-xs text-slate-400 mt-1">
-              {v2.dash.activePlan}:{" "}
-              <span className="text-emerald-300 font-semibold">
-                {activeOrder ? `${activeOrder.plan.toUpperCase()} ($${activeOrder.amount_usd})` : v2.dash.freePlan}
+            {activeCampaign && (
+              <span className="hidden sm:inline-block text-[12px] text-[var(--apple-ink-tertiary)] truncate">
+                / {activeCampaign.product_name}
               </span>
-            </p>
+            )}
           </div>
-          {!activeOrder && (
-            <button
-              onClick={() => setTab("billing")}
-              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer shrink-0 shadow-sm"
-            >
-              {v2.dash.upgradeBlitz}
-            </button>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <ThemeSwitcher />
+            <LangSwitcher />
+            {!activeOrder && (
+              <button
+                onClick={() => setTab("billing")}
+                className="hidden sm:inline-flex px-3.5 py-1.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white text-[12px] font-medium transition cursor-pointer"
+              >
+                {isZh ? "开启 50+ 目录投流" : isJa ? "50+配信を開始" : "Start Distribution"}
+              </button>
+            )}
+          </div>
+        </header>
+
+        <main className="flex-1 p-5 sm:p-8 max-w-[1100px] w-full mx-auto space-y-6">
+          {/* 首次未提交项目的单行克制提示 */}
+          {data.campaigns.length === 0 && tab === "overview" && (
+            <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <p className="text-[14px] font-semibold text-[var(--apple-ink)]">
+                  {v2.dash.onboardingTitle}
+                </p>
+                <p className="text-[13px] text-[var(--apple-ink-secondary)]">
+                  {v2.dash.onboardingDesc}
+                </p>
+              </div>
+              <button
+                onClick={() => setTab("campaign")}
+                className="px-4 py-2 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white font-medium text-[13px] shrink-0 cursor-pointer transition"
+              >
+                {v2.dash.menuCampaign} →
+              </button>
+            </div>
           )}
-        </div>
 
-        {/* 未提交项目引导卡片 */}
-        {data.campaigns.length === 0 && tab === "overview" && (
-          <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h2 className="text-base font-bold text-white">{v2.dash.onboardingTitle}</h2>
-              <p className="text-xs text-slate-300 max-w-2xl">{v2.dash.onboardingDesc}</p>
-            </div>
-            <button
-              onClick={() => setTab("campaign")}
-              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shrink-0 cursor-pointer"
-            >
-              {v2.dash.menuCampaign} →
-            </button>
-          </div>
-        )}
-
-        {/* TAB 1: Dub.co / Plausible 级多维流量与转化率报表 */}
-        {tab === "overview" && (
-          <div className="space-y-6">
-            {/* 5 大核心 KPI 卡片 */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 tabular-nums">
-              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-4 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span>{v2.dash.kpiClicks}</span>
-                  <MousePointerClick className="w-4 h-4 text-emerald-400" />
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold text-white">{data.stats.totalClicks}</p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-4 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span>{v2.dash.kpiConversions}</span>
-                  <TrendingUp className="w-4 h-4 text-amber-400" />
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold text-white">{data.stats.totalConversions}</p>
-              </div>
-
-              <div className="rounded-2xl border border-emerald-500/35 bg-[#0c141d] p-4 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] text-emerald-300 font-medium">
-                  <span>{v2.dash.kpiCvr}</span>
-                  <Percent className="w-4 h-4 text-emerald-400" />
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold text-emerald-400">
-                  {data.stats.conversionRate}%
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-4 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span>{isZh ? "归因转化营收" : isJa ? "帰属売上" : "Attributed Rev"}</span>
-                  <DollarSign className="w-4 h-4 text-emerald-400" />
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold text-white">
-                  ${Number(data.stats.attributedRevenueUsd || 0).toFixed(0)}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-4 space-y-1.5 col-span-2 lg:col-span-1">
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span>{v2.dash.kpiDirectories}</span>
-                  <Globe className="w-4 h-4 text-sky-400" />
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold text-white">
-                  {data.stats.directoriesLive}
-                  <span className="text-sm text-slate-500 font-normal"> / 50</span>
-                </p>
-              </div>
-            </div>
-
-            {/* 交互式 7D / 14D / 30D 双曲线面积图 */}
-            <AnalyticsAreaChart
-              series={data.stats.dailySeries}
-              title={
-                isZh
-                  ? "真实导流点击与转化趋势（支持 7 / 14 / 30 天切换）"
-                  : isJa
-                  ? "クリック＆コンバージョン推移（7 / 14 / 30日切替）"
-                  : "Traffic & Conversion Trend (7D / 14D / 30D)"
-              }
-              clicksLabel={v2.dash.chartClicks}
-              conversionsLabel={v2.dash.chartConversions}
-            />
-
-            {/* 三列 Plausible / Dub 风格多维拆分卡片：渠道 / 国家 / 设备 */}
-            <div className="grid lg:grid-cols-3 gap-5">
-              {/* 1. 渠道归因 */}
-              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-5 space-y-3.5">
-                <h3 className="text-sm font-bold text-white">{v2.dash.channelTitle}</h3>
-                {data.stats.channelBreakdown.length === 0 ? (
-                  <p className="text-xs text-slate-400">{v2.dash.noTrafficYet}</p>
-                ) : (
-                  <div className="space-y-3 tabular-nums">
-                    {data.stats.channelBreakdown.map((row) => {
-                      const pct =
-                        data.stats.totalClicks > 0
-                          ? Math.max(6, Math.round((row.clicks / data.stats.totalClicks) * 100))
-                          : 0;
-                      return (
-                        <div key={row.channel} className="space-y-1">
-                          <div className="flex justify-between text-xs">
-                            <span className="font-semibold text-white uppercase">{row.channel}</span>
-                            <span className="text-slate-300">
-                              {row.clicks} · <span className="text-emerald-400">{row.cvr}% CVR</span>
-                            </span>
-                          </div>
-                          <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
+          {/* TAB 1: 数据概览与报表 */}
+          {tab === "overview" && (
+            <div className="space-y-6">
+              {/* Apple App Store Connect 风格横向联排指标带（零多余图标，纯数字层次） */}
+              <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] grid grid-cols-2 lg:grid-cols-5 divide-y lg:divide-y-0 lg:divide-x divide-[var(--apple-border)] tabular-nums">
+                {[
+                  { label: v2.dash.kpiClicks, val: String(data.stats.totalClicks) },
+                  { label: v2.dash.kpiConversions, val: String(data.stats.totalConversions) },
+                  { label: v2.dash.kpiCvr, val: `${data.stats.conversionRate}%`, accent: true },
+                  {
+                    label: isZh ? "归因转化营收" : isJa ? "帰属売上" : "Attributed Revenue",
+                    val: `$${Number(data.stats.attributedRevenueUsd || 0).toFixed(0)}`,
+                  },
+                  {
+                    label: v2.dash.kpiDirectories,
+                    val: `${data.stats.directoriesLive} / 50`,
+                  },
+                ].map((m) => (
+                  <div key={m.label} className="p-5 space-y-1.5">
+                    <p className="text-[12px] text-[var(--apple-ink-secondary)]">{m.label}</p>
+                    <p
+                      className={`apple-display text-[28px] font-semibold leading-none ${
+                        m.accent ? "text-[var(--apple-blue)]" : "text-[var(--apple-ink)]"
+                      }`}
+                    >
+                      {m.val}
+                    </p>
                   </div>
-                )}
+                ))}
               </div>
 
-              {/* 2. 访客国家分布 */}
-              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-5 space-y-3.5">
-                <h3 className="text-sm font-bold text-white">
-                  {isZh ? "访客国家 / 地区分布" : isJa ? "国・地域別トラフィック" : "Top Countries"}
-                </h3>
-                {countries.length === 0 ? (
-                  <p className="text-xs text-slate-400">
-                    {isZh ? "产生首笔短链点击后自动统计全球访客分布。" : "Country telemetry appears after your first click."}
-                  </p>
-                ) : (
-                  <div className="space-y-2.5 tabular-nums">
-                    {countries.map((c) => {
-                      const pct =
-                        data.stats.totalClicks > 0
-                          ? Math.max(6, Math.round((Number(c.clicks) / data.stats.totalClicks) * 100))
-                          : 0;
-                      return (
-                        <div key={c.country} className="space-y-1">
-                          <div className="flex justify-between text-xs">
-                            <span className="font-[family-name:var(--font-mono)] text-white">{c.country}</span>
-                            <span className="text-slate-400">
-                              {c.clicks} ({pct}%)
-                            </span>
-                          </div>
-                          <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-                            <div className="h-full rounded-full bg-sky-400" style={{ width: `${pct}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <AnalyticsAreaChart
+                series={data.stats.dailySeries}
+                title={
+                  isZh
+                    ? "导流点击与转化趋势"
+                    : isJa
+                    ? "クリック＆コンバージョン推移"
+                    : "Referral Clicks & Conversions"
+                }
+                clicksLabel={v2.dash.chartClicks}
+                conversionsLabel={v2.dash.chartConversions}
+              />
 
-              {/* 3. 设备占比与实时访问流 */}
-              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-5 space-y-4">
-                <h3 className="text-sm font-bold text-white">
-                  {isZh ? "终端设备分布" : isJa ? "デバイス比率" : "Device Split"}
-                </h3>
-                {devices.length === 0 ? (
-                  <p className="text-xs text-slate-400">
-                    {isZh ? "等待真实访客点击..." : "Waiting for live clicks..."}
-                  </p>
-                ) : (
-                  <div className="space-y-2.5 tabular-nums">
-                    {devices.map((d) => {
-                      const pct = Math.round((Number(d.clicks) / totalDeviceClicks) * 100);
-                      return (
-                        <div key={d.device} className="flex items-center justify-between text-xs">
-                          <span className="inline-flex items-center gap-1.5 text-white capitalize">
-                            {d.device === "mobile" ? (
-                              <Smartphone className="w-3.5 h-3.5 text-amber-400" />
-                            ) : (
-                              <Monitor className="w-3.5 h-3.5 text-emerald-400" />
-                            )}
-                            {d.device}
-                          </span>
-                          <span className="text-slate-300 font-[family-name:var(--font-mono)]">
-                            {d.clicks} ({pct}%)
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="pt-3 border-t border-white/10 space-y-2">
-                  <p className="text-[11px] font-[family-name:var(--font-mono)] text-slate-400 uppercase flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5 text-emerald-400" />
-                    {isZh ? "最新实时点击明细" : isJa ? "最新のクリック履歴" : "Live Click Feed"}
-                  </p>
-                  {recentClicks.length === 0 ? (
-                    <p className="text-[11px] text-slate-500">—</p>
+              <div className="grid lg:grid-cols-3 gap-5">
+                {/* 渠道归因 */}
+                <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-5 space-y-4">
+                  <h3 className="text-[14px] font-semibold text-[var(--apple-ink)]">
+                    {v2.dash.channelTitle}
+                  </h3>
+                  {data.stats.channelBreakdown.length === 0 ? (
+                    <p className="text-[13px] text-[var(--apple-ink-tertiary)]">—</p>
                   ) : (
-                    <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                      {recentClicks.slice(0, 6).map((rc, idx) => (
+                    <div className="space-y-3 tabular-nums">
+                      {data.stats.channelBreakdown.map((row) => {
+                        const pct =
+                          data.stats.totalClicks > 0
+                            ? Math.max(4, Math.round((row.clicks / data.stats.totalClicks) * 100))
+                            : 0;
+                        return (
+                          <div key={row.channel} className="space-y-1.5">
+                            <div className="flex justify-between text-[12px]">
+                              <span className="font-medium text-[var(--apple-ink)] capitalize">
+                                {row.channel}
+                              </span>
+                              <span className="text-[var(--apple-ink-secondary)]">
+                                {row.clicks} · {row.cvr}%
+                              </span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-[var(--apple-bg-alt)] overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-[var(--apple-blue)]"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 国家/地区 */}
+                <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-5 space-y-4">
+                  <h3 className="text-[14px] font-semibold text-[var(--apple-ink)]">
+                    {isZh ? "国家 / 地区分布" : isJa ? "国・地域別" : "Top Countries"}
+                  </h3>
+                  {countries.length === 0 ? (
+                    <p className="text-[13px] text-[var(--apple-ink-tertiary)]">—</p>
+                  ) : (
+                    <div className="space-y-3 tabular-nums">
+                      {countries.map((c) => {
+                        const pct =
+                          data.stats.totalClicks > 0
+                            ? Math.max(4, Math.round((Number(c.clicks) / data.stats.totalClicks) * 100))
+                            : 0;
+                        return (
+                          <div key={c.country} className="space-y-1.5">
+                            <div className="flex justify-between text-[12px]">
+                              <span className="font-medium text-[var(--apple-ink)]">{c.country}</span>
+                              <span className="text-[var(--apple-ink-secondary)]">
+                                {c.clicks} ({pct}%)
+                              </span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-[var(--apple-bg-alt)] overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-[var(--apple-blue)] opacity-75"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 设备与实时点击 */}
+                <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-5 space-y-4">
+                  <h3 className="text-[14px] font-semibold text-[var(--apple-ink)]">
+                    {isZh ? "设备占比与实时明细" : isJa ? "デバイス・最新ログ" : "Devices & Live Feed"}
+                  </h3>
+                  {devices.length === 0 ? (
+                    <p className="text-[13px] text-[var(--apple-ink-tertiary)]">—</p>
+                  ) : (
+                    <div className="space-y-2 tabular-nums">
+                      {devices.map((d) => {
+                        const pct = Math.round((Number(d.clicks) / totalDeviceClicks) * 100);
+                        return (
+                          <div key={d.device} className="flex items-center justify-between text-[12px]">
+                            <span className="inline-flex items-center gap-1.5 text-[var(--apple-ink)] capitalize">
+                              {d.device === "mobile" ? (
+                                <Smartphone className="w-3.5 h-3.5 text-[var(--apple-ink-secondary)]" />
+                              ) : (
+                                <Monitor className="w-3.5 h-3.5 text-[var(--apple-ink-secondary)]" />
+                              )}
+                              {d.device}
+                            </span>
+                            <span className="text-[var(--apple-ink-secondary)]">
+                              {d.clicks} ({pct}%)
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {recentClicks.length > 0 && (
+                    <div className="pt-3 border-t border-[var(--apple-border)] space-y-1.5">
+                      {recentClicks.slice(0, 5).map((rc, idx) => (
                         <div
                           key={idx}
-                          className="flex items-center justify-between text-[11px] font-[family-name:var(--font-mono)] text-slate-300"
+                          className="flex justify-between text-[11px] text-[var(--apple-ink-secondary)] tabular-nums"
                         >
-                          <span className="truncate">
-                            {rc.country} · {rc.channel} ({rc.device})
+                          <span>
+                            {rc.country} · {rc.channel}
                           </span>
-                          <span className="text-slate-500 shrink-0">{rc.clicked_at.slice(5, 16)}</span>
+                          <span className="text-[var(--apple-ink-tertiary)]">
+                            {rc.clicked_at.slice(5, 16)}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -551,468 +541,459 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* TAB 2: 我的推广项目 */}
-        {tab === "campaign" && (
-          <form
-            onSubmit={handleSaveCampaign}
-            className="rounded-2xl border border-white/10 bg-[#0c1018] p-6 sm:p-8 space-y-5 max-w-2xl"
-          >
-            <div>
-              <h2 className="text-lg font-bold text-white">{v2.dash.campaignTitle}</h2>
-              <p className="text-xs text-slate-400 mt-1">{v2.dash.campaignDesc}</p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-300">{v2.dash.fieldProduct}</label>
-                <input
-                  type="text"
-                  required
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                  placeholder="CertNudge"
-                  className="w-full rounded-xl border border-white/15 bg-black/50 px-3.5 py-2.5 text-sm text-white"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-300">{v2.dash.fieldUrl}</label>
-                <input
-                  type="url"
-                  required
-                  value={targetUrl}
-                  onChange={(e) => setTargetUrl(e.target.value)}
-                  placeholder="https://your-startup.com"
-                  className="w-full rounded-xl border border-white/15 bg-black/50 px-3.5 py-2.5 text-sm font-[family-name:var(--font-mono)] text-white"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-300">{v2.dash.fieldTagline}</label>
-                <input
-                  type="text"
-                  value={tagline}
-                  onChange={(e) => setTagline(e.target.value)}
-                  placeholder="Know before SSL certs or domains expire."
-                  className="w-full rounded-xl border border-white/15 bg-black/50 px-3.5 py-2.5 text-sm text-white"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-300">{v2.dash.fieldCompetitors}</label>
-                <input
-                  type="text"
-                  value={competitors}
-                  onChange={(e) => setCompetitors(e.target.value)}
-                  placeholder="UptimeRobot, Better Stack"
-                  className="w-full rounded-xl border border-white/15 bg-black/50 px-3.5 py-2.5 text-sm text-white"
-                />
-              </div>
-            </div>
-
-            {campaignMsg && (
-              <p className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
-                {campaignMsg}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={savingCampaign}
-              className="px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer disabled:opacity-60"
+          {/* TAB 2: 我的推广项目 */}
+          {tab === "campaign" && (
+            <form
+              onSubmit={handleSaveCampaign}
+              className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-6 sm:p-8 space-y-5 max-w-2xl"
             >
-              {savingCampaign ? v2.dash.savingBtn : v2.dash.saveCampaignBtn}
-            </button>
-          </form>
-        )}
-
-        {/* TAB 3: 归因追踪短链与 1 行转化像素 */}
-        {tab === "links" && (
-          <div className="space-y-6">
-            <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-6 space-y-4">
               <div>
-                <h2 className="text-lg font-bold text-white">{v2.dash.linksTitle}</h2>
-                <p className="text-xs text-slate-400 mt-1">{v2.dash.linksDesc}</p>
+                <h2 className="text-[17px] font-semibold text-[var(--apple-ink)]">
+                  {v2.dash.campaignTitle}
+                </h2>
+                <p className="text-[13px] text-[var(--apple-ink-secondary)] mt-1">
+                  {v2.dash.campaignDesc}
+                </p>
               </div>
 
-              {data.links.length === 0 ? (
-                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <p className="text-xs text-slate-200">{v2.dash.noTrafficYet}</p>
-                  <button
-                    type="button"
-                    onClick={() => setTab("campaign")}
-                    className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shrink-0 cursor-pointer transition"
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-medium text-[var(--apple-ink-secondary)]">
+                    {v2.dash.fieldProduct}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={productName}
+                    onChange={(e) => setProductName(e.target.value)}
+                    placeholder="CertNudge"
+                    className="w-full rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[15px] text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-medium text-[var(--apple-ink-secondary)]">
+                    {v2.dash.fieldUrl}
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    value={targetUrl}
+                    onChange={(e) => setTargetUrl(e.target.value)}
+                    placeholder="https://your-startup.com"
+                    className="w-full rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[15px] font-mono text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-medium text-[var(--apple-ink-secondary)]">
+                    {v2.dash.fieldTagline}
+                  </label>
+                  <input
+                    type="text"
+                    value={tagline}
+                    onChange={(e) => setTagline(e.target.value)}
+                    placeholder="Know before SSL certs or domains expire."
+                    className="w-full rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[15px] text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-medium text-[var(--apple-ink-secondary)]">
+                    {v2.dash.fieldCompetitors}
+                  </label>
+                  <input
+                    type="text"
+                    value={competitors}
+                    onChange={(e) => setCompetitors(e.target.value)}
+                    placeholder="UptimeRobot, Better Stack"
+                    className="w-full rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[15px] text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {campaignMsg && (
+                <p className="text-[13px] text-[var(--apple-green)] font-medium">{campaignMsg}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={savingCampaign}
+                className="px-5 py-2.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white font-medium text-[14px] transition cursor-pointer disabled:opacity-60"
+              >
+                {savingCampaign ? v2.dash.savingBtn : v2.dash.saveCampaignBtn}
+              </button>
+            </form>
+          )}
+
+          {/* TAB 3: 追踪短链与可选转化像素 */}
+          {tab === "links" && (
+            <div className="space-y-6">
+              <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-6 space-y-5">
+                <div>
+                  <h2 className="text-[16px] font-semibold text-[var(--apple-ink)]">
+                    {v2.dash.linksTitle}
+                  </h2>
+                  <p className="text-[13px] text-[var(--apple-ink-secondary)] mt-1">
+                    {v2.dash.linksDesc}
+                  </p>
+                </div>
+
+                {data.links.length === 0 ? (
+                  <div className="rounded-xl bg-[var(--apple-bg-alt)] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <p className="text-[13px] text-[var(--apple-ink-secondary)]">
+                      {v2.dash.noTrafficYet}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setTab("campaign")}
+                      className="px-4 py-2 rounded-full bg-[var(--apple-blue)] text-white font-medium text-[13px] shrink-0 cursor-pointer"
+                    >
+                      {isZh ? "去填写我的网站 →" : "Step 1: Add My SaaS →"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[var(--apple-border)] border-t border-[var(--apple-border)]">
+                    {data.links.map((lk) => {
+                      const shortUrl = `https://pulse.statementflow.win/r/${lk.code}`;
+                      const cvr =
+                        lk.clicks_count > 0
+                          ? ((lk.conversions_count / lk.clicks_count) * 100).toFixed(1)
+                          : "0.0";
+                      return (
+                        <div
+                          key={lk.code}
+                          className="py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3"
+                        >
+                          <div className="min-w-0 space-y-0.5">
+                            <p className="text-[13px] font-medium text-[var(--apple-ink)]">
+                              {lk.label}{" "}
+                              <span className="text-[11px] text-[var(--apple-ink-tertiary)] uppercase ml-1">
+                                · {lk.channel}
+                              </span>
+                            </p>
+                            <p className="text-[12px] font-mono text-[var(--apple-blue)] truncate">
+                              {shortUrl}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3 text-[12px] tabular-nums shrink-0">
+                            <span className="text-[var(--apple-ink-secondary)]">
+                              {lk.clicks_count} {v2.dash.clicksCol} · {lk.conversions_count}{" "}
+                              {v2.dash.convCol} ({cvr}%)
+                            </span>
+                            <button
+                              onClick={() => copyText(lk.code, shortUrl)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-[var(--apple-border-strong)] hover:bg-[var(--apple-hover)] text-[var(--apple-ink)] cursor-pointer"
+                            >
+                              {copiedId === lk.code ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-[var(--apple-green)]" />{" "}
+                                  {v2.dash.copied}
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5" /> {v2.dash.copyShortUrl}
+                                </>
+                              )}
+                            </button>
+                            <a
+                              href={shortUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-0.5 text-[var(--apple-blue)] hover:underline"
+                            >
+                              {v2.dash.testClick} <ArrowUpRight className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {data.campaigns.length > 0 && (
+                  <form
+                    onSubmit={handleCreateCustomLink}
+                    className="pt-4 border-t border-[var(--apple-border)] flex flex-col sm:flex-row gap-2"
                   >
-                    {isZh ? "去第一步：填写我的网站 →" : isJa ? "ステップ1へ進む →" : "Step 1: Add My SaaS →"}
+                    <input
+                      type="text"
+                      value={newLinkLabel}
+                      onChange={(e) => setNewLinkLabel(e.target.value)}
+                      placeholder={v2.dash.createLinkTitle}
+                      className="flex-1 rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2 text-[13px] text-[var(--apple-ink)]"
+                    />
+                    <select
+                      value={newLinkChannel}
+                      onChange={(e) => setNewLinkChannel(e.target.value)}
+                      className="rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3 py-2 text-[13px] text-[var(--apple-ink)]"
+                    >
+                      <option value="directory">directory</option>
+                      <option value="community">community</option>
+                      <option value="seo">seo</option>
+                      <option value="custom">custom</option>
+                    </select>
+                    <button
+                      type="submit"
+                      disabled={creatingLink}
+                      className="px-4 py-2 rounded-full bg-[var(--apple-ink)] text-[var(--apple-bg)] font-medium text-[13px] cursor-pointer"
+                    >
+                      {v2.dash.createLinkBtn}
+                    </button>
+                  </form>
+                )}
+              </div>
+
+              <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-6 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-[15px] font-semibold text-[var(--apple-ink)]">
+                    {v2.dash.pixelTitle}
+                  </h2>
+                  <button
+                    onClick={() => copyText("pixel", pixelSnippet)}
+                    className="px-3.5 py-1.5 rounded-full border border-[var(--apple-border-strong)] hover:bg-[var(--apple-hover)] text-[12px] font-medium text-[var(--apple-ink)] cursor-pointer"
+                  >
+                    {copiedId === "pixel" ? v2.dash.copied : v2.dash.copyPixel}
+                  </button>
+                </div>
+                <p className="text-[13px] text-[var(--apple-ink-secondary)]">{v2.dash.pixelDesc}</p>
+                <pre className="text-[12px] font-mono text-[var(--apple-ink)] bg-[var(--apple-bg-alt)] border border-[var(--apple-border)] rounded-xl p-4 overflow-x-auto">
+                  {pixelSnippet}
+                </pre>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: 50+ 高权重目录数据表 */}
+          {tab === "directories" && (
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <h2 className="text-[17px] font-semibold text-[var(--apple-ink)]">
+                  {v2.dash.dirTitle}
+                </h2>
+                <p className="text-[13px] text-[var(--apple-ink-secondary)]">{v2.dash.dirDesc}</p>
+              </div>
+              <DirectoryTable liveMap={dirMap} locale={locale} />
+            </div>
+          )}
+
+          {/* TAB 5: 每日真实买家雷达 */}
+          {tab === "buyers" && (
+            <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-6 space-y-4">
+              <h2 className="text-[16px] font-semibold text-[var(--apple-ink)]">
+                {v2.dash.buyersTitle}
+              </h2>
+              {data.deliveries.length === 0 ? (
+                <div className="rounded-xl bg-[var(--apple-bg-alt)] p-5 space-y-3">
+                  <p className="text-[13px] text-[var(--apple-ink-secondary)]">
+                    {v2.dash.buyersEmpty}
+                  </p>
+                  <button
+                    onClick={() => handleCheckout("radar")}
+                    disabled={checkoutLoading !== null}
+                    className="px-4 py-2 rounded-full bg-[var(--apple-blue)] text-white font-medium text-[13px] cursor-pointer"
+                  >
+                    {v2.dash.upgradeRadar}
                   </button>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {data.links.map((lk) => {
-                    const shortUrl = `https://pulse.statementflow.win/r/${lk.code}`;
-                    const cvr =
-                      lk.clicks_count > 0
-                        ? ((lk.conversions_count / lk.clicks_count) * 100).toFixed(1)
-                        : "0.0";
-                    return (
-                      <div
-                        key={lk.code}
-                        className="rounded-xl border border-white/10 bg-black/40 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3"
-                      >
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex items-center gap-2 text-[11px] font-[family-name:var(--font-mono)]">
-                            <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 uppercase">
-                              {lk.channel}
-                            </span>
-                            <span className="text-slate-300 font-semibold">{lk.label}</span>
-                          </div>
-                          <p className="text-xs font-[family-name:var(--font-mono)] text-emerald-400 truncate">
-                            {shortUrl}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums shrink-0">
-                          <span className="text-slate-300">
-                            {lk.clicks_count} {v2.dash.clicksCol}
-                          </span>
-                          <span className="text-amber-300">
-                            {lk.conversions_count} {v2.dash.convCol} ({cvr}%)
-                          </span>
-                          <button
-                            onClick={() => copyText(lk.code, shortUrl)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white cursor-pointer"
-                          >
-                            {copiedId === lk.code ? (
-                              <>
-                                <Check className="w-3.5 h-3.5 text-emerald-400" /> {v2.dash.copied}
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3.5 h-3.5" /> {v2.dash.copyShortUrl}
-                              </>
-                            )}
-                          </button>
-                          <a
-                            href={shortUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-500/35 text-emerald-300 hover:bg-emerald-500/10"
-                          >
-                            {v2.dash.testClick} <ArrowUpRight className="w-3.5 h-3.5" />
-                          </a>
-                        </div>
+                <div className="divide-y divide-[var(--apple-border)]">
+                  {data.deliveries.map((d) => (
+                    <div key={d.lead_id} className="py-4 space-y-1.5">
+                      <div className="flex justify-between text-[11px] text-[var(--apple-ink-tertiary)]">
+                        <span>
+                          {d.source} · {d.community}
+                        </span>
+                        <span className="uppercase">{d.lead_status}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {data.campaigns.length > 0 && (
-                <form
-                  onSubmit={handleCreateCustomLink}
-                  className="pt-4 border-t border-white/10 flex flex-col sm:flex-row gap-2"
-                >
-                  <input
-                    type="text"
-                    value={newLinkLabel}
-                    onChange={(e) => setNewLinkLabel(e.target.value)}
-                    placeholder={v2.dash.createLinkTitle}
-                    className="flex-1 rounded-lg border border-white/15 bg-black/50 px-3 py-2 text-xs text-white"
-                  />
-                  <select
-                    value={newLinkChannel}
-                    onChange={(e) => setNewLinkChannel(e.target.value)}
-                    className="rounded-lg border border-white/15 bg-black/50 px-3 py-2 text-xs text-white"
-                  >
-                    <option value="directory">directory</option>
-                    <option value="community">community</option>
-                    <option value="seo">seo</option>
-                    <option value="custom">custom</option>
-                  </select>
-                  <button
-                    type="submit"
-                    disabled={creatingLink}
-                    className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs cursor-pointer"
-                  >
-                    {v2.dash.createLinkBtn}
-                  </button>
-                </form>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-amber-500/30 bg-[#0c1018] p-6 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-base font-bold text-white">{v2.dash.pixelTitle}</h2>
-                <button
-                  onClick={() => copyText("pixel", pixelSnippet)}
-                  className="px-3 py-1.5 rounded-lg bg-amber-400/15 text-amber-300 border border-amber-400/35 text-xs font-semibold cursor-pointer"
-                >
-                  {copiedId === "pixel" ? v2.dash.copied : v2.dash.copyPixel}
-                </button>
-              </div>
-              <p className="text-xs text-slate-400">{v2.dash.pixelDesc}</p>
-              <pre className="text-xs font-[family-name:var(--font-mono)] text-emerald-300 bg-black/60 border border-white/10 rounded-xl p-4 overflow-x-auto">
-                {pixelSnippet}
-              </pre>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 4: 50+ 目录外链进度 */}
-        {tab === "directories" && (
-          <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-6 space-y-4">
-            <div>
-              <h2 className="text-lg font-bold text-white">{v2.dash.dirTitle}</h2>
-              <p className="text-xs text-slate-400 mt-1">{v2.dash.dirDesc}</p>
-            </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2.5 max-h-[540px] overflow-y-auto pr-1">
-              {DISTRIBUTION_DIRECTORIES.map((dir) => {
-                const live = dirMap.get(dir.id);
-                const st = live?.status || "queued";
-                const href = live?.live_backlink_url || dir.url;
-                return (
-                  <a
-                    key={dir.id}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-xl border border-white/10 bg-black/40 hover:border-emerald-400/40 p-3 flex flex-col justify-between gap-1.5 transition"
-                  >
-                    <div className="flex items-center justify-between text-[10px] font-[family-name:var(--font-mono)]">
-                      <span className="text-slate-400">DR {dir.dr}</span>
-                      <span
-                        className={`px-1.5 py-0.5 rounded uppercase ${
-                          st === "live"
-                            ? "bg-emerald-500 text-slate-950 font-bold"
-                            : st === "submitted"
-                            ? "bg-emerald-500/20 text-emerald-300"
-                            : "bg-white/10 text-slate-400"
-                        }`}
+                      <p className="text-[14px] font-medium text-[var(--apple-ink)]">{d.title}</p>
+                      <p className="text-[13px] text-[var(--apple-ink-secondary)]">{d.excerpt}</p>
+                      <a
+                        href={d.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-0.5 text-[12px] text-[var(--apple-blue)] hover:underline pt-1"
                       >
-                        {st}
-                      </span>
+                        Open Thread <ArrowUpRight className="w-3.5 h-3.5" />
+                      </a>
                     </div>
-                    <p className="text-xs font-semibold text-white truncate">{dir.name}</p>
-                    <p className="text-[10px] text-slate-500 truncate">
-                      {live?.live_backlink_url ? "Verified Backlink ↗" : dir.category}
-                    </p>
-                  </a>
-                );
-              })}
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* TAB 5: 每日买家雷达 */}
-        {tab === "buyers" && (
-          <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-6 space-y-4">
-            <h2 className="text-lg font-bold text-white">{v2.dash.buyersTitle}</h2>
-            {data.deliveries.length === 0 ? (
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-5 space-y-3">
-                <p className="text-xs text-slate-200">{v2.dash.buyersEmpty}</p>
-                <button
-                  onClick={() => handleCheckout("radar")}
-                  disabled={checkoutLoading !== null}
-                  className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs cursor-pointer"
-                >
-                  {v2.dash.upgradeRadar}
-                </button>
+          {/* TAB 6: Apple Store 风格高级账单升级页 */}
+          {tab === "billing" && (
+            <div className="space-y-6">
+              <div className="space-y-1">
+                <h2 className="apple-display text-2xl font-semibold text-[var(--apple-ink)]">
+                  {v2.dash.billingTitle}
+                </h2>
+                <p className="text-[14px] text-[var(--apple-ink-secondary)]">
+                  {v2.dash.billingDesc}
+                </p>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {data.deliveries.map((d) => (
-                  <div
-                    key={d.lead_id}
-                    className="rounded-xl border border-white/10 bg-black/40 p-4 space-y-1.5"
+
+              <div className="grid lg:grid-cols-3 gap-5 items-stretch">
+                {/* $39 */}
+                <div className="rounded-[22px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-7 flex flex-col justify-between space-y-6">
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[12px] font-semibold text-[var(--apple-ink-tertiary)]">
+                        {t.pricing.fixLabel}
+                      </p>
+                      <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
+                        <span className="apple-display text-4xl font-semibold text-[var(--apple-ink)]">
+                          $39
+                        </span>
+                        <span className="text-[13px] text-[var(--apple-ink-tertiary)]">
+                          {t.pricing.fixPeriod}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-[13px] text-[var(--apple-ink-secondary)] leading-relaxed">
+                      {t.pricing.fixDesc}
+                    </p>
+                    <ul className="space-y-2.5 text-[13px] text-[var(--apple-ink-secondary)]">
+                      {[t.pricing.fixF1, t.pricing.fixF2, t.pricing.fixF3].map((f) => (
+                        <li key={f} className="flex items-start gap-2">
+                          <Check className="w-4 h-4 text-[var(--apple-blue)] shrink-0 mt-0.5" />
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => handleCheckout("blitz")}
+                    disabled={checkoutLoading !== null}
+                    className="w-full py-2.5 rounded-full bg-[var(--apple-ink)] text-[var(--apple-bg)] font-medium text-[14px] transition cursor-pointer disabled:opacity-60"
                   >
-                    <div className="flex justify-between text-[11px] font-[family-name:var(--font-mono)] text-emerald-300">
-                      <span>
-                        {d.source} · {d.community}
-                      </span>
-                      <span className="uppercase">{d.lead_status}</span>
-                    </div>
-                    <p className="text-sm font-semibold text-white">{d.title}</p>
-                    <p className="text-xs text-slate-400">{d.excerpt}</p>
-                    <a
-                      href={d.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-emerald-400 hover:underline pt-1"
-                    >
-                      Open Thread <ArrowUpRight className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB 6: Stripe / Linear 级高信任感付费升级页 */}
-        {tab === "billing" && (
-          <div className="space-y-6">
-            <div className="space-y-1">
-              <h2 className="text-xl font-[family-name:var(--font-display)] font-bold text-white">
-                {v2.dash.billingTitle}
-              </h2>
-              <p className="text-xs text-slate-400">{v2.dash.billingDesc}</p>
-            </div>
-
-            <div className="grid lg:grid-cols-3 gap-5 items-stretch">
-              {/* $39 50+ 目录外链分发 */}
-              <div className="rounded-2xl border border-amber-500/40 bg-[#0c1018] p-6 flex flex-col justify-between space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-[11px] font-[family-name:var(--font-mono)] uppercase text-amber-300 font-semibold">
-                      {t.pricing.fixLabel}
-                    </p>
-                    <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
-                      <span className="text-4xl font-bold text-white">$39</span>
-                      <span className="text-xs text-slate-400">{t.pricing.fixPeriod}</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">{t.pricing.fixDesc}</p>
-                  <ul className="space-y-2.5 text-xs text-slate-200">
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>{t.pricing.fixF1}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>{t.pricing.fixF2}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>{t.pricing.fixF3}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>
-                        <strong>{t.pricing.fixF4Prefix}</strong> {t.pricing.fixF4Text}
-                      </span>
-                    </li>
-                  </ul>
+                    {checkoutLoading === "blitz" ? t.pricing.loadingCheckout : v2.dash.upgradeBlitz}
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleCheckout("blitz")}
-                  disabled={checkoutLoading !== null}
-                  className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition cursor-pointer disabled:opacity-60"
-                >
-                  {checkoutLoading === "blitz" ? t.pricing.loadingCheckout : v2.dash.upgradeBlitz}
-                </button>
+
+                {/* $29/mo */}
+                <div className="rounded-[22px] border-2 border-[var(--apple-blue)] bg-[var(--apple-surface)] p-7 flex flex-col justify-between space-y-6 relative shadow-[var(--apple-shadow)]">
+                  <span className="absolute -top-3 right-6 px-3 py-0.5 rounded-full bg-[var(--apple-blue)] text-white text-[11px] font-medium">
+                    {t.pricing.radarBadge}
+                  </span>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[12px] font-semibold text-[var(--apple-blue)]">
+                        {t.pricing.radarLabel}
+                      </p>
+                      <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
+                        <span className="apple-display text-4xl font-semibold text-[var(--apple-ink)]">
+                          $29
+                        </span>
+                        <span className="text-[13px] text-[var(--apple-ink-tertiary)]">
+                          {t.pricing.radarPeriod}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-[13px] text-[var(--apple-ink-secondary)] leading-relaxed">
+                      {t.pricing.radarDesc}
+                    </p>
+                    <ul className="space-y-2.5 text-[13px] text-[var(--apple-ink-secondary)]">
+                      {[t.pricing.radarF1, t.pricing.radarF2, t.pricing.radarF3, t.pricing.radarF4].map(
+                        (f) => (
+                          <li key={f} className="flex items-start gap-2">
+                            <Check className="w-4 h-4 text-[var(--apple-blue)] shrink-0 mt-0.5" />
+                            <span>{f}</span>
+                          </li>
+                        )
+                      )}
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => handleCheckout("radar")}
+                    disabled={checkoutLoading !== null}
+                    className="w-full py-2.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white font-medium text-[14px] transition cursor-pointer disabled:opacity-60"
+                  >
+                    {checkoutLoading === "radar" ? t.pricing.loadingCheckout : v2.dash.upgradeRadar}
+                  </button>
+                </div>
+
+                {/* $299 */}
+                <div className="rounded-[22px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-7 flex flex-col justify-between space-y-6">
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[12px] font-semibold text-[var(--apple-ink-tertiary)]">
+                        {t.portal.dfyBadge}
+                      </p>
+                      <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
+                        <span className="apple-display text-4xl font-semibold text-[var(--apple-ink)]">
+                          $299
+                        </span>
+                        <span className="text-[13px] text-[var(--apple-ink-tertiary)]">
+                          {isZh ? "7天全包交付" : isJa ? "7日間丸投げ" : "7-day sprint"}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-[13px] text-[var(--apple-ink-secondary)] leading-relaxed">
+                      {t.portal.dfyHeadline}
+                    </p>
+                    <ul className="space-y-2.5 text-[13px] text-[var(--apple-ink-secondary)]">
+                      <li className="flex items-start gap-2">
+                        <Check className="w-4 h-4 text-[var(--apple-blue)] shrink-0 mt-0.5" />
+                        <span>
+                          {isZh
+                            ? "50+ 高权重目录专人逐站审核提交"
+                            : "Hand-submitted 50+ high-DR directories"}
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Check className="w-4 h-4 text-[var(--apple-blue)] shrink-0 mt-0.5" />
+                        <span>
+                          {isZh
+                            ? "直接提 GitHub PR 修完所有 SEO/AEO/安全头"
+                            : "Clean GitHub PR fixing all SEO/AEO headers"}
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Check className="w-4 h-4 text-[var(--apple-blue)] shrink-0 mt-0.5" />
+                        <span>
+                          {isZh
+                            ? "上线 5 个竞品 /vs/ 截流页 + 7 天代客外联"
+                            : "5 competitor /vs/ pages + 7-day outreach"}
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => handleCheckout("dfy")}
+                    disabled={checkoutLoading !== null}
+                    className="w-full py-2.5 rounded-full border border-[var(--apple-border-strong)] hover:bg-[var(--apple-hover)] text-[var(--apple-ink)] font-medium text-[14px] transition cursor-pointer disabled:opacity-60"
+                  >
+                    {checkoutLoading === "dfy" ? t.pricing.loadingCheckout : v2.dash.upgradeDfy}
+                  </button>
+                </div>
               </div>
 
-              {/* $29/mo 24/7 买家引流雷达 */}
-              <div className="rounded-2xl border-2 border-emerald-500/60 bg-[#0c141d] p-6 flex flex-col justify-between space-y-6 relative shadow-lg">
-                <span className="absolute -top-3 right-5 px-3 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-bold uppercase tracking-wider">
-                  {t.pricing.radarBadge}
+              <div className="flex flex-wrap items-center justify-between gap-4 text-[12px] text-[var(--apple-ink-secondary)] pt-2">
+                <span className="inline-flex items-center gap-1.5 font-medium text-[var(--apple-ink)]">
+                  <ShieldCheck className="w-4 h-4 text-[var(--apple-blue)]" />
+                  {isZh
+                    ? "Creem.io 合规收单 · 7 天无理由退款保障 · 随时一键取消"
+                    : isJa
+                    ? "Creem.io 安全決済 · 7日間全額返金保証 · いつでも解約可能"
+                    : "Secured by Creem.io · 7-Day Money-Back Guarantee · Cancel Anytime"}
                 </span>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-[11px] font-[family-name:var(--font-mono)] uppercase text-emerald-300 font-semibold">
-                      {t.pricing.radarLabel}
-                    </p>
-                    <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
-                      <span className="text-4xl font-bold text-white">$29</span>
-                      <span className="text-xs text-slate-400">{t.pricing.radarPeriod}</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">{t.pricing.radarDesc}</p>
-                  <ul className="space-y-2.5 text-xs text-slate-200">
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>{t.pricing.radarF1}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>{t.pricing.radarF2}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>{t.pricing.radarF3}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>{t.pricing.radarF4}</span>
-                    </li>
-                  </ul>
-                </div>
-                <button
-                  onClick={() => handleCheckout("radar")}
-                  disabled={checkoutLoading !== null}
-                  className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+                <a
+                  href="mailto:hello@statementflow.win"
+                  className="text-[var(--apple-blue)] hover:underline"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  {checkoutLoading === "radar" ? t.pricing.loadingCheckout : v2.dash.upgradeRadar}
-                </button>
-              </div>
-
-              {/* $299 Done-For-You 首批 100 用户全包 */}
-              <div className="rounded-2xl border border-white/15 bg-[#0c1018] p-6 flex flex-col justify-between space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-[11px] font-[family-name:var(--font-mono)] uppercase text-slate-400 font-semibold">
-                      {t.portal.dfyBadge}
-                    </p>
-                    <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
-                      <span className="text-4xl font-bold text-white">$299</span>
-                      <span className="text-xs text-slate-400">
-                        {isZh ? "7天全包交付" : isJa ? "7日間丸投げ" : "7-day sprint"}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">{t.portal.dfyHeadline}</p>
-                  <ul className="space-y-2.5 text-xs text-slate-200">
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>
-                        {isZh ? "50+ 高权重目录全人工复核提交" : "Manual 50+ high-DR directory submissions"}
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>
-                        {isZh ? "直接提 GitHub PR 修完所有 SEO/AEO/安全头" : "Clean GitHub PR fixing all SEO/AEO headers"}
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>
-                        {isZh ? "上线 5 个竞品 /vs/ 截流页 + 7 天代客外联" : "5 competitor /vs/ pages + 7-day outreach"}
-                      </span>
-                    </li>
-                  </ul>
-                </div>
-                <button
-                  onClick={() => handleCheckout("dfy")}
-                  disabled={checkoutLoading !== null}
-                  className="w-full py-3 rounded-xl border border-white/20 hover:border-emerald-400/60 bg-white/5 text-white font-bold text-xs transition cursor-pointer disabled:opacity-60"
-                >
-                  {checkoutLoading === "dfy" ? t.pricing.loadingCheckout : v2.dash.upgradeDfy}
-                </button>
+                  hello@statementflow.win
+                </a>
               </div>
             </div>
-
-            {/* 信任保障条（提升付费观感） */}
-            <div className="rounded-xl border border-white/10 bg-[#0c1018] px-5 py-4 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-400">
-              <span className="inline-flex items-center gap-2 text-slate-200 font-medium">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                {isZh
-                  ? "Creem.io 合规收单 · 7 天不满意全额退款保障 · 随时一键取消 · 自动开具发票"
-                  : isJa
-                  ? "Creem.io 安全決済 · 7日間全額返金保証 · いつでも解約可能 · 領収書自動発行"
-                  : "Secured by Creem.io · 7-Day Money-Back Guarantee · Cancel Anytime · Instant Invoice"}
-              </span>
-              <a href="mailto:hello@statementflow.win" className="text-emerald-400 hover:underline">
-                hello@statementflow.win
-              </a>
-            </div>
-          </div>
-        )}
-      </main>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

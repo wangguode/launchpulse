@@ -116,7 +116,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}
         />
       </head>
-      <body className="font-[family-name:var(--font-sans)] bg-[#07090d] text-slate-100 selection:bg-emerald-500/30 selection:text-emerald-200">
+      <body className="bg-[var(--apple-bg)] text-[var(--apple-ink)] selection:bg-[#0071e3]/20">
         <ThemeProvider>
           <I18nProvider>{children}</I18nProvider>
         </ThemeProvider>
