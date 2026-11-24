@@ -88,7 +88,7 @@ export default function WarRoomClient({ report }: Props) {
   const lockedLeads = isUnlocked ? [] : report.buyerLeads.filter((l) => !l.unlockedByDefault);
 
   return (
-    <div className="min-h-screen bg-[#07090d] text-slate-100 obsidian-grid">
+    <div className="min-h-screen bg-[#07090d] text-slate-100 obsidian-grid overflow-x-hidden">
       {/* 顶部专属战情导航条 */}
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07090d]/90 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
@@ -101,7 +101,7 @@ export default function WarRoomClient({ report }: Props) {
               <span>LaunchPulse</span>
             </Link>
             <span className="text-slate-600 hidden sm:inline">/</span>
-            <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded truncate">
+            <span className="hidden sm:inline-block text-xs font-[family-name:var(--font-mono)] text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded truncate">
               PRIVATE WAR-ROOM · {report.domain}
             </span>
           </div>
@@ -355,7 +355,7 @@ export default function WarRoomClient({ report }: Props) {
                   </div>
 
                   <h3 className="text-base font-semibold text-white leading-snug">{leak.title}</h3>
-                  <p className="text-xs font-[family-name:var(--font-mono)] text-slate-300 bg-black/40 border border-white/5 rounded-lg p-3 leading-relaxed">
+                  <p className="text-xs font-[family-name:var(--font-mono)] text-slate-300 bg-black/40 border border-white/5 rounded-lg p-3 leading-relaxed break-words overflow-x-auto">
                     {leak.evidence}
                   </p>
                   <p className="text-xs text-amber-300/90 flex items-center gap-1.5">
