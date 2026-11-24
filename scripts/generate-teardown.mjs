@@ -782,8 +782,8 @@ function synthesizeFourActAudio(target, auditResult, buyerLeads, workDir) {
     },
     {
       id: "act4",
-      label: "04 · UNLOCK FIX PACK & 24/7 RADAR",
-      script: `Scroll down on this private ${target.productName} war-room to verify those three buyer links free. Grab the nineteen-dollar Launch Fix Pack, or activate twenty-four-seven Buyer Radar alerts to catch your next paying users automatically.`,
+      label: "04 · GET 50+ BACKLINKS & DAILY BUYERS",
+      script: `Scroll down on this private ${target.productName} war-room to click those three recent buyer threads free. Launch our thirty-nine-dollar 50-plus Directory Distribution Blitz to drive real backlinks and referral clicks, or turn on twenty-four-seven Buyer Radar alerts.`,
     },
   ];
 

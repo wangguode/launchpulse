@@ -16,6 +16,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { getAllAudits } from "@/data/audits";
+import { DISTRIBUTION_DIRECTORIES } from "@/data/directories";
 import type { StartupAuditReport } from "@/types/audit";
 import { useI18n } from "@/components/I18nProvider";
 import LangSwitcher from "@/components/LangSwitcher";
@@ -534,6 +535,65 @@ export default function CustomerPortalPage() {
                 </div>
               </section>
             )}
+
+            {/* 50+ 高权重目录分发外链进度回执看板（$39 主力商品核心交付物） */}
+            <section className="rounded-2xl border border-amber-500/35 bg-[#0c111b] p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs font-[family-name:var(--font-mono)] text-amber-300 uppercase font-semibold">
+                    50+ HIGH-DR DIRECTORY DISTRIBUTION TRACKER (DR 45–91)
+                  </span>
+                  <h2 className="text-lg font-[family-name:var(--font-display)] font-bold text-white mt-0.5">
+                    Backlink &amp; Referral Traffic Proof for {activeReport.domain}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => {
+                    const csv = [
+                      "Directory,URL,DomainRating,Category,Status",
+                      ...DISTRIBUTION_DIRECTORIES.map(
+                        (d) => `"${d.name}","${d.url}",${d.dr},"${d.category}","${d.defaultStatus}"`
+                      ),
+                    ].join("\n");
+                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${activeReport.slug}-50-directories-backlinks.csv`;
+                    a.click();
+                  }}
+                  className="px-3.5 py-2 rounded-lg border border-amber-400/40 bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 text-xs font-semibold transition cursor-pointer shrink-0"
+                >
+                  Export 50-Directory CSV Proof ↓
+                </button>
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2.5 max-h-64 overflow-y-auto pr-1">
+                {DISTRIBUTION_DIRECTORIES.map((dir) => (
+                  <a
+                    key={dir.id}
+                    href={dir.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg border border-white/10 bg-black/40 hover:border-emerald-400/40 p-2.5 flex flex-col justify-between gap-1.5 transition"
+                  >
+                    <div className="flex items-center justify-between gap-1 text-[10px] font-[family-name:var(--font-mono)]">
+                      <span className="text-slate-400">DR {dir.dr}</span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded uppercase ${
+                          dir.defaultStatus === "submitted"
+                            ? "bg-emerald-500/20 text-emerald-300"
+                            : "bg-white/10 text-slate-400"
+                        }`}
+                      >
+                        {dir.defaultStatus}
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-white truncate">{dir.name}</p>
+                    <p className="text-[10px] text-slate-500 truncate">{dir.category}</p>
+                  </a>
+                ))}
+              </div>
+            </section>
 
             <div className="grid lg:grid-cols-12 gap-8 items-start">
               {/* 左栏：已解锁的全部修复 Prompt 与 /llms.txt */}

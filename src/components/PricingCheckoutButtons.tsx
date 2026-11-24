@@ -81,8 +81,8 @@ export default function PricingCheckoutButtons() {
           </a>
         </div>
 
-        {/* Tier 2: One-Time Launch Fix Pack ($19) */}
-        <div className="rounded-2xl border border-white/15 bg-[#0d121c] p-7 flex flex-col justify-between">
+        {/* Tier 2: 50+ Directory Distribution Blitz ($39) */}
+        <div className="rounded-2xl border border-amber-500/40 bg-[#0d121c] p-7 flex flex-col justify-between">
           <div className="space-y-4">
             <div>
               <p className="text-xs font-[family-name:var(--font-mono)] text-amber-300 uppercase">
@@ -90,32 +90,33 @@ export default function PricingCheckoutButtons() {
               </p>
               <div className="mt-2 flex items-baseline gap-1 tabular-nums">
                 <span className="text-4xl font-[family-name:var(--font-display)] font-bold text-white">
-                  $19
+                  $39
                 </span>
-                <span className="text-xs text-slate-400">one-time payment</span>
+                <span className="text-xs text-slate-400">one-time blitz</span>
               </div>
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Ship every technical SEO, schema, and AI citation fix in under 15 minutes.
+            <p className="text-xs text-slate-300 leading-relaxed">
+              We manually &amp; programmatically distribute your SaaS to 50+ high-DR directories to
+              drive real backlinks &amp; referral clicks.
             </p>
             <ul className="space-y-2.5 text-xs text-slate-200 pt-2">
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Full passive diagnostic report + custom 90s teardown</span>
+                <span>Submissions to 50+ AI &amp; SaaS directories (DR 45–91)</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Copy-paste Cursor &amp; Claude Code fix prompts</span>
+                <span>Live backlink proof tracker &amp; CSV report in /portal</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Saves 15+ hours of tedious directory form-filling</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>
-                  Auto-generated <code>/llms.txt</code> + <code>SoftwareApplication</code> JSON-LD
+                  <strong>Free Bonus:</strong> Custom <code>/llms.txt</code> + SEO fix prompts
                 </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>HTTP security header middleware snippet</span>
               </li>
             </ul>
           </div>
@@ -123,7 +124,7 @@ export default function PricingCheckoutButtons() {
           <button
             onClick={() => startCheckout("fixpack")}
             disabled={loading !== null}
-            className="mt-8 w-full py-3 rounded-xl bg-white hover:bg-slate-200 text-slate-950 font-bold text-xs transition cursor-pointer disabled:opacity-60"
+            className="mt-8 w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition cursor-pointer disabled:opacity-60"
           >
             {loading === "fixpack" ? t.pricing.loadingCheckout : t.pricing.fixBtn}
           </button>

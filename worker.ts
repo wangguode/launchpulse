@@ -27,6 +27,7 @@ interface Env {
   DB?: D1Database;
   CREEM_API_KEY?: string;
   CREEM_PRODUCT_ID_FIXPACK?: string;
+  CREEM_PRODUCT_ID_BLITZ?: string;
   CREEM_PRODUCT_ID_RADAR?: string;
   CREEM_PRODUCT_ID_DFY?: string;
   CREEM_WEBHOOK_SECRET?: string;
@@ -36,9 +37,13 @@ interface Env {
 }
 
 const PLAN_CONFIG = {
+  blitz: {
+    name: "LaunchPulse 50+ Directory Distribution Blitz",
+    amountUsd: 39,
+  },
   fixpack: {
-    name: "LaunchPulse One-Time Launch Fix Pack",
-    amountUsd: 19,
+    name: "LaunchPulse 50+ Directory Distribution Blitz",
+    amountUsd: 39,
   },
   radar: {
     name: "LaunchPulse Growth & Buyer Intent Radar Pro (Monthly)",
@@ -448,8 +453,8 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
       email?: string;
     };
     const plan: keyof typeof PLAN_CONFIG =
-      body.plan === "fixpack"
-        ? "fixpack"
+      body.plan === "blitz" || body.plan === "fixpack"
+        ? "blitz"
         : body.plan === "dfy"
         ? "dfy"
         : "radar";
@@ -461,8 +466,8 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
 
     const creemApiKey = env.CREEM_API_KEY?.trim();
     const productId =
-      plan === "fixpack"
-        ? env.CREEM_PRODUCT_ID_FIXPACK?.trim()
+      plan === "blitz"
+        ? env.CREEM_PRODUCT_ID_BLITZ?.trim() || env.CREEM_PRODUCT_ID_FIXPACK?.trim()
         : plan === "dfy"
         ? env.CREEM_PRODUCT_ID_DFY?.trim()
         : env.CREEM_PRODUCT_ID_RADAR?.trim();
