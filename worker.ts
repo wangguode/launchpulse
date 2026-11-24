@@ -31,6 +31,8 @@ interface Env {
   CREEM_PRODUCT_ID_DFY?: string;
   CREEM_WEBHOOK_SECRET?: string;
   ADMIN_API_KEY?: string;
+  RESEND_API_KEY?: string;
+  RESEND_FROM_EMAIL?: string;
 }
 
 const PLAN_CONFIG = {
@@ -481,7 +483,37 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
 }
 
 /**
- * Creem 付款回调：自动写入 D1 customers_orders 并签发免密 Magic Token
+ * 付款成功后通过 Resend 自动发送免密 Magic Link 欢迎邮件（配置 RESEND_API_KEY 后自动生效）
+ */
+async function sendResendEmail(
+  env: Env,
+  params: { to: string; subject: string; text: string }
+): Promise<boolean> {
+  const apiKey = env.RESEND_API_KEY?.trim();
+  if (!apiKey || !params.to) return false;
+  const from = env.RESEND_FROM_EMAIL?.trim() || "LaunchPulse <hello@statementflow.win>";
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [params.to],
+        subject: params.subject,
+        text: params.text,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Creem 付款回调：自动写入 D1 customers_orders、签发免密 Magic Token 并触发自动欢迎邮件
  */
 async function handleWebhook(request: Request, env: Env): Promise<Response> {
   const secret = env.CREEM_WEBHOOK_SECRET?.trim();
@@ -531,6 +563,29 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
             .bind(slug)
             .run();
         }
+
+        const origin = new URL(request.url).origin;
+        const portalLink = `${origin}/portal?token=${magicToken}`;
+        const warRoomLink = slug ? `${origin}/audit/${slug}?token=${magicToken}` : portalLink;
+
+        await sendResendEmail(env, {
+          to: email,
+          subject: `Your LaunchPulse ${plan === "dfy" ? "Done-For-You Sprint" : plan === "fixpack" ? "Launch Fix Pack" : "Buyer Radar Pro"} is unlocked`,
+          text: [
+            "Welcome to LaunchPulse!",
+            "",
+            "Your payment is confirmed and your workspace is unlocked immediately (no password needed).",
+            "",
+            `• Customer Portal (Cursor prompts, /llms.txt, Re-Scan & Buyer Feed): ${portalLink}`,
+            slug ? `• Unlocked War-Room Report: ${warRoomLink}` : "",
+            "",
+            "Need anything? Simply reply to this email (hello@statementflow.win).",
+            "",
+            "— LaunchPulse Team",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        });
       }
     } catch {
       // 防止非订单类 webhook 报错重发
@@ -702,6 +757,71 @@ export default {
       return handleAdminOverview(request, env);
     }
 
+    // 动态报告入库接口（受 ADMIN_API_KEY 保护，新增客户 1 秒写入 D1 立即上线无需重新 build）
+    if (url.pathname === "/api/admin/ingest" && request.method === "POST") {
+      const adminKey = env.ADMIN_API_KEY?.trim();
+      const provided = request.headers.get("x-admin-key") || "";
+      if (!adminKey || !provided || !timingSafeEqualHex(provided, adminKey)) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+      try {
+        const rep = (await request.json()) as {
+          slug?: string;
+          productName?: string;
+          targetUrl?: string;
+          domain?: string;
+          overallScore?: number;
+          leaks?: unknown[];
+          buyerLeads?: unknown[];
+          videoUrl?: string;
+          posterUrl?: string;
+          founderContact?: string;
+        };
+        const slug = (rep.slug || "").toLowerCase().replace(/[^a-z0-9-_]/g, "");
+        if (!slug || !rep.productName || !rep.targetUrl) {
+          return jsonResponse({ error: "Missing required report fields" }, 400);
+        }
+        await env.DB.prepare(
+          `INSERT INTO audits_assets (slug, product_name, target_url, domain, overall_score, leaks_count, leads_count, video_url, poster_url, report_json, scanned_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, datetime('now'))
+           ON CONFLICT(slug) DO UPDATE SET
+             overall_score = ?5, leaks_count = ?6, leads_count = ?7, video_url = ?8, poster_url = ?9, report_json = ?10, scanned_at = datetime('now')`
+        )
+          .bind(
+            slug,
+            rep.productName,
+            rep.targetUrl,
+            rep.domain || "",
+            Number(rep.overallScore || 60),
+            Array.isArray(rep.leaks) ? rep.leaks.length : 0,
+            Array.isArray(rep.buyerLeads) ? rep.buyerLeads.length : 0,
+            rep.videoUrl || "",
+            rep.posterUrl || "",
+            JSON.stringify(rep)
+          )
+          .run();
+        return jsonResponse({ ok: true, slug, liveUrl: `/audit/live?s=${slug}` });
+      } catch {
+        return jsonResponse({ error: "Invalid ingest payload" }, 400);
+      }
+    }
+
+    // 动态读取 D1 报告 JSON（供 /audit/live?s=<slug> 秒级渲染）
+    if (url.pathname.startsWith("/api/audit/") && request.method === "GET") {
+      if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+      const slug = url.pathname.replace("/api/audit/", "").toLowerCase().replace(/[^a-z0-9-_]/g, "");
+      if (!slug) return jsonResponse({ error: "Missing slug" }, 400);
+      const row = await env.DB.prepare(`SELECT report_json FROM audits_assets WHERE slug = ?1 LIMIT 1`)
+        .bind(slug)
+        .first<{ report_json: string }>();
+      if (!row) return jsonResponse({ error: "Report not found" }, 404);
+      return new Response(row.report_json, {
+        status: 200,
+        headers: { "Content-Type": "application/json; charset=utf-8", ...SECURITY_HEADERS },
+      });
+    }
+
     const assetResp = await env.ASSETS.fetch(request);
     const headers = new Headers(assetResp.headers);
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
@@ -712,5 +832,69 @@ export default {
       statusText: assetResp.statusText,
       headers,
     });
+  },
+
+  /**
+   * 每日 UTC 13:00 自动为所有 $29/月 Radar Pro 活跃订阅客户抓取最新高意图买家线索并发送日报
+   */
+  async scheduled(_event: unknown, env: Env): Promise<void> {
+    if (!env.DB) return;
+    try {
+      const subs = await env.DB.prepare(
+        `SELECT customer_email, slug, target_url, magic_token FROM customers_orders WHERE plan = 'radar' AND status = 'active' LIMIT 50`
+      ).all<{ customer_email: string; slug: string; target_url: string; magic_token: string }>();
+
+      for (const sub of subs.results || []) {
+        const keyword = (sub.slug || sub.target_url.replace(/^https?:\/\//, "").split(".")[0] || "").trim();
+        if (!keyword) continue;
+        try {
+          const hnRes = await fetch(
+            `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(
+              keyword
+            )}&tags=(story,comment)&hitsPerPage=5`
+          );
+          if (!hnRes.ok) continue;
+          const hnData = (await hnRes.json()) as {
+            hits?: Array<{
+              objectID: string;
+              story_title?: string;
+              title?: string;
+              comment_text?: string;
+            }>;
+          };
+          const freshLines: string[] = [];
+          for (const hit of hnData.hits || []) {
+            const title = cleanEntities(hit.story_title || hit.title || "");
+            if (!title || /^\[dead\]|who is hiring/i.test(title)) continue;
+            const leadUrl = `https://news.ycombinator.com/item?id=${hit.objectID}`;
+            const excerpt = cleanEntities(hit.comment_text || title).slice(0, 150);
+            await env.DB.prepare(
+              `INSERT OR IGNORE INTO radar_deliveries (customer_email, slug, lead_id, source, community, title, excerpt, url, lead_status)
+               VALUES (?1, ?2, ?3, 'Hacker News', 'HN Daily Radar', ?4, ?5, ?6, 'new')`
+            )
+              .bind(sub.customer_email, sub.slug, `hn-${hit.objectID}`, title.slice(0, 120), excerpt, leadUrl)
+              .run();
+            freshLines.push(`• ${title}\n  ${leadUrl}`);
+          }
+          if (freshLines.length > 0) {
+            await sendResendEmail(env, {
+              to: sub.customer_email,
+              subject: `LaunchPulse Daily Radar: ${freshLines.length} fresh buyer threads for ${keyword}`,
+              text: [
+                `Here are today's latest developer discussions matching ${keyword}:`,
+                "",
+                ...freshLines,
+                "",
+                `Open your portal: https://pulse.statementflow.win/portal?token=${sub.magic_token}`,
+              ].join("\n"),
+            });
+          }
+        } catch {
+          // 单客户异常不影响其余订阅客户
+        }
+      }
+    } catch {
+      // ignore
+    }
   },
 };

@@ -14,6 +14,9 @@
       "database_id": "b087ef3a-0f4a-463c-975d-51a7f2fb6075"
     }
   ],
+  "triggers": {
+    "crons": ["0 13 * * *"]
+  },
   "routes": [
     {
       "pattern": "pulse.statementflow.win",
