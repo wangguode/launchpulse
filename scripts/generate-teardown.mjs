@@ -759,30 +759,30 @@ function synthesizeFourActAudio(target, auditResult, buyerLeads, workDir) {
     {
       id: "act1",
       label: "01 · PRODUCT WALKTHROUGH",
-      script: `Hey team at ${target.productName} — I just ran ${auditResult.domain} through a live launch and growth teardown. First off, genuinely clean execution on the product positioning: "${auditResult.tagline.slice(
+      script: `Hey ${target.productName} team — I just ran ${auditResult.domain} through a live launch teardown. Clean execution on your core positioning: "${auditResult.tagline.slice(
         0,
-        85
-      )}." Your core value proposition and pricing flow load fast and read clearly to developers. Let me show you two hidden visibility leaks holding back organic signups right now.`,
+        70
+      )}." Fast load, clear developer value. Here are two hidden visibility leaks costing you organic signups right now.`,
     },
     {
       id: "act2",
       label: "02 · CONVERSION & AI VISIBILITY LEAKS",
-      script: `Right now, ${auditResult.domain} scores ${auditResult.overallScore} out of 100 on launch readiness. Leak number one: ${leak1}. When developers ask ChatGPT, Claude, or Perplexity for tools in your space, crawlers hit an empty endpoint and recommend your competitors instead. Leak two: ${leak2}. And third: ${leak3}. Fixing these three takes under fifteen minutes with our ready-to-paste Cursor and Claude Code prompts.`,
+      script: `${auditResult.domain} currently scores ${auditResult.overallScore} out of 100. Leak one: ${leak1} — meaning ChatGPT and Perplexity skip your site when devs ask for tools in your niche. Leak two: ${leak2}. Both take under fifteen minutes to ship using our ready-to-paste Cursor prompts.`,
     },
     {
       id: "act3",
       label: "03 · LIVE BUYER INTENT RADAR",
-      script: `Even better — while scanning developer communities today, our Buyer Intent Radar found ${buyerLeads.length} active threads from engineers hitting the exact problem ${target.productName} solves. Including a thread on ${
-        firstLead?.source || "Hacker News"
-      } titled "${(firstLead?.title || "").slice(
+      script: `Even better — our Buyer Intent Radar pulled ${buyerLeads.length} active developer threads hitting the exact problem ${target.productName} solves, including "${(
+        firstLead?.title || ""
+      ).slice(
         0,
-        70
-      )}." I unlocked the first three live threads right below this video for free, so you can click through and reply today.`,
+        62
+      )}" on ${firstLead?.source || "Hacker News"}. The first three links are unlocked free below so you can reply today.`,
     },
     {
       id: "act4",
       label: "04 · UNLOCK FIX PACK & 24/7 RADAR",
-      script: `Scroll down on this private ${target.productName} war-room page to verify those three live buyer links yourself. When you're ready, grab the one-time Launch Fix Pack for nineteen dollars, or turn on twenty-four-seven Buyer Radar alerts so you never miss your next paying customer.`,
+      script: `Scroll down on this private ${target.productName} war-room to verify those three buyer links free. Grab the nineteen-dollar Launch Fix Pack, or activate twenty-four-seven Buyer Radar alerts to catch your next paying users automatically.`,
     },
   ];
 
