@@ -189,7 +189,7 @@ export default function LoginPage() {
               href="/portal"
               className="inline-flex items-center gap-0.5 text-[var(--apple-blue)] hover:underline"
             >
-              {v2.auth.portalLink} <ChevronRight className="w-3.5 h-3.5" />
+              {v2.auth.portalLink}
             </Link>
           </div>
         </div>

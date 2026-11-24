@@ -48,12 +48,14 @@ export default function HomeClient({ sampleAudits }: Props) {
             </Link>
           </nav>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <ThemeSwitcher />
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <div className="hidden sm:block">
+              <ThemeSwitcher />
+            </div>
             <LangSwitcher />
             <Link
               href="/login"
-              className="px-3.5 py-1.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-[12px] font-medium text-white transition"
+              className="px-3 sm:px-3.5 py-1.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-[12px] font-medium text-white transition whitespace-nowrap"
             >
               {v2.nav.login}
             </Link>

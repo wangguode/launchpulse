@@ -94,7 +94,7 @@ export default function LiveScannerHero() {
     <div className="space-y-8">
       <form
         onSubmit={runLiveScan}
-        className="max-w-xl mx-auto rounded-full border border-[var(--apple-border-strong)] bg-[var(--apple-surface)] p-1.5 shadow-[var(--apple-shadow)] flex flex-col sm:flex-row gap-1.5 focus-within:border-[var(--apple-blue)] transition"
+        className="max-w-xl mx-auto rounded-2xl sm:rounded-full border border-[var(--apple-border-strong)] bg-[var(--apple-surface)] p-1.5 shadow-[var(--apple-shadow)] flex flex-col sm:flex-row gap-1.5 focus-within:border-[var(--apple-blue)] transition"
       >
         <input
           type="text"
