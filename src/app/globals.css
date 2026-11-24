@@ -1,22 +1,43 @@
 @import "tailwindcss";
 
-:root {
+:root,
+html[data-theme="dark"] {
+  color-scheme: dark;
   --bg-obsidian: #07090d;
   --bg-surface: #0c1018;
   --bg-elevated: #111723;
-  --border-subtle: rgba(255, 255, 255, 0.085);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  --bg-inset: rgba(0, 0, 0, 0.42);
+  --border-subtle: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.17);
   --text-primary: #f4f7fb;
   --text-secondary: #94a3b8;
   --accent-emerald: #10b981;
   --accent-amber: #f59e0b;
   --accent-crimson: #ef4444;
+  --grid-line: rgba(255, 255, 255, 0.025);
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --bg-obsidian: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f1f5f9;
+  --bg-inset: #f8fafc;
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --accent-emerald: #059669;
+  --accent-amber: #d97706;
+  --accent-crimson: #dc2626;
+  --grid-line: rgba(15, 23, 42, 0.04);
 }
 
 html {
   scroll-behavior: smooth;
   background-color: var(--bg-obsidian);
   color: var(--text-primary);
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 body {
@@ -32,7 +53,113 @@ body {
 
 .obsidian-grid {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 40px 40px;
+}
+
+/* =====================================================================
+ * 全站亮色模式（Stripe / Vercel / Dub.co 风格高对比度自适应层）
+ * 自动将所有页面的深色语义画布平滑映射为纯净白/浅灰卡片与深墨色文字
+ * ===================================================================== */
+html[data-theme="light"] .bg-\[\#07090d\],
+html[data-theme="light"] .bg-\[\#07090d\]\/90,
+html[data-theme="light"] .bg-\[\#07090d\]\/85 {
+  background-color: rgba(248, 250, 252, 0.94) !important;
+}
+
+html[data-theme="light"] .bg-\[\#0a0e16\],
+html[data-theme="light"] .bg-\[\#0c1018\],
+html[data-theme="light"] .bg-\[\#0c111b\],
+html[data-theme="light"] .bg-\[\#0c121c\],
+html[data-theme="light"] .bg-\[\#0c131d\],
+html[data-theme="light"] .bg-\[\#0c141d\],
+html[data-theme="light"] .bg-\[\#0c1520\],
+html[data-theme="light"] .bg-\[\#0b1018\],
+html[data-theme="light"] .bg-\[\#0b1019\],
+html[data-theme="light"] .bg-\[\#0d111a\],
+html[data-theme="light"] .bg-\[\#0d121c\],
+html[data-theme="light"] .bg-\[\#0d1520\],
+html[data-theme="light"] .bg-\[\#0f1521\],
+html[data-theme="light"] .bg-\[\#101622\],
+html[data-theme="light"] .bg-\[\#0f1724\]\/95 {
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05), 0 4px 16px rgba(15, 23, 42, 0.03);
+}
+
+html[data-theme="light"] .bg-black\/30,
+html[data-theme="light"] .bg-black\/35,
+html[data-theme="light"] .bg-black\/40,
+html[data-theme="light"] .bg-black\/50,
+html[data-theme="light"] .bg-black\/60,
+html[data-theme="light"] .bg-\[\#080b12\],
+html[data-theme="light"] .bg-\[\#070a10\],
+html[data-theme="light"] .bg-white\/\[0\.03\],
+html[data-theme="light"] .bg-white\/\[0\.04\],
+html[data-theme="light"] .bg-white\/5,
+html[data-theme="light"] .bg-white\/10 {
+  background-color: #f1f5f9 !important;
+}
+
+html[data-theme="light"] .border-white\/5,
+html[data-theme="light"] .border-white\/10,
+html[data-theme="light"] .border-white\/12,
+html[data-theme="light"] .border-white\/15,
+html[data-theme="light"] .border-white\/20 {
+  border-color: #e2e8f0 !important;
+}
+
+html[data-theme="light"] .text-white,
+html[data-theme="light"] .text-slate-100,
+html[data-theme="light"] .text-slate-200 {
+  color: #0f172a !important;
+}
+
+html[data-theme="light"] .text-slate-300 {
+  color: #334155 !important;
+}
+
+html[data-theme="light"] .text-slate-400 {
+  color: #475569 !important;
+}
+
+html[data-theme="light"] .text-slate-500 {
+  color: #64748b !important;
+}
+
+html[data-theme="light"] .text-emerald-300,
+html[data-theme="light"] .text-emerald-400 {
+  color: #047857 !important;
+}
+
+html[data-theme="light"] .text-emerald-100,
+html[data-theme="light"] .text-emerald-200 {
+  color: #065f46 !important;
+}
+
+html[data-theme="light"] .text-amber-200,
+html[data-theme="light"] .text-amber-300,
+html[data-theme="light"] .text-amber-400 {
+  color: #b45309 !important;
+}
+
+html[data-theme="light"] .text-red-200,
+html[data-theme="light"] .text-red-300 {
+  color: #b91c1c !important;
+}
+
+/* 保留实心亮色/绿色按钮上的深色文字高对比度 */
+html[data-theme="light"] .bg-emerald-500,
+html[data-theme="light"] .bg-amber-400 {
+  color: #0f172a !important;
+}
+
+html[data-theme="light"] .bg-\[\#07090d\]\/65,
+html[data-theme="light"] .bg-\[\#080b12\]\/65 {
+  background-color: rgba(255, 255, 255, 0.82) !important;
+}
+
+html[data-theme="light"] .shadow-2xl,
+html[data-theme="light"] .shadow-\[0_24px_80px_rgba\(0\,0\,0\,0\.65\)\] {
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.08) !important;
 }

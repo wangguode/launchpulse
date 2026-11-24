@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Sparkles } from "lucide-react";
+import { Check, ShieldCheck, Sparkles } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 
 export default function PricingCheckoutButtons() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [loading, setLoading] = useState<"blitz" | "radar" | null>(null);
   const [error, setError] = useState("");
 
@@ -173,6 +173,34 @@ export default function PricingCheckoutButtons() {
             {loading === "radar" ? t.pricing.loadingCheckout : t.pricing.radarBtn}
           </button>
         </div>
+      </div>
+
+      {/* 高信任感支付保障条（Creem MoR + 7天退款 + 实时发票） */}
+      <div className="rounded-xl border border-white/10 bg-[#0c1018] px-5 py-3.5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-slate-400">
+        <span className="inline-flex items-center gap-1.5 text-slate-200 font-medium">
+          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          {locale === "zh"
+            ? "Creem.io 合规安全收单（支持信用卡 / Apple Pay）"
+            : locale === "ja"
+            ? "Creem.io 安全決済（カード / Apple Pay 対応）"
+            : "Secured by Creem.io (Card & Apple Pay)"}
+        </span>
+        <span>·</span>
+        <span>
+          {locale === "zh"
+            ? "7 天不满意全额退款保障"
+            : locale === "ja"
+            ? "7日間全額返金保証"
+            : "7-Day Money-Back Guarantee"}
+        </span>
+        <span>·</span>
+        <span>
+          {locale === "zh"
+            ? "订阅随时一键取消 · 自动开具发票"
+            : locale === "ja"
+            ? "いつでも解約可能 · 領収書発行"
+            : "Cancel Anytime · Instant Invoice"}
+        </span>
       </div>
     </div>
   );

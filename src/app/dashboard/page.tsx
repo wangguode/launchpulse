@@ -4,24 +4,31 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  Activity,
   ArrowUpRight,
   BarChart3,
   Check,
   Copy,
   CreditCard,
+  DollarSign,
   Globe,
   Link2,
   Loader2,
   LogOut,
+  Monitor,
   MousePointerClick,
   Percent,
   Radar,
   Rocket,
+  ShieldCheck,
+  Smartphone,
   Sparkles,
   TrendingUp,
 } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 import LangSwitcher from "@/components/LangSwitcher";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
+import AnalyticsAreaChart from "@/components/AnalyticsAreaChart";
 import { V2_DICTIONARIES } from "@/lib/v2-i18n";
 import { DISTRIBUTION_DIRECTORIES } from "@/data/directories";
 
@@ -71,17 +78,28 @@ interface DashboardPayload {
     totalClicks: number;
     totalConversions: number;
     conversionRate: number;
+    attributedRevenueUsd?: number;
     directoriesLive: number;
     directoriesSubmitted: number;
     dailySeries: Array<{ date: string; clicks: number; conversions: number }>;
     channelBreakdown: Array<{ channel: string; clicks: number; conversions: number; cvr: number }>;
+    countryBreakdown?: Array<{ country: string; clicks: number }>;
+    deviceBreakdown?: Array<{ device: string; clicks: number }>;
+    recentClicks?: Array<{
+      code: string;
+      channel: string;
+      country: string;
+      device: string;
+      referer: string;
+      clicked_at: string;
+    }>;
   };
 }
 
 type TabKey = "overview" | "campaign" | "links" | "directories" | "buyers" | "billing";
 
 export default function DashboardPage() {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const v2 = V2_DICTIONARIES[locale];
   const router = useRouter();
 
@@ -90,7 +108,6 @@ export default function DashboardPage() {
   const [tab, setTab] = useState<TabKey>("overview");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Campaign form
   const [productName, setProductName] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
   const [tagline, setTagline] = useState("");
@@ -98,12 +115,10 @@ export default function DashboardPage() {
   const [savingCampaign, setSavingCampaign] = useState(false);
   const [campaignMsg, setCampaignMsg] = useState("");
 
-  // Custom link form
   const [newLinkLabel, setNewLinkLabel] = useState("");
   const [newLinkChannel, setNewLinkChannel] = useState("directory");
   const [creatingLink, setCreatingLink] = useState(false);
 
-  // Checkout
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
@@ -228,7 +243,10 @@ export default function DashboardPage() {
 
   const activeOrder = data.orders.find((o) => o.status === "active");
   const dirMap = new Map(data.directories.map((d) => [d.directory_id, d]));
-  const maxDailyClicks = Math.max(4, ...data.stats.dailySeries.map((d) => d.clicks));
+  const countries = data.stats.countryBreakdown || [];
+  const devices = data.stats.deviceBreakdown || [];
+  const recentClicks = data.stats.recentClicks || [];
+  const totalDeviceClicks = Math.max(1, devices.reduce((s, d) => s + Number(d.clicks || 0), 0));
   const pixelSnippet = `<script src="https://pulse.statementflow.win/api/pixel.js" defer></script>\n<!-- Call on signup or checkout success: window.lpConvert('signup') -->`;
 
   const menuItems: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
@@ -239,6 +257,9 @@ export default function DashboardPage() {
     { key: "buyers", label: v2.dash.menuBuyers, icon: <Radar className="w-4 h-4" /> },
     { key: "billing", label: v2.dash.menuBilling, icon: <CreditCard className="w-4 h-4" /> },
   ];
+
+  const isZh = locale === "zh";
+  const isJa = locale === "ja";
 
   return (
     <div className="min-h-screen bg-[#07090d] text-slate-100 flex flex-col lg:flex-row">
@@ -253,9 +274,7 @@ export default function DashboardPage() {
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#10b981]" />
               <span>LaunchPulse</span>
             </Link>
-            <span className="text-[10px] font-[family-name:var(--font-mono)] text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded">
-              V2
-            </span>
+            <ThemeSwitcher />
           </div>
 
           <nav className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-1.5">
@@ -265,7 +284,7 @@ export default function DashboardPage() {
                 onClick={() => setTab(item.key)}
                 className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition cursor-pointer text-left ${
                   tab === item.key
-                    ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                    ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold"
                     : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
                 }`}
               >
@@ -319,19 +338,19 @@ export default function DashboardPage() {
           {!activeOrder && (
             <button
               onClick={() => setTab("billing")}
-              className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition cursor-pointer shrink-0"
+              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer shrink-0 shadow-sm"
             >
               {v2.dash.upgradeBlitz}
             </button>
           )}
         </div>
 
-        {/* 若未提交项目，优先展示直观的引导卡片 */}
+        {/* 未提交项目引导卡片 */}
         {data.campaigns.length === 0 && tab === "overview" && (
           <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
               <h2 className="text-base font-bold text-white">{v2.dash.onboardingTitle}</h2>
-              <p className="text-xs text-emerald-100/80 max-w-2xl">{v2.dash.onboardingDesc}</p>
+              <p className="text-xs text-slate-300 max-w-2xl">{v2.dash.onboardingDesc}</p>
             </div>
             <button
               onClick={() => setTab("campaign")}
@@ -342,122 +361,195 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* TAB 1: 概览与转化率报表 */}
+        {/* TAB 1: Dub.co / Plausible 级多维流量与转化率报表 */}
         {tab === "overview" && (
           <div className="space-y-6">
-            {/* 4 大核心 KPI 卡片 */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 tabular-nums">
-              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-5 space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-400">
+            {/* 5 大核心 KPI 卡片 */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 tabular-nums">
+              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-4 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
                   <span>{v2.dash.kpiClicks}</span>
                   <MousePointerClick className="w-4 h-4 text-emerald-400" />
                 </div>
-                <p className="text-3xl font-bold text-white">{data.stats.totalClicks}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-white">{data.stats.totalClicks}</p>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-5 space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-400">
+              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-4 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
                   <span>{v2.dash.kpiConversions}</span>
                   <TrendingUp className="w-4 h-4 text-amber-400" />
                 </div>
-                <p className="text-3xl font-bold text-white">{data.stats.totalConversions}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-white">{data.stats.totalConversions}</p>
               </div>
 
-              <div className="rounded-2xl border border-emerald-500/30 bg-[#0c141d] p-5 space-y-2">
-                <div className="flex items-center justify-between text-xs text-emerald-300">
+              <div className="rounded-2xl border border-emerald-500/35 bg-[#0c141d] p-4 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-emerald-300 font-medium">
                   <span>{v2.dash.kpiCvr}</span>
                   <Percent className="w-4 h-4 text-emerald-400" />
                 </div>
-                <p className="text-3xl font-bold text-emerald-400">{data.stats.conversionRate}%</p>
+                <p className="text-2xl sm:text-3xl font-bold text-emerald-400">
+                  {data.stats.conversionRate}%
+                </p>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-5 space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-400">
+              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-4 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>{isZh ? "归因转化营收" : isJa ? "帰属売上" : "Attributed Rev"}</span>
+                  <DollarSign className="w-4 h-4 text-emerald-400" />
+                </div>
+                <p className="text-2xl sm:text-3xl font-bold text-white">
+                  ${Number(data.stats.attributedRevenueUsd || 0).toFixed(0)}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-4 space-y-1.5 col-span-2 lg:col-span-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
                   <span>{v2.dash.kpiDirectories}</span>
                   <Globe className="w-4 h-4 text-sky-400" />
                 </div>
-                <p className="text-3xl font-bold text-white">
+                <p className="text-2xl sm:text-3xl font-bold text-white">
                   {data.stats.directoriesLive}
                   <span className="text-sm text-slate-500 font-normal"> / 50</span>
                 </p>
               </div>
             </div>
 
-            {/* 14 天点击与转化趋势柱状/折线图（纯 SVG，零外部图表包膨胀） */}
-            <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-6 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-base font-bold text-white">{v2.dash.chartTitle}</h2>
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="inline-flex items-center gap-1.5 text-emerald-300">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400" />
-                    {v2.dash.chartClicks}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 text-amber-300">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-amber-400" />
-                    {v2.dash.chartConversions}
-                  </span>
-                </div>
+            {/* 交互式 7D / 14D / 30D 双曲线面积图 */}
+            <AnalyticsAreaChart
+              series={data.stats.dailySeries}
+              title={
+                isZh
+                  ? "真实导流点击与转化趋势（支持 7 / 14 / 30 天切换）"
+                  : isJa
+                  ? "クリック＆コンバージョン推移（7 / 14 / 30日切替）"
+                  : "Traffic & Conversion Trend (7D / 14D / 30D)"
+              }
+              clicksLabel={v2.dash.chartClicks}
+              conversionsLabel={v2.dash.chartConversions}
+            />
+
+            {/* 三列 Plausible / Dub 风格多维拆分卡片：渠道 / 国家 / 设备 */}
+            <div className="grid lg:grid-cols-3 gap-5">
+              {/* 1. 渠道归因 */}
+              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-5 space-y-3.5">
+                <h3 className="text-sm font-bold text-white">{v2.dash.channelTitle}</h3>
+                {data.stats.channelBreakdown.length === 0 ? (
+                  <p className="text-xs text-slate-400">{v2.dash.noTrafficYet}</p>
+                ) : (
+                  <div className="space-y-3 tabular-nums">
+                    {data.stats.channelBreakdown.map((row) => {
+                      const pct =
+                        data.stats.totalClicks > 0
+                          ? Math.max(6, Math.round((row.clicks / data.stats.totalClicks) * 100))
+                          : 0;
+                      return (
+                        <div key={row.channel} className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="font-semibold text-white uppercase">{row.channel}</span>
+                            <span className="text-slate-300">
+                              {row.clicks} · <span className="text-emerald-400">{row.cvr}% CVR</span>
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-14 gap-1.5 items-end h-44 pt-4">
-                {data.stats.dailySeries.map((pt) => {
-                  const clickH = Math.max(4, Math.round((pt.clicks / maxDailyClicks) * 120));
-                  const convH =
-                    pt.conversions > 0 ? Math.max(6, Math.round((pt.conversions / maxDailyClicks) * 120)) : 0;
-                  return (
-                    <div key={pt.date} className="flex flex-col items-center gap-1.5 group">
-                      <div className="w-full flex items-end justify-center gap-0.5 h-32">
+              {/* 2. 访客国家分布 */}
+              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-5 space-y-3.5">
+                <h3 className="text-sm font-bold text-white">
+                  {isZh ? "访客国家 / 地区分布" : isJa ? "国・地域別トラフィック" : "Top Countries"}
+                </h3>
+                {countries.length === 0 ? (
+                  <p className="text-xs text-slate-400">
+                    {isZh ? "产生首笔短链点击后自动统计全球访客分布。" : "Country telemetry appears after your first click."}
+                  </p>
+                ) : (
+                  <div className="space-y-2.5 tabular-nums">
+                    {countries.map((c) => {
+                      const pct =
+                        data.stats.totalClicks > 0
+                          ? Math.max(6, Math.round((Number(c.clicks) / data.stats.totalClicks) * 100))
+                          : 0;
+                      return (
+                        <div key={c.country} className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="font-[family-name:var(--font-mono)] text-white">{c.country}</span>
+                            <span className="text-slate-400">
+                              {c.clicks} ({pct}%)
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                            <div className="h-full rounded-full bg-sky-400" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. 设备占比与实时访问流 */}
+              <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-5 space-y-4">
+                <h3 className="text-sm font-bold text-white">
+                  {isZh ? "终端设备分布" : isJa ? "デバイス比率" : "Device Split"}
+                </h3>
+                {devices.length === 0 ? (
+                  <p className="text-xs text-slate-400">
+                    {isZh ? "等待真实访客点击..." : "Waiting for live clicks..."}
+                  </p>
+                ) : (
+                  <div className="space-y-2.5 tabular-nums">
+                    {devices.map((d) => {
+                      const pct = Math.round((Number(d.clicks) / totalDeviceClicks) * 100);
+                      return (
+                        <div key={d.device} className="flex items-center justify-between text-xs">
+                          <span className="inline-flex items-center gap-1.5 text-white capitalize">
+                            {d.device === "mobile" ? (
+                              <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                            ) : (
+                              <Monitor className="w-3.5 h-3.5 text-emerald-400" />
+                            )}
+                            {d.device}
+                          </span>
+                          <span className="text-slate-300 font-[family-name:var(--font-mono)]">
+                            {d.clicks} ({pct}%)
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="pt-3 border-t border-white/10 space-y-2">
+                  <p className="text-[11px] font-[family-name:var(--font-mono)] text-slate-400 uppercase flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                    {isZh ? "最新实时点击明细" : isJa ? "最新のクリック履歴" : "Live Click Feed"}
+                  </p>
+                  {recentClicks.length === 0 ? (
+                    <p className="text-[11px] text-slate-500">—</p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                      {recentClicks.slice(0, 6).map((rc, idx) => (
                         <div
-                          title={`${pt.date}: ${pt.clicks} clicks`}
-                          style={{ height: `${clickH}px` }}
-                          className="w-2.5 rounded-t bg-emerald-500/80 group-hover:bg-emerald-400 transition-all"
-                        />
-                        {convH > 0 && (
-                          <div
-                            title={`${pt.date}: ${pt.conversions} conversions`}
-                            style={{ height: `${convH}px` }}
-                            className="w-2.5 rounded-t bg-amber-400 transition-all"
-                          />
-                        )}
-                      </div>
-                      <span className="text-[9px] font-[family-name:var(--font-mono)] text-slate-500">
-                        {pt.date.slice(5)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 渠道归因与转化率表 */}
-            <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-6 space-y-4">
-              <h2 className="text-base font-bold text-white">{v2.dash.channelTitle}</h2>
-              {data.stats.channelBreakdown.length === 0 ? (
-                <p className="text-xs text-slate-400">{v2.dash.noTrafficYet}</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs tabular-nums">
-                    <thead className="text-slate-400 border-b border-white/10 font-[family-name:var(--font-mono)]">
-                      <tr>
-                        <th className="py-2.5">{v2.dash.channelCol}</th>
-                        <th className="py-2.5">{v2.dash.clicksCol}</th>
-                        <th className="py-2.5">{v2.dash.convCol}</th>
-                        <th className="py-2.5">{v2.dash.cvrCol}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {data.stats.channelBreakdown.map((row) => (
-                        <tr key={row.channel}>
-                          <td className="py-3 font-semibold text-white uppercase">{row.channel}</td>
-                          <td className="py-3 text-slate-200">{row.clicks}</td>
-                          <td className="py-3 text-amber-300">{row.conversions}</td>
-                          <td className="py-3 text-emerald-400 font-semibold">{row.cvr}%</td>
-                        </tr>
+                          key={idx}
+                          className="flex items-center justify-between text-[11px] font-[family-name:var(--font-mono)] text-slate-300"
+                        >
+                          <span className="truncate">
+                            {rc.country} · {rc.channel} ({rc.device})
+                          </span>
+                          <span className="text-slate-500 shrink-0">{rc.clicked_at.slice(5, 16)}</span>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         )}
@@ -642,7 +734,6 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* 1 行转化追踪代码 */}
             <div className="rounded-2xl border border-amber-500/30 bg-[#0c1018] p-6 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-base font-bold text-white">{v2.dash.pixelTitle}</h2>
@@ -751,42 +842,164 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* TAB 6: 套餐升级与账单 */}
+        {/* TAB 6: Stripe / Linear 级高信任感付费升级页 */}
         {tab === "billing" && (
           <div className="space-y-6">
-            <div className="rounded-2xl border border-white/10 bg-[#0c1018] p-6 space-y-4">
-              <div>
-                <h2 className="text-lg font-bold text-white">{v2.dash.billingTitle}</h2>
-                <p className="text-xs text-slate-400 mt-1">{v2.dash.billingDesc}</p>
-              </div>
-              <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <h2 className="text-xl font-[family-name:var(--font-display)] font-bold text-white">
+                {v2.dash.billingTitle}
+              </h2>
+              <p className="text-xs text-slate-400">{v2.dash.billingDesc}</p>
+            </div>
+
+            <div className="grid lg:grid-cols-3 gap-5 items-stretch">
+              {/* $39 50+ 目录外链分发 */}
+              <div className="rounded-2xl border border-amber-500/40 bg-[#0c1018] p-6 flex flex-col justify-between space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[11px] font-[family-name:var(--font-mono)] uppercase text-amber-300 font-semibold">
+                      {t.pricing.fixLabel}
+                    </p>
+                    <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
+                      <span className="text-4xl font-bold text-white">$39</span>
+                      <span className="text-xs text-slate-400">{t.pricing.fixPeriod}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">{t.pricing.fixDesc}</p>
+                  <ul className="space-y-2.5 text-xs text-slate-200">
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{t.pricing.fixF1}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{t.pricing.fixF2}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{t.pricing.fixF3}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>
+                        <strong>{t.pricing.fixF4Prefix}</strong> {t.pricing.fixF4Text}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
                 <button
                   onClick={() => handleCheckout("blitz")}
                   disabled={checkoutLoading !== null}
-                  className="p-5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-left space-y-2 transition cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition cursor-pointer disabled:opacity-60"
                 >
-                  <p className="text-2xl font-bold text-white">$39</p>
-                  <p className="text-xs font-semibold text-amber-300">{v2.dash.upgradeBlitz}</p>
+                  {checkoutLoading === "blitz" ? t.pricing.loadingCheckout : v2.dash.upgradeBlitz}
                 </button>
+              </div>
+
+              {/* $29/mo 24/7 买家引流雷达 */}
+              <div className="rounded-2xl border-2 border-emerald-500/60 bg-[#0c141d] p-6 flex flex-col justify-between space-y-6 relative shadow-lg">
+                <span className="absolute -top-3 right-5 px-3 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-bold uppercase tracking-wider">
+                  {t.pricing.radarBadge}
+                </span>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[11px] font-[family-name:var(--font-mono)] uppercase text-emerald-300 font-semibold">
+                      {t.pricing.radarLabel}
+                    </p>
+                    <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
+                      <span className="text-4xl font-bold text-white">$29</span>
+                      <span className="text-xs text-slate-400">{t.pricing.radarPeriod}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">{t.pricing.radarDesc}</p>
+                  <ul className="space-y-2.5 text-xs text-slate-200">
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{t.pricing.radarF1}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{t.pricing.radarF2}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{t.pricing.radarF3}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{t.pricing.radarF4}</span>
+                    </li>
+                  </ul>
+                </div>
                 <button
                   onClick={() => handleCheckout("radar")}
                   disabled={checkoutLoading !== null}
-                  className="p-5 rounded-xl border border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 text-left space-y-2 transition cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
                 >
-                  <p className="text-2xl font-bold text-white">$29/mo</p>
-                  <p className="text-xs font-semibold text-emerald-300 inline-flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5" /> {v2.dash.upgradeRadar}
-                  </p>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {checkoutLoading === "radar" ? t.pricing.loadingCheckout : v2.dash.upgradeRadar}
                 </button>
+              </div>
+
+              {/* $299 Done-For-You 首批 100 用户全包 */}
+              <div className="rounded-2xl border border-white/15 bg-[#0c1018] p-6 flex flex-col justify-between space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[11px] font-[family-name:var(--font-mono)] uppercase text-slate-400 font-semibold">
+                      {t.portal.dfyBadge}
+                    </p>
+                    <div className="mt-2 flex items-baseline gap-1.5 tabular-nums">
+                      <span className="text-4xl font-bold text-white">$299</span>
+                      <span className="text-xs text-slate-400">
+                        {isZh ? "7天全包交付" : isJa ? "7日間丸投げ" : "7-day sprint"}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">{t.portal.dfyHeadline}</p>
+                  <ul className="space-y-2.5 text-xs text-slate-200">
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>
+                        {isZh ? "50+ 高权重目录全人工复核提交" : "Manual 50+ high-DR directory submissions"}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>
+                        {isZh ? "直接提 GitHub PR 修完所有 SEO/AEO/安全头" : "Clean GitHub PR fixing all SEO/AEO headers"}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>
+                        {isZh ? "上线 5 个竞品 /vs/ 截流页 + 7 天代客外联" : "5 competitor /vs/ pages + 7-day outreach"}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
                 <button
                   onClick={() => handleCheckout("dfy")}
                   disabled={checkoutLoading !== null}
-                  className="p-5 rounded-xl border border-white/15 bg-white/[0.03] hover:border-white/35 text-left space-y-2 transition cursor-pointer"
+                  className="w-full py-3 rounded-xl border border-white/20 hover:border-emerald-400/60 bg-white/5 text-white font-bold text-xs transition cursor-pointer disabled:opacity-60"
                 >
-                  <p className="text-2xl font-bold text-white">$299</p>
-                  <p className="text-xs font-semibold text-slate-200">{v2.dash.upgradeDfy}</p>
+                  {checkoutLoading === "dfy" ? t.pricing.loadingCheckout : v2.dash.upgradeDfy}
                 </button>
               </div>
+            </div>
+
+            {/* 信任保障条（提升付费观感） */}
+            <div className="rounded-xl border border-white/10 bg-[#0c1018] px-5 py-4 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-400">
+              <span className="inline-flex items-center gap-2 text-slate-200 font-medium">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                {isZh
+                  ? "Creem.io 合规收单 · 7 天不满意全额退款保障 · 随时一键取消 · 自动开具发票"
+                  : isJa
+                  ? "Creem.io 安全決済 · 7日間全額返金保証 · いつでも解約可能 · 領収書自動発行"
+                  : "Secured by Creem.io · 7-Day Money-Back Guarantee · Cancel Anytime · Instant Invoice"}
+              </span>
+              <a href="mailto:hello@statementflow.win" className="text-emerald-400 hover:underline">
+                hello@statementflow.win
+              </a>
             </div>
           </div>
         )}

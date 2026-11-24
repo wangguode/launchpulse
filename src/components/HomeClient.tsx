@@ -12,6 +12,7 @@ import {
 import type { StartupAuditReport } from "@/types/audit";
 import { useI18n } from "@/components/I18nProvider";
 import LangSwitcher from "@/components/LangSwitcher";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import LiveScannerHero from "@/components/LiveScannerHero";
 import PricingCheckoutButtons from "@/components/PricingCheckoutButtons";
 import { V2_DICTIONARIES } from "@/lib/v2-i18n";
@@ -53,7 +54,8 @@ export default function HomeClient({ sampleAudits }: Props) {
             </Link>
           </nav>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <ThemeSwitcher />
             <LangSwitcher />
             <Link
               href="/login"

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Lock, RefreshCw, ShieldCheck } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 import LangSwitcher from "@/components/LangSwitcher";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { V2_DICTIONARIES } from "@/lib/v2-i18n";
 import { DISTRIBUTION_DIRECTORIES } from "@/data/directories";
 
@@ -141,7 +142,8 @@ export default function AdminConsolePage() {
               {v2.admin.badge}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <ThemeSwitcher />
             <LangSwitcher />
             {savedKey && (
               <>

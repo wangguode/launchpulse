@@ -20,6 +20,7 @@ import { DISTRIBUTION_DIRECTORIES } from "@/data/directories";
 import type { StartupAuditReport } from "@/types/audit";
 import { useI18n } from "@/components/I18nProvider";
 import LangSwitcher from "@/components/LangSwitcher";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import {
   decodeHtmlEntities,
   localizeCategory,
@@ -431,11 +432,18 @@ export default function CustomerPortalPage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <ThemeSwitcher />
             <LangSwitcher />
             <Link
+              href="/dashboard"
+              className="hidden sm:inline-block px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/25 transition"
+            >
+              Dashboard →
+            </Link>
+            <Link
               href="/"
-              className="hidden sm:inline-block text-xs text-slate-400 hover:text-white transition"
+              className="hidden md:inline-block text-xs text-slate-400 hover:text-white transition"
             >
               {t.warRoom.backToScanner}
             </Link>

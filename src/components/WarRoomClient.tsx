@@ -19,6 +19,7 @@ import {
 import type { StartupAuditReport } from "@/types/audit";
 import { useI18n } from "@/components/I18nProvider";
 import LangSwitcher from "@/components/LangSwitcher";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { V2_DICTIONARIES } from "@/lib/v2-i18n";
 import {
   decodeHtmlEntities,
@@ -156,7 +157,8 @@ export default function WarRoomClient({ report }: Props) {
             </span>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <ThemeSwitcher />
             <LangSwitcher />
             <Link
               href="/login"

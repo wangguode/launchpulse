@@ -990,65 +990,97 @@ async function handleDashboardOverview(request: Request, env: Env): Promise<Resp
   const user = await getSessionUser(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const [ordersRes, campaignsRes, linksRes, dirsRes, deliveriesRes, clicksDailyRes, convDailyRes] =
-    await Promise.all([
-      env.DB.prepare(
-        `SELECT order_id, slug, target_url, plan, amount_usd, status, created_at FROM customers_orders WHERE customer_email = ?1 ORDER BY id DESC`
-      )
-        .bind(user.email)
-        .all(),
-      env.DB.prepare(
-        `SELECT id, slug, product_name, target_url, tagline, competitors, status, created_at, updated_at FROM campaigns WHERE user_email = ?1 ORDER BY id DESC`
-      )
-        .bind(user.email)
-        .all(),
-      env.DB.prepare(
-        `SELECT code, campaign_id, channel, label, destination_url, clicks_count, conversions_count, created_at FROM tracking_links WHERE user_email = ?1 ORDER BY clicks_count DESC, created_at DESC`
-      )
-        .bind(user.email)
-        .all<{
-          code: string;
-          campaign_id: number;
-          channel: string;
-          label: string;
-          destination_url: string;
-          clicks_count: number;
-          conversions_count: number;
-          created_at: string;
-        }>(),
-      env.DB.prepare(
-        `SELECT directory_id, directory_name, directory_url, dr, category, status, live_backlink_url, updated_at FROM directory_submissions WHERE customer_email = ?1 ORDER BY dr DESC`
-      )
-        .bind(user.email)
-        .all<{ status: string }>(),
-      env.DB.prepare(
-        `SELECT lead_id, source, community, title, excerpt, url, reply_draft, lead_status, delivered_at FROM radar_deliveries WHERE customer_email = ?1 ORDER BY id DESC LIMIT 30`
-      )
-        .bind(user.email)
-        .all(),
-      env.DB.prepare(
-        `SELECT substr(clicked_at, 1, 10) as day, COUNT(*) as cnt FROM link_clicks WHERE user_email = ?1 AND clicked_at >= datetime('now', '-14 days') GROUP BY day ORDER BY day ASC`
-      )
-        .bind(user.email)
-        .all<{ day: string; cnt: number }>(),
-      env.DB.prepare(
-        `SELECT substr(created_at, 1, 10) as day, COUNT(*) as cnt FROM conversions WHERE user_email = ?1 AND created_at >= datetime('now', '-14 days') GROUP BY day ORDER BY day ASC`
-      )
-        .bind(user.email)
-        .all<{ day: string; cnt: number }>(),
-    ]);
+  const [
+    ordersRes,
+    campaignsRes,
+    linksRes,
+    dirsRes,
+    deliveriesRes,
+    clicksDailyRes,
+    convDailyRes,
+    countryRes,
+    deviceRes,
+    recentClicksRes,
+    convRevenueRes,
+  ] = await Promise.all([
+    env.DB.prepare(
+      `SELECT order_id, slug, target_url, plan, amount_usd, status, created_at FROM customers_orders WHERE customer_email = ?1 ORDER BY id DESC`
+    )
+      .bind(user.email)
+      .all(),
+    env.DB.prepare(
+      `SELECT id, slug, product_name, target_url, tagline, competitors, status, created_at, updated_at FROM campaigns WHERE user_email = ?1 ORDER BY id DESC`
+    )
+      .bind(user.email)
+      .all(),
+    env.DB.prepare(
+      `SELECT code, campaign_id, channel, label, destination_url, clicks_count, conversions_count, created_at FROM tracking_links WHERE user_email = ?1 ORDER BY clicks_count DESC, created_at DESC`
+    )
+      .bind(user.email)
+      .all<{
+        code: string;
+        campaign_id: number;
+        channel: string;
+        label: string;
+        destination_url: string;
+        clicks_count: number;
+        conversions_count: number;
+        created_at: string;
+      }>(),
+    env.DB.prepare(
+      `SELECT directory_id, directory_name, directory_url, dr, category, status, live_backlink_url, updated_at FROM directory_submissions WHERE customer_email = ?1 ORDER BY dr DESC`
+    )
+      .bind(user.email)
+      .all<{ status: string }>(),
+    env.DB.prepare(
+      `SELECT lead_id, source, community, title, excerpt, url, reply_draft, lead_status, delivered_at FROM radar_deliveries WHERE customer_email = ?1 ORDER BY id DESC LIMIT 30`
+    )
+      .bind(user.email)
+      .all(),
+    env.DB.prepare(
+      `SELECT substr(clicked_at, 1, 10) as day, COUNT(*) as cnt FROM link_clicks WHERE user_email = ?1 AND clicked_at >= datetime('now', '-30 days') GROUP BY day ORDER BY day ASC`
+    )
+      .bind(user.email)
+      .all<{ day: string; cnt: number }>(),
+    env.DB.prepare(
+      `SELECT substr(created_at, 1, 10) as day, COUNT(*) as cnt FROM conversions WHERE user_email = ?1 AND created_at >= datetime('now', '-30 days') GROUP BY day ORDER BY day ASC`
+    )
+      .bind(user.email)
+      .all<{ day: string; cnt: number }>(),
+    env.DB.prepare(
+      `SELECT country, COUNT(*) as clicks FROM link_clicks WHERE user_email = ?1 GROUP BY country ORDER BY clicks DESC LIMIT 8`
+    )
+      .bind(user.email)
+      .all<{ country: string; clicks: number }>(),
+    env.DB.prepare(
+      `SELECT device, COUNT(*) as clicks FROM link_clicks WHERE user_email = ?1 GROUP BY device ORDER BY clicks DESC`
+    )
+      .bind(user.email)
+      .all<{ device: string; clicks: number }>(),
+    env.DB.prepare(
+      `SELECT code, channel, country, device, referer, clicked_at FROM link_clicks WHERE user_email = ?1 ORDER BY id DESC LIMIT 12`
+    )
+      .bind(user.email)
+      .all<{ code: string; channel: string; country: string; device: string; referer: string; clicked_at: string }>(),
+    env.DB.prepare(
+      `SELECT COALESCE(SUM(value_usd), 0) as rev FROM conversions WHERE user_email = ?1`
+    )
+      .bind(user.email)
+      .first<{ rev: number }>(),
+  ]);
 
   const links = linksRes.results || [];
   const dirs = dirsRes.results || [];
   const totalClicks = links.reduce((sum, l) => sum + Number(l.clicks_count || 0), 0);
   const totalConversions = links.reduce((sum, l) => sum + Number(l.conversions_count || 0), 0);
   const conversionRate = totalClicks > 0 ? Number(((totalConversions / totalClicks) * 100).toFixed(2)) : 0;
+  const attributedRevenueUsd = Number(convRevenueRes?.rev || 0);
 
-  // 构建近 14 天连续日期序列，确保折线图平滑直观
+  // 构建近 30 天连续日期序列，支持前端自由切换 7D / 14D / 30D 视图
   const clickMap = new Map((clicksDailyRes.results || []).map((r) => [r.day, Number(r.cnt)]));
   const convMap = new Map((convDailyRes.results || []).map((r) => [r.day, Number(r.cnt)]));
   const dailySeries: Array<{ date: string; clicks: number; conversions: number }> = [];
-  for (let i = 13; i >= 0; i -= 1) {
+  for (let i = 29; i >= 0; i -= 1) {
     const d = new Date(Date.now() - i * 86400 * 1000).toISOString().slice(0, 10);
     dailySeries.push({ date: d, clicks: clickMap.get(d) || 0, conversions: convMap.get(d) || 0 });
   }
@@ -1078,10 +1110,14 @@ async function handleDashboardOverview(request: Request, env: Env): Promise<Resp
       totalClicks,
       totalConversions,
       conversionRate,
+      attributedRevenueUsd,
       directoriesLive: dirs.filter((d) => d.status === "live").length,
       directoriesSubmitted: dirs.filter((d) => d.status === "submitted" || d.status === "live").length,
       dailySeries,
       channelBreakdown,
+      countryBreakdown: countryRes.results || [],
+      deviceBreakdown: deviceRes.results || [],
+      recentClicks: recentClicksRes.results || [],
     },
   });
 }

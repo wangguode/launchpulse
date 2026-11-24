@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useI18n } from "@/components/I18nProvider";
 import LangSwitcher from "@/components/LangSwitcher";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 
 export default function PrivacyPage() {
   const { t } = useI18n();
@@ -13,7 +14,10 @@ export default function PrivacyPage() {
           <Link href="/" className="text-xs font-mono text-emerald-400 hover:underline">
             {t.common.backToHome}
           </Link>
-          <LangSwitcher />
+          <div className="flex items-center gap-2">
+            <ThemeSwitcher />
+            <LangSwitcher />
+          </div>
         </div>
         <h1 className="text-3xl font-bold text-white tracking-tight">{t.legal.privacyTitle}</h1>
         <p className="text-sm text-slate-400">{t.legal.lastUpdated}</p>

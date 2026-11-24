@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 import LangSwitcher from "@/components/LangSwitcher";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { V2_DICTIONARIES } from "@/lib/v2-i18n";
 
 export default function LoginPage() {
@@ -64,7 +65,8 @@ export default function LoginPage() {
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#10b981]" />
             <span>LaunchPulse</span>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <ThemeSwitcher />
             <LangSwitcher />
             <Link href="/" className="text-xs text-slate-400 hover:text-white transition">
               {t.common.backToHome}
