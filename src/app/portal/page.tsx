@@ -88,12 +88,25 @@ export default function CustomerPortalPage() {
       });
       const data = await res.json();
       if (data.found && data.order) {
-        const matched =
-          sampleAudits.find((a) => a.slug === data.order.slug) || sampleAudits[0];
-        setActiveReport(matched || null);
+        let matched: StartupAuditReport | null =
+          sampleAudits.find((a) => a.slug === data.order.slug) || null;
+        // 若为 D1 动态入库的新客户，自动从 /api/audit/:slug 实时拉取报告，彻底打通动态扩展
+        if (!matched && data.order.slug) {
+          try {
+            const dynRes = await fetch(`/api/audit/${encodeURIComponent(data.order.slug)}`);
+            if (dynRes.ok) {
+              matched = (await dynRes.json()) as StartupAuditReport;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        setActiveReport(matched || sampleAudits[0] || null);
         setActivePlanLabel(
           data.order.plan === "fixpack"
             ? "One-Time Launch Fix Pack ($19)"
+            : data.order.plan === "dfy"
+            ? "Done-For-You Growth Sprint ($299)"
             : "Growth & Buyer Radar Pro ($29/mo)"
         );
       } else {
@@ -236,7 +249,7 @@ export default function CustomerPortalPage() {
                 type="text"
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
-                placeholder="founder@your-startup.com or magic token"
+                placeholder={t.portal.inputPlaceholder}
                 className="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm font-[family-name:var(--font-mono)] text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
               />
               <button
@@ -246,10 +259,10 @@ export default function CustomerPortalPage() {
               >
                 {loading ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Checking Creem Orders...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Checking...
                   </>
                 ) : (
-                  "Open My Workspace →"
+                  t.portal.submitBtn
                 )}
               </button>
             </form>
@@ -262,7 +275,7 @@ export default function CustomerPortalPage() {
 
             <div className="pt-4 border-t border-white/10 space-y-2.5">
               <p className="text-xs font-[family-name:var(--font-mono)] text-slate-400 uppercase">
-                Want to preview the unlocked workspace first?
+                {t.portal.previewLabel}
               </p>
               <div className="flex flex-wrap gap-2">
                 {sampleAudits.map((a) => (
@@ -302,7 +315,7 @@ export default function CustomerPortalPage() {
                   className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs inline-flex items-center gap-2 transition cursor-pointer disabled:opacity-60"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${rescanLoading ? "animate-spin" : ""}`} />
-                  {rescanLoading ? "Re-Scanning Live Site..." : "Re-Scan My Site Now"}
+                  {rescanLoading ? t.portal.rescanningBtn : t.portal.rescanBtn}
                 </button>
                 <button
                   onClick={() => {
@@ -311,7 +324,7 @@ export default function CustomerPortalPage() {
                   }}
                   className="px-3.5 py-2.5 rounded-xl border border-white/15 text-xs text-slate-300 hover:text-white cursor-pointer"
                 >
-                  Switch Workspace
+                  {t.portal.switchWorkspace}
                 </button>
               </div>
             </section>

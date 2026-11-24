@@ -225,7 +225,7 @@ export default function WarRoomClient({ report }: Props) {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-[family-name:var(--font-mono)] uppercase tracking-wider text-slate-400">
-                  Launch Readiness
+                  {t.warRoom.readiness}
                 </p>
                 <div className="mt-1 flex items-baseline gap-1.5 tabular-nums">
                   <span className="text-5xl font-[family-name:var(--font-display)] font-bold text-amber-400">
@@ -235,7 +235,7 @@ export default function WarRoomClient({ report }: Props) {
                 </div>
               </div>
               <span className="px-2.5 py-1 rounded text-xs font-semibold bg-red-500/15 text-red-300 border border-red-500/30 tabular-nums">
-                {report.leaks.length} Leaks Found
+                {report.leaks.length} {t.warRoom.leaksFound}
               </span>
             </div>
 
@@ -546,7 +546,7 @@ export default function WarRoomClient({ report }: Props) {
                       onClick={() => trackEvent("buyer_click")}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/35 text-emerald-300 text-xs font-semibold transition"
                     >
-                      Open Live Thread &amp; Reply <ArrowUpRight className="w-3.5 h-3.5" />
+                      {t.warRoom.openThread} <ArrowUpRight className="w-3.5 h-3.5" />
                     </a>
                   </div>
                 </div>

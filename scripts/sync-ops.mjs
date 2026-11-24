@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 /**
- * LaunchPulse 内部指挥台同步脚本：
- * 从线上 Cloudflare D1 (/api/admin/overview) 实时拉取：
- *   - 猎物池 (leads_targets)
- *   - 发信与视频观看热力 (outreach_logs: 打开次数 / 视频播放最大秒数 / 买家链接点击数)
- *   - Creem 实时付费订单台账 (customers_orders)
- * 并一键打印实时经营漏斗报表（同时可推送至本地 PocketBase Admin UI）。
+ * LaunchPulse 内部指挥台同步脚本（适配 PocketBase / CSV / 终端实时看板）：
+ * 1. 从线上 Cloudflare D1 (/api/admin/overview) 拉取全量猎物、热力与付费订单
+ * 2. 自动导出本地 ops-data/latest-snapshot.json 与 ops-data/crm-outreach.csv（可直接导入 PocketBase Admin UI）
+ * 3. 自动标出“视频看了 >=30s 却尚未付款”的高意向待追单名单
  */
 
 import fs from "node:fs";
@@ -13,6 +11,7 @@ import path from "node:path";
 
 const ROOT = process.cwd();
 const ENV_OPS_PATH = path.join(ROOT, ".env.ops");
+const OPS_DATA_DIR = path.join(ROOT, "ops-data");
 
 function loadAdminKey() {
   if (process.env.ADMIN_API_KEY) return process.env.ADMIN_API_KEY.trim();
@@ -22,6 +21,11 @@ function loadAdminKey() {
     if (m) return m[1].trim();
   }
   return "";
+}
+
+function csvEscape(v) {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 async function main() {
@@ -41,10 +45,53 @@ async function main() {
   }
 
   const data = await res.json();
+  fs.mkdirSync(OPS_DATA_DIR, { recursive: true });
+  fs.writeFileSync(
+    path.join(OPS_DATA_DIR, "latest-snapshot.json"),
+    JSON.stringify(data, null, 2),
+    "utf8"
+  );
+
+  // 生成可直接导入 PocketBase / NocoDB / Excel 的 CRM 追单表
+  const csvHeader = [
+    "slug",
+    "recipient_email",
+    "page_views",
+    "max_video_seconds",
+    "buyer_clicks",
+    "follow_up_status",
+    "last_event_at",
+    "hot_followup_flag",
+  ].join(",");
+  const csvLines = [csvHeader];
+  const hotFollowups = [];
+
+  for (const row of data.outreach || []) {
+    const isHot =
+      (row.max_video_seconds >= 30 || row.buyer_clicks >= 1) &&
+      row.follow_up_status !== "won";
+    if (isHot) hotFollowups.push(row);
+    csvLines.push(
+      [
+        row.slug,
+        row.recipient_email,
+        row.page_views,
+        row.max_video_seconds,
+        row.buyer_clicks,
+        row.follow_up_status,
+        row.last_event_at,
+        isHot ? "HOT_FOLLOWUP" : "NORMAL",
+      ]
+        .map(csvEscape)
+        .join(",")
+    );
+  }
+  fs.writeFileSync(path.join(OPS_DATA_DIR, "crm-outreach.csv"), csvLines.join("\n"), "utf8");
+
   console.log(`\n📊 LaunchPulse Live Ops Snapshot (${data.syncedAt})`);
-  console.log("=".repeat(64));
+  console.log("=".repeat(68));
   console.log(
-    `Targets: ${data.leads.length} | Emailed/Tracked: ${data.outreach.length} | Paid Orders: ${data.orders.length}`
+    `Targets: ${data.leads.length} | Emailed/Tracked: ${data.outreach.length} | Paid Orders: ${data.orders.length} | Hot Follow-ups: ${hotFollowups.length}`
   );
   console.log("\n🔥 Outreach & Video Watch Heatmap:");
   for (const row of data.outreach) {
@@ -56,15 +103,19 @@ async function main() {
       } | Status: ${row.follow_up_status}`
     );
   }
+  if (hotFollowups.length > 0) {
+    console.log("\n🎯 High-Intent Follow-up Targets (Watched >=30s or Clicked Buyers):");
+    for (const h of hotFollowups) {
+      console.log(`  → ${h.slug} (${h.recipient_email}) — MaxVideo=${h.max_video_seconds}s, Clicks=${h.buyer_clicks}`);
+    }
+  }
   if (data.orders.length > 0) {
     console.log("\n💰 Paid Customers (Creem Webhook):");
     for (const o of data.orders) {
-      console.log(
-        `  • ${o.customer_email} | ${o.plan} ($${o.amount_usd}) | status=${o.status}`
-      );
+      console.log(`  • ${o.customer_email} | ${o.plan} ($${o.amount_usd}) | status=${o.status}`);
     }
   }
-  console.log("");
+  console.log(`\n💾 Exported PocketBase/CRM snapshot -> ops-data/crm-outreach.csv\n`);
 }
 
 main().catch((err) => {

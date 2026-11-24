@@ -1881,6 +1881,27 @@ async function main() {
     console.log(
       `\n✅ Added/updated ${newReports.length} reports (total ${mergedReports.length}) in ${DATA_OUT_PATH}`
     );
+
+    // 若本机配置了 .env.ops，自动将新报告秒级同步写入远端 Cloudflare D1 (/audit/live?s=<slug>)
+    const envOpsPath = path.join(ROOT, ".env.ops");
+    if (fs.existsSync(envOpsPath) && newReports.length > 0) {
+      const m = fs.readFileSync(envOpsPath, "utf8").match(/^ADMIN_API_KEY=(.+)$/m);
+      const adminKey = m ? m[1].trim() : "";
+      if (adminKey) {
+        for (const rep of newReports) {
+          try {
+            const ingestRes = await fetch("https://pulse.statementflow.win/api/admin/ingest", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-admin-key": adminKey },
+              body: JSON.stringify(rep),
+            });
+            console.log(`☁️ D1 Live Sync [${rep.slug}]: HTTP ${ingestRes.status}`);
+          } catch {
+            // 离线模式忽略远端同步
+          }
+        }
+      }
+    }
   } finally {
     await browser.close();
   }
