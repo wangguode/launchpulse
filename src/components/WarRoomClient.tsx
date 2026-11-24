@@ -19,13 +19,21 @@ import {
 import type { StartupAuditReport } from "@/types/audit";
 import { useI18n } from "@/components/I18nProvider";
 import LangSwitcher from "@/components/LangSwitcher";
+import {
+  decodeHtmlEntities,
+  localizeCategory,
+  localizeLeakImpact,
+  localizeLeakTitle,
+  localizePassedCheck,
+  localizeSeverity,
+} from "@/lib/i18n";
 
 interface Props {
   report: StartupAuditReport;
 }
 
 export default function WarRoomClient({ report }: Props) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastReportedSecRef = useRef<number>(0);
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -33,7 +41,7 @@ export default function WarRoomClient({ report }: Props) {
   const [postCheckoutPrompt, setPostCheckoutPrompt] = useState(false);
   const [claimEmail, setClaimEmail] = useState("");
   const [claimFeedback, setClaimFeedback] = useState("");
-  const [loadingPlan, setLoadingPlan] = useState<"fixpack" | "radar" | null>(null);
+  const [loadingPlan, setLoadingPlan] = useState<"blitz" | "radar" | null>(null);
   const [checkoutError, setCheckoutError] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -88,7 +96,7 @@ export default function WarRoomClient({ report }: Props) {
     v.play().catch(() => {});
   };
 
-  const handleCheckout = async (plan: "fixpack" | "radar") => {
+  const handleCheckout = async (plan: "blitz" | "radar") => {
     setLoadingPlan(plan);
     setCheckoutError("");
     try {
@@ -106,9 +114,9 @@ export default function WarRoomClient({ report }: Props) {
         window.location.href = data.checkoutUrl;
         return;
       }
-      setCheckoutError(data.error || "Unable to open checkout right now.");
+      setCheckoutError(data.error || t.common.unableCheckoutError);
     } catch {
-      setCheckoutError("Network error while connecting to Creem checkout.");
+      setCheckoutError(t.common.networkCheckoutError);
     } finally {
       setLoadingPlan(null);
     }
@@ -142,7 +150,7 @@ export default function WarRoomClient({ report }: Props) {
             </Link>
             <span className="text-slate-600 hidden sm:inline">/</span>
             <span className="hidden sm:inline-block text-xs font-[family-name:var(--font-mono)] text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded truncate">
-              PRIVATE WAR-ROOM · {report.domain}
+              {t.warRoom.privateWarRoom} · {report.domain}
             </span>
           </div>
 
@@ -162,13 +170,11 @@ export default function WarRoomClient({ report }: Props) {
                 disabled={loadingPlan !== null}
                 className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition cursor-pointer disabled:opacity-60"
               >
-                {loadingPlan === "radar"
-                  ? t.pricing.loadingCheckout
-                  : t.warRoom.unlockAll}
+                {loadingPlan === "radar" ? t.pricing.loadingCheckout : t.warRoom.unlockAll}
               </button>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-semibold">
-                <Unlock className="w-3.5 h-3.5" /> Full Pack Unlocked ({unlockedPlan})
+                <Unlock className="w-3.5 h-3.5" /> {t.warRoom.fullPackUnlocked} ({unlockedPlan})
               </span>
             )}
           </div>
@@ -178,10 +184,7 @@ export default function WarRoomClient({ report }: Props) {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-10">
         {postCheckoutPrompt && !isUnlocked && (
           <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-5 space-y-3">
-            <p className="text-sm text-emerald-100 font-semibold">
-              Payment received! Check your inbox for your instant Magic Unlock Link, or enter your
-              checkout email below to resend it right now:
-            </p>
+            <p className="text-sm text-emerald-100 font-semibold">{t.warRoom.postCheckoutTitle}</p>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -192,7 +195,7 @@ export default function WarRoomClient({ report }: Props) {
                   body: JSON.stringify({ email: claimEmail.trim(), slug: report.slug }),
                 });
                 const d = await r.json();
-                setClaimFeedback(d.message || "Magic Link sent to your checkout email.");
+                setClaimFeedback(d.message || t.warRoom.magicLinkSentFallback);
               }}
               className="flex flex-col sm:flex-row gap-2 max-w-lg"
             >
@@ -200,14 +203,14 @@ export default function WarRoomClient({ report }: Props) {
                 type="email"
                 value={claimEmail}
                 onChange={(e) => setClaimEmail(e.target.value)}
-                placeholder="checkout-email@your-startup.com"
+                placeholder={t.warRoom.claimEmailPlaceholder}
                 className="flex-1 rounded-lg border border-white/15 bg-black/50 px-3 py-2 text-xs font-[family-name:var(--font-mono)] text-white"
               />
               <button
                 type="submit"
                 className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs cursor-pointer"
               >
-                Send Magic Unlock Link →
+                {t.warRoom.sendMagicLinkBtn}
               </button>
             </form>
             {claimFeedback && <p className="text-xs text-emerald-300">{claimFeedback}</p>}
@@ -219,9 +222,10 @@ export default function WarRoomClient({ report }: Props) {
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
               <p className="text-sm text-emerald-100">
-                <strong>Payment verified!</strong> All Cursor / Claude Code fix prompts, your custom{" "}
-                <code>/llms.txt</code> manifest, and all {report.buyerLeads.length} high-intent buyer
-                threads for <strong>{report.productName}</strong> are now unlocked below.
+                <strong>{t.warRoom.paymentVerifiedStrong}</strong>{" "}
+                {t.warRoom.paymentVerifiedBodyPrefix} <code>/llms.txt</code>{" "}
+                {t.warRoom.paymentVerifiedBodyMid} {report.buyerLeads.length}{" "}
+                {t.warRoom.paymentVerifiedBodySuffix}
               </p>
             </div>
           </div>
@@ -240,16 +244,16 @@ export default function WarRoomClient({ report }: Props) {
                 </span>
               </div>
               <h1 className="text-2xl sm:text-4xl font-[family-name:var(--font-display)] font-bold text-white tracking-tight leading-tight">
-                {report.productName} Launch &amp; Buyer Intent Teardown
+                {report.productName} {t.warRoom.teardownHeadingSuffix}
               </h1>
               <p className="text-slate-300 text-sm sm:text-base leading-relaxed max-w-3xl">
-                We inspected <span className="text-white font-medium">{report.domain}</span> across
-                desktop &amp; mobile viewports, audited AI search citation endpoints (
-                <code className="text-emerald-300">/llms.txt</code> &amp; JSON-LD), and matched{" "}
+                {t.warRoom.introPrefix}{" "}
+                <span className="text-white font-medium">{report.domain}</span> {t.warRoom.introMid1}
+                <code className="text-emerald-300">/llms.txt</code> {t.warRoom.introMid2}{" "}
                 <strong className="text-emerald-400">
-                  {report.buyerLeads.length} live developer threads
+                  {report.buyerLeads.length} {t.warRoom.introThreadsUnit}
                 </strong>{" "}
-                discussing the exact pain point {report.productName} solves.
+                {t.warRoom.introSuffix}
               </p>
             </div>
 
@@ -260,7 +264,7 @@ export default function WarRoomClient({ report }: Props) {
                   className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/10 text-slate-300"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  {check}
+                  {localizePassedCheck(check, locale)}
                 </span>
               ))}
             </div>
@@ -286,10 +290,10 @@ export default function WarRoomClient({ report }: Props) {
 
             <div className="mt-5 space-y-2.5 text-xs tabular-nums">
               {[
-                { label: "AI Search Visibility (/llms.txt)", val: report.subScores.aiSearchVisibility },
-                { label: "Google SEO & Rich Schema", val: report.subScores.seoAndSchema },
-                { label: "Bottom-Funnel & Mobile UX", val: report.subScores.conversionAndUx },
-                { label: "HTTP Security Hardening", val: report.subScores.securityBaseline },
+                { label: t.warRoom.subScoreAi, val: report.subScores.aiSearchVisibility },
+                { label: t.warRoom.subScoreSeo, val: report.subScores.seoAndSchema },
+                { label: t.warRoom.subScoreUx, val: report.subScores.conversionAndUx },
+                { label: t.warRoom.subScoreSec, val: report.subScores.securityBaseline },
               ].map((row) => (
                 <div key={row.label} className="space-y-1">
                   <div className="flex justify-between text-slate-300">
@@ -316,16 +320,17 @@ export default function WarRoomClient({ report }: Props) {
           </div>
         </section>
 
-        {/* 2. 核心 85 秒专属实机拆解视频播放器 */}
+        {/* 2. 核心 80+ 秒专属实机拆解视频播放器 */}
         <section className="rounded-2xl border border-emerald-500/30 bg-[#0b1018] overflow-hidden shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
           <div className="px-5 py-3.5 border-b border-white/10 bg-[#0f1521] flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <Play className="w-4 h-4 text-emerald-400 fill-emerald-400" />
               <span className="text-sm font-semibold text-white">
-                {report.videoDurationSeconds}s Personalized Video Walkthrough for {report.productName}
+                {report.videoDurationSeconds}
+                {t.warRoom.videoTitleMid} {report.productName}
               </span>
               <span className="text-xs font-[family-name:var(--font-mono)] text-slate-400 hidden sm:inline">
-                (Narrated · 720p HD · Subtitled)
+                {t.warRoom.videoSpecs}
               </span>
             </div>
 
@@ -334,25 +339,25 @@ export default function WarRoomClient({ report }: Props) {
                 onClick={() => jumpToChapter(0)}
                 className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 transition cursor-pointer"
               >
-                01 · Product UI
+                {t.warRoom.ch1}
               </button>
               <button
                 onClick={() => jumpToChapter(0.22)}
                 className="px-2.5 py-1 rounded bg-red-500/15 hover:bg-red-500/25 text-red-300 transition cursor-pointer"
               >
-                02 · {report.leaks.length} Leaks
+                02 · {report.leaks.length} {t.warRoom.ch2Suffix}
               </button>
               <button
                 onClick={() => jumpToChapter(0.58)}
                 className="px-2.5 py-1 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 transition cursor-pointer"
               >
-                03 · Waiting Buyers
+                {t.warRoom.ch3}
               </button>
               <button
                 onClick={() => jumpToChapter(0.84)}
                 className="px-2.5 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 transition cursor-pointer"
               >
-                04 · 15-Min Fix
+                {t.warRoom.ch4}
               </button>
             </div>
           </div>
@@ -372,12 +377,15 @@ export default function WarRoomClient({ report }: Props) {
                 }
               }}
               onEnded={(e) => {
-                trackEvent("video_progress", Math.round(e.currentTarget.duration || report.videoDurationSeconds));
+                trackEvent(
+                  "video_progress",
+                  Math.round(e.currentTarget.duration || report.videoDurationSeconds)
+                );
               }}
               className="w-full h-full object-contain"
             >
               <source src={report.videoUrl} type="video/mp4" />
-              Your browser does not support HTML5 video playback.
+              {t.warRoom.videoUnsupported}
             </video>
           </div>
         </section>
@@ -388,7 +396,7 @@ export default function WarRoomClient({ report }: Props) {
           </div>
         )}
 
-        {/* 3. 左右双栏成交主战场：左栏漏洞与 AI 修复包 + 右栏真实等待买家 */}
+        {/* 3. 左右双栏成交主战场：左栏流量缺口与随赠修复包 + 右栏真实等待买家 */}
         <section className="grid lg:grid-cols-12 gap-8 items-start">
           {/* 左栏：Leak & SEO Report */}
           <div className="lg:col-span-6 space-y-6">
@@ -400,7 +408,7 @@ export default function WarRoomClient({ report }: Props) {
                 </h2>
               </div>
               <span className="text-xs font-[family-name:var(--font-mono)] text-slate-400">
-                100% Passive Check
+                {t.warRoom.passiveBadge}
               </span>
             </div>
 
@@ -436,29 +444,35 @@ export default function WarRoomClient({ report }: Props) {
                           : "bg-amber-500/15 text-amber-300 border border-amber-500/30"
                       }`}
                     >
-                      {leak.severity} · {leak.category}
+                      {localizeSeverity(leak.severity, locale)} ·{" "}
+                      {localizeCategory(leak.category, locale)}
                     </span>
                     <span className="text-xs font-[family-name:var(--font-mono)] text-slate-500">
-                      LEAK #0{idx + 1}
+                      {t.warRoom.leakTagPrefix}
+                      {idx + 1}
                     </span>
                   </div>
 
-                  <h3 className="text-base font-semibold text-white leading-snug">{leak.title}</h3>
+                  <h3 className="text-base font-semibold text-white leading-snug">
+                    {localizeLeakTitle(leak.title, locale)}
+                  </h3>
                   <p className="text-xs font-[family-name:var(--font-mono)] text-slate-300 bg-black/40 border border-white/5 rounded-lg p-3 leading-relaxed break-words overflow-x-auto">
                     {leak.evidence}
                   </p>
                   <p className="text-xs text-amber-300/90 flex items-center gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                    <span>Impact: {leak.impactEstimate}</span>
+                    <span>
+                      {t.warRoom.impactPrefix} {localizeLeakImpact(leak.impactEstimate, locale)}
+                    </span>
                   </p>
 
-                  {/* Cursor / Claude Code 一键修复 Prompt（付费解锁区） */}
+                  {/* Cursor / Claude Code 一键修复 Prompt（随 $39 分发包或 $29/mo 雷达附赠解锁） */}
                   <div className="pt-2 border-t border-white/10">
                     {isUnlocked ? (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs text-emerald-300 font-[family-name:var(--font-mono)]">
                           <span className="inline-flex items-center gap-1">
-                            <Terminal className="w-3.5 h-3.5" /> Ready-to-Paste Cursor / Claude Code Prompt
+                            <Terminal className="w-3.5 h-3.5" /> {t.warRoom.readyPromptLabel}
                           </span>
                           <button
                             onClick={() => copyText(leak.id, leak.cursorFixPrompt)}
@@ -466,11 +480,11 @@ export default function WarRoomClient({ report }: Props) {
                           >
                             {copiedId === leak.id ? (
                               <>
-                                <Check className="w-3 h-3" /> Copied
+                                <Check className="w-3 h-3" /> {t.common.copied}
                               </>
                             ) : (
                               <>
-                                <Copy className="w-3 h-3" /> Copy Prompt
+                                <Copy className="w-3 h-3" /> {t.common.copyPrompt}
                               </>
                             )}
                           </button>
@@ -484,17 +498,17 @@ export default function WarRoomClient({ report }: Props) {
                         <p className="text-xs font-[family-name:var(--font-mono)] text-slate-500 select-none blur-[4px]">
                           {leak.cursorFixPrompt}
                         </p>
-                        <div className="absolute inset-0 bg-[#080b12]/65 backdrop-blur-[1px] flex items-center justify-between px-3.5">
-                          <span className="text-xs text-slate-300 inline-flex items-center gap-1.5">
-                            <Lock className="w-3.5 h-3.5 text-amber-400" />
-                            1-Click Cursor / Claude Fix Prompt
+                        <div className="absolute inset-0 bg-[#080b12]/65 backdrop-blur-[1px] flex items-center justify-between px-3.5 gap-2">
+                          <span className="text-xs text-slate-300 inline-flex items-center gap-1.5 truncate">
+                            <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span className="truncate">{t.warRoom.lockedPromptLabel}</span>
                           </span>
                           <button
-                            onClick={() => handleCheckout("fixpack")}
+                            onClick={() => handleCheckout("blitz")}
                             disabled={loadingPlan !== null}
-                            className="text-xs font-semibold text-emerald-300 hover:text-emerald-200 underline cursor-pointer"
+                            className="text-xs font-semibold text-emerald-300 hover:text-emerald-200 underline cursor-pointer shrink-0"
                           >
-                            Unlock Fix Pack ($19)
+                            {t.warRoom.unlockBlitzShort}
                           </button>
                         </div>
                       </div>
@@ -508,14 +522,14 @@ export default function WarRoomClient({ report }: Props) {
             <div className="rounded-xl border border-white/10 bg-[#0c1018] p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-400 uppercase font-semibold">
-                  Generated /llms.txt Manifest for {report.domain}
+                  {t.warRoom.generatedLlmsTitle} {report.domain}
                 </span>
                 {isUnlocked && (
                   <button
                     onClick={() => copyText("llms-txt", report.generatedLlmsTxtPreview)}
                     className="text-xs text-emerald-300 hover:underline inline-flex items-center gap-1 cursor-pointer"
                   >
-                    {copiedId === "llms-txt" ? "Copied!" : "Copy File"}
+                    {copiedId === "llms-txt" ? t.common.copiedBang : t.common.copyFile}
                   </button>
                 )}
               </div>
@@ -530,16 +544,17 @@ export default function WarRoomClient({ report }: Props) {
                 {!isUnlocked && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#07090d]/65 rounded-lg p-4 text-center gap-2">
                     <p className="text-xs text-slate-200 font-medium">
-                      Ready-to-deploy <code>public/llms.txt</code> + SoftwareApplication JSON-LD
+                      {t.warRoom.llmsOverlayDescPrefix} <code>public/llms.txt</code>{" "}
+                      {t.warRoom.llmsOverlayDescSuffix}
                     </p>
                     <button
-                      onClick={() => handleCheckout("fixpack")}
+                      onClick={() => handleCheckout("blitz")}
                       disabled={loadingPlan !== null}
-                      className="px-4 py-2 rounded-lg bg-white text-slate-950 hover:bg-slate-200 font-semibold text-xs transition cursor-pointer"
+                      className="px-4 py-2 rounded-lg bg-amber-400 text-slate-950 hover:bg-amber-300 font-bold text-xs transition cursor-pointer"
                     >
-                      {loadingPlan === "fixpack"
-                        ? "Redirecting..."
-                        : "Unlock Complete Launch Fix Pack — $19 One-Time"}
+                      {loadingPlan === "blitz"
+                        ? t.pricing.loadingCheckout
+                        : t.warRoom.unlockBlitzLong}
                     </button>
                   </div>
                 )}
@@ -570,19 +585,24 @@ export default function WarRoomClient({ report }: Props) {
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-[family-name:var(--font-mono)]">
                     <span className="text-emerald-300 font-semibold">
-                      #{idx + 1} UNLOCKED · {lead.source} ({lead.community})
+                      #{idx + 1} {t.warRoom.unlockedTag} · {lead.source} ({lead.community})
                     </span>
                     <span className="text-slate-400 tabular-nums">
-                      Intent {lead.intentScore}% · {lead.postedAt}
+                      {t.warRoom.intentLabel} {lead.intentScore}% · {lead.postedAt}
                     </span>
                   </div>
 
-                  <h3 className="text-base font-semibold text-white leading-snug">{lead.title}</h3>
-                  <p className="text-xs text-slate-300 leading-relaxed">{lead.excerpt}</p>
+                  <h3 className="text-base font-semibold text-white leading-snug">
+                    {decodeHtmlEntities(lead.title)}
+                  </h3>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    {decodeHtmlEntities(lead.excerpt)}
+                  </p>
 
                   <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-white/10">
                     <span className="text-[11px] text-slate-400">
-                      Author: <strong className="text-slate-200">{lead.author}</strong>
+                      {t.warRoom.authorLabel}{" "}
+                      <strong className="text-slate-200">{lead.author}</strong>
                     </span>
                     <a
                       href={lead.url}
@@ -603,9 +623,9 @@ export default function WarRoomClient({ report }: Props) {
               <div className="rounded-2xl border border-amber-500/35 bg-[#0d111a] p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-[family-name:var(--font-mono)] uppercase tracking-wider text-amber-300 font-semibold">
-                    + {lockedLeads.length} More High-Intent Threads Queued
+                    {t.warRoom.moreQueuedPrefix} {lockedLeads.length} {t.warRoom.moreQueuedSuffix}
                   </span>
-                  <span className="text-xs text-slate-400">Updated daily</span>
+                  <span className="text-xs text-slate-400">{t.warRoom.updatedDaily}</span>
                 </div>
 
                 <div className="space-y-2.5">
@@ -620,10 +640,12 @@ export default function WarRoomClient({ report }: Props) {
                             {lead.source} · {lead.community}
                           </span>
                           <span>· {lead.postedAt}</span>
-                          <span>· Intent {lead.intentScore}%</span>
+                          <span>
+                            · {t.warRoom.intentLabel} {lead.intentScore}%
+                          </span>
                         </div>
                         <p className="text-xs text-slate-300 truncate blur-[4.5px] select-none">
-                          {lead.title} — {lead.excerpt}
+                          {decodeHtmlEntities(lead.title)} — {decodeHtmlEntities(lead.excerpt)}
                         </p>
                       </div>
                       <Lock className="w-4 h-4 text-amber-400 shrink-0" />
@@ -631,28 +653,32 @@ export default function WarRoomClient({ report }: Props) {
                   ))}
                 </div>
 
-                {/* 双档位直连 Creem.io 变现区 */}
+                {/* 双档位直连 Creem.io 变现区（统一 $39 目录分发 + $29/月 买家雷达） */}
                 <div className="pt-3 border-t border-white/10 space-y-3">
                   <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-4 space-y-3">
                     <div className="flex items-baseline justify-between">
                       <div>
                         <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-300 font-semibold uppercase">
-                          Most Popular for Solo Founders
+                          {t.warRoom.mostPopular}
                         </span>
-                        <h4 className="text-lg font-bold text-white">
-                          Growth &amp; Buyer Radar Pro
-                        </h4>
+                        <h4 className="text-lg font-bold text-white">{t.warRoom.radarTitle}</h4>
                       </div>
                       <div className="text-right tabular-nums">
                         <span className="text-2xl font-bold text-white">$29</span>
-                        <span className="text-xs text-slate-400">/mo</span>
+                        <span className="text-xs text-slate-400">{t.warRoom.perMonth}</span>
                       </div>
                     </div>
                     <ul className="text-xs text-slate-200 space-y-1.5">
-                      <li>✓ Unlock all {report.buyerLeads.length} live buyer URLs + tailored reply angles</li>
-                      <li>✓ Includes the complete $19 Launch Fix Pack (Cursor prompts + /llms.txt)</li>
-                      <li>✓ Daily email alerts when developers ask for tools like {report.productName}</li>
-                      <li>✓ 2 SEO competitor &ldquo;Alternative-to&rdquo; pages generated weekly</li>
+                      <li>
+                        {t.warRoom.radarBullet1Prefix} {report.buyerLeads.length}{" "}
+                        {t.warRoom.radarBullet1Suffix}
+                      </li>
+                      <li>{t.warRoom.radarBullet2}</li>
+                      <li>
+                        {t.warRoom.radarBullet3Prefix} {report.productName}
+                        {t.warRoom.radarBullet3Suffix}
+                      </li>
+                      <li>{t.warRoom.radarBullet4}</li>
                     </ul>
                     <button
                       onClick={() => handleCheckout("radar")}
@@ -660,27 +686,21 @@ export default function WarRoomClient({ report }: Props) {
                       className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                     >
                       <Sparkles className="w-4 h-4" />
-                      {loadingPlan === "radar"
-                        ? t.pricing.loadingCheckout
-                        : t.warRoom.unlockAll}
+                      {loadingPlan === "radar" ? t.pricing.loadingCheckout : t.warRoom.unlockAll}
                     </button>
                   </div>
 
-                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="rounded-xl border border-amber-500/35 bg-amber-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-white">
-                        {t.pricing.fixLabel}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        Cursor / Claude prompts + <code>/llms.txt</code> &amp; JSON-LD
-                      </p>
+                      <p className="text-sm font-semibold text-white">{t.pricing.fixLabel}</p>
+                      <p className="text-xs text-slate-300">{t.warRoom.blitzCardDesc}</p>
                     </div>
                     <button
-                      onClick={() => handleCheckout("fixpack")}
+                      onClick={() => handleCheckout("blitz")}
                       disabled={loadingPlan !== null}
-                      className="shrink-0 px-4 py-2.5 rounded-lg border border-white/20 hover:border-white/40 bg-white/5 text-white font-semibold text-xs transition cursor-pointer disabled:opacity-60"
+                      className="shrink-0 px-4 py-2.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition cursor-pointer disabled:opacity-60"
                     >
-                      {loadingPlan === "fixpack" ? t.pricing.loadingCheckout : t.warRoom.buyFixPack}
+                      {loadingPlan === "blitz" ? t.pricing.loadingCheckout : t.warRoom.buyFixPack}
                     </button>
                   </div>
                 </div>
@@ -697,26 +717,26 @@ export default function WarRoomClient({ report }: Props) {
         )}`}
         className="fixed bottom-5 right-5 z-40 px-3.5 py-2 rounded-full bg-[#0f1724]/95 border border-emerald-500/40 hover:border-emerald-400 text-xs font-[family-name:var(--font-mono)] text-emerald-300 shadow-xl backdrop-blur-md transition"
       >
-        Questions? Email Founder →
+        {t.common.questionsEmailFounder}
       </a>
 
       <footer className="border-t border-white/10 py-8 mt-12 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p>
-            LaunchPulse · 100% Passive Read-Only Diagnostics · Questions?{" "}
+            {t.common.passiveFooterNote} · {t.common.questionsPrefix}{" "}
             <a href="mailto:hello@statementflow.win" className="text-slate-300 hover:underline">
               hello@statementflow.win
             </a>
           </p>
           <div className="flex items-center gap-5">
             <Link href="/" className="hover:text-slate-300">
-              Run Free Scan
+              {t.common.runFreeScan}
             </Link>
             <Link href="/privacy" className="hover:text-slate-300">
-              Privacy
+              {t.common.privacy}
             </Link>
             <Link href="/terms" className="hover:text-slate-300">
-              Terms
+              {t.common.terms}
             </Link>
           </div>
         </div>

@@ -225,10 +225,10 @@ export default function HomeClient({ sampleAudits }: Props) {
               {t.nav.portal}
             </Link>
             <Link href="/privacy" className="hover:text-slate-300">
-              Privacy
+              {t.common.privacy}
             </Link>
             <Link href="/terms" className="hover:text-slate-300">
-              Terms
+              {t.common.terms}
             </Link>
           </div>
         </div>

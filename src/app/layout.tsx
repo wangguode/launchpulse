@@ -22,9 +22,9 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://pulse.statementflow.win"),
-  title: "LaunchPulse — 90s Launch Video Teardowns & 24/7 Buyer Intent Radar",
+  title: "LaunchPulse — 50+ High-DR Directory Distribution & 24/7 Buyer Intent Radar",
   description:
-    "Built your AI SaaS, now wondering where the users are? Run a free passive SEO/AEO leak teardown and unlock live Reddit, Hacker News & GitHub buyers waiting for your tool.",
+    "Stop shipping into the void. Distribute your SaaS to 50+ high-DR directories ($39) and unlock fresh (<45d) Hacker News, Reddit & GitHub buyers actively looking for your tool.",
   robots: {
     index: true,
     follow: true,
@@ -33,9 +33,9 @@ export const metadata: Metadata = {
     canonical: "https://pulse.statementflow.win",
   },
   openGraph: {
-    title: "LaunchPulse — Fix Launch Leaks & Find Waiting SaaS Buyers",
+    title: "LaunchPulse — 50+ High-DR Directory Backlinks & Live SaaS Buyers",
     description:
-      "Personalized 90s teardown videos, ready-to-paste Cursor/Claude fix prompts (/llms.txt + JSON-LD), and 24/7 high-intent community buyer alerts.",
+      "50+ high-DR directory submissions ($39), 24/7 fresh community buyer intent radar ($29/mo), plus free bonus SEO & /llms.txt audits.",
     url: "https://pulse.statementflow.win",
     siteName: "LaunchPulse",
     images: [
@@ -43,16 +43,16 @@ export const metadata: Metadata = {
         url: "/teardowns/certnudge-poster.png",
         width: 1280,
         height: 720,
-        alt: "LaunchPulse Personalized SaaS Teardown & Buyer Intent Radar",
+        alt: "LaunchPulse 50+ Directory Distribution & Buyer Intent Radar",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "LaunchPulse — 90s SaaS Teardowns & Live Buyer Intent Radar",
+    title: "LaunchPulse — 50+ Directory Distribution & 24/7 Buyer Intent Radar",
     description:
-      "Stop shipping into the void. Uncover hidden SEO/llms.txt leaks and reply to real developers actively asking for a tool like yours.",
+      "Stop shipping into the void. Get 50+ high-DR directory backlinks and reply to real developers actively asking for a tool like yours.",
     images: ["/teardowns/certnudge-poster.png"],
   },
 };
@@ -65,24 +65,30 @@ const softwareSchema = {
   operatingSystem: "Web",
   url: "https://pulse.statementflow.win",
   description:
-    "Automated launch readiness video teardowns, AI search visibility (/llms.txt) fixes, and 24/7 community buyer intent radar for SaaS founders.",
+    "50+ high-DR directory distribution, 24/7 fresh community buyer intent radar, and passive SEO/AEO launch diagnostics for SaaS founders.",
   offers: [
     {
       "@type": "Offer",
-      name: "Free Launch Snapshot",
+      name: "Free Traffic Snapshot",
       price: "0",
       priceCurrency: "USD",
     },
     {
       "@type": "Offer",
-      name: "One-Time Launch Fix Pack",
-      price: "19",
+      name: "50+ Directory Distribution Blitz",
+      price: "39",
       priceCurrency: "USD",
     },
     {
       "@type": "Offer",
-      name: "Growth & Buyer Intent Radar Pro",
+      name: "24/7 Buyer Intent Radar Pro",
       price: "29",
+      priceCurrency: "USD",
+    },
+    {
+      "@type": "Offer",
+      name: "Done-For-You Growth Sprint",
+      price: "299",
       priceCurrency: "USD",
     },
   ],

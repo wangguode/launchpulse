@@ -23,6 +23,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       const saved = localStorage.getItem("lp_locale") as Locale | null;
       if (saved === "en" || saved === "zh" || saved === "ja") {
         setLocaleState(saved);
+        document.documentElement.lang = saved;
       }
     } catch {
       // ignore

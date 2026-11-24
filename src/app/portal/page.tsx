@@ -20,6 +20,11 @@ import { DISTRIBUTION_DIRECTORIES } from "@/data/directories";
 import type { StartupAuditReport } from "@/types/audit";
 import { useI18n } from "@/components/I18nProvider";
 import LangSwitcher from "@/components/LangSwitcher";
+import {
+  decodeHtmlEntities,
+  localizeCategory,
+  localizeLeakTitle,
+} from "@/lib/i18n";
 
 interface LiveRescanResult {
   domain: string;
@@ -30,7 +35,7 @@ interface LiveRescanResult {
 
 const DEMO_ACMEFLOW_REPORT: StartupAuditReport = {
   slug: "acmeflow-demo",
-  productName: "AcmeFlow (Sample Demo)",
+  productName: "AcmeFlow (Demo)",
   targetUrl: "https://acmeflow.example",
   domain: "acmeflow.example",
   tagline: "Interactive sample workspace showing what paid founders unlock.",
@@ -73,7 +78,7 @@ const DEMO_ACMEFLOW_REPORT: StartupAuditReport = {
     },
   ],
   generatedLlmsTxtPreview:
-    "# AcmeFlow\n\n> Automated workflow orchestration for developer teams.\n\n## Core Capabilities\n- Website: https://acmeflow.example\n- Pricing: $19/mo Pro\n",
+    "# AcmeFlow\n\n> Automated workflow orchestration for developer teams.\n\n## Core Capabilities\n- Website: https://acmeflow.example\n- Pricing: $29/mo Pro\n",
   buyerLeads: [
     {
       id: "demo-lead-1",
@@ -93,7 +98,7 @@ const DEMO_ACMEFLOW_REPORT: StartupAuditReport = {
 };
 
 export default function CustomerPortalPage() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const sampleAudits = getAllAudits();
   const [emailInput, setEmailInput] = useState("");
   const [activeToken, setActiveToken] = useState<string>("");
@@ -103,9 +108,8 @@ export default function CustomerPortalPage() {
   const [liveDirectories, setLiveDirectories] = useState<
     Record<string, { status: "queued" | "submitted" | "live"; liveBacklinkUrl?: string }>
   >({});
-  const [activePlanCode, setActivePlanCode] = useState<"fixpack" | "radar" | "dfy">("radar");
-  const [activePlanLabel, setActivePlanLabel] = useState("Growth & Buyer Radar Pro ($29/mo)");
-  const [competitorName, setCompetitorName] = useState("Legacy Competitor");
+  const [activePlanCode, setActivePlanCode] = useState<"blitz" | "radar" | "dfy">("radar");
+  const [competitorName, setCompetitorName] = useState("UptimeRobot");
   const [verifiedUnboundEmail, setVerifiedUnboundEmail] = useState<string | null>(null);
   const [bindUrlInput, setBindUrlInput] = useState("");
   const [bindingSite, setBindingSite] = useState(false);
@@ -114,6 +118,13 @@ export default function CustomerPortalPage() {
   const [rescanLoading, setRescanLoading] = useState(false);
   const [rescanResult, setRescanResult] = useState<LiveRescanResult | null>(null);
   const [dfyLoading, setDfyLoading] = useState(false);
+
+  const activePlanLabel =
+    activePlanCode === "blitz"
+      ? t.portal.planBlitzLabel
+      : activePlanCode === "dfy"
+      ? t.portal.planDfyLabel
+      : t.portal.planRadarLabel;
 
   const startDfyCheckout = async () => {
     if (!activeReport) return;
@@ -164,7 +175,6 @@ export default function CustomerPortalPage() {
       if (data.found && data.order) {
         let matched: StartupAuditReport | null =
           sampleAudits.find((a) => a.slug === data.order.slug) || null;
-        // 若为 D1 动态入库的新客户，自动从 /api/audit/:slug 实时拉取报告，彻底打通动态扩展
         if (!matched && data.order.slug) {
           try {
             const dynRes = await fetch(`/api/audit/${encodeURIComponent(data.order.slug)}`);
@@ -179,13 +189,14 @@ export default function CustomerPortalPage() {
           setActiveReport(matched);
           setVerifiedUnboundEmail(null);
         } else {
-          // 首页直购尚无专属 slug 时，绝不误显他人样板，引导绑定自己的网站 URL 实时生成
           setActiveReport(null);
           setVerifiedUnboundEmail(data.order.customer_email || emailInput);
         }
-        // 加载 D1 中该客户的真实 50+ 目录提交状态与真实收录外链 URL
         if (Array.isArray(data.directories)) {
-          const map: Record<string, { status: "queued" | "submitted" | "live"; liveBacklinkUrl?: string }> = {};
+          const map: Record<
+            string,
+            { status: "queued" | "submitted" | "live"; liveBacklinkUrl?: string }
+          > = {};
           for (const row of data.directories) {
             map[row.directory_id] = {
               status: row.status || "queued",
@@ -194,28 +205,19 @@ export default function CustomerPortalPage() {
           }
           setLiveDirectories(map);
         }
-        const pCode: "fixpack" | "radar" | "dfy" =
-          data.order.plan === "fixpack"
-            ? "fixpack"
+        // 统一识别 blitz / fixpack（$39 目录分发）、dfy（$299）与 radar（$29/月）
+        const pCode: "blitz" | "radar" | "dfy" =
+          data.order.plan === "blitz" || data.order.plan === "fixpack"
+            ? "blitz"
             : data.order.plan === "dfy"
             ? "dfy"
             : "radar";
         setActivePlanCode(pCode);
-        setActivePlanLabel(
-          pCode === "fixpack"
-            ? "One-Time Launch Fix Pack ($19)"
-            : pCode === "dfy"
-            ? "Done-For-You Growth Sprint ($299)"
-            : "Growth & Buyer Radar Pro ($29/mo)"
-        );
       } else {
-        setStatusMsg(
-          data.message ||
-            "No active Creem order matched that email yet. Try the interactive demo workspace below."
-        );
+        setStatusMsg(data.message || t.portal.noOrderFallback);
       }
     } catch {
-      setStatusMsg("Unable to connect to portal lookup right now.");
+      setStatusMsg(t.portal.lookupError);
     } finally {
       setLoading(false);
     }
@@ -283,7 +285,7 @@ export default function CustomerPortalPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setStatusMsg(data.error || "Unable to scan that URL.");
+        setStatusMsg(data.error || t.portal.scanUrlError);
       } else {
         const customReport: StartupAuditReport = {
           slug: data.domain.split(".")[0],
@@ -307,7 +309,12 @@ export default function CustomerPortalPage() {
           passedChecks: [],
           leaks: (data.leaks || []).map(
             (
-              lk: { severity: "critical" | "high" | "medium"; category: string; title: string; evidence: string },
+              lk: {
+                severity: "critical" | "high" | "medium";
+                category: string;
+                title: string;
+                evidence: string;
+              },
               idx: number
             ) => ({
               id: `live-${idx}`,
@@ -323,7 +330,14 @@ export default function CustomerPortalPage() {
           generatedLlmsTxtPreview: `# ${data.domain}\n\n> ${data.tagline || data.title}\n\n- Website: ${data.origin}\n`,
           buyerLeads: (data.leads || []).map(
             (
-              ld: { source: string; author: string; postedAt: string; title: string; excerpt: string; url: string },
+              ld: {
+                source: string;
+                author: string;
+                postedAt: string;
+                title: string;
+                excerpt: string;
+                url: string;
+              },
               idx: number
             ) => ({
               id: `live-lead-${idx}`,
@@ -344,16 +358,23 @@ export default function CustomerPortalPage() {
         setVerifiedUnboundEmail(null);
       }
     } catch {
-      setStatusMsg("Network error while activating your domain.");
+      setStatusMsg(t.portal.bindNetworkError);
     } finally {
       setBindingSite(false);
     }
   };
 
-  const cycleLeadStatus = (lead: { id: string; source: string; community: string; title: string; url: string }) => {
+  const cycleLeadStatus = (lead: {
+    id: string;
+    source: string;
+    community: string;
+    title: string;
+    url: string;
+  }) => {
     setLeadStatuses((prev) => {
       const cur = prev[lead.id] || "new";
-      const next: "new" | "replied" | "won" = cur === "new" ? "replied" : cur === "replied" ? "won" : "new";
+      const next: "new" | "replied" | "won" =
+        cur === "new" ? "replied" : cur === "replied" ? "won" : "new";
       const updated = { ...prev, [lead.id]: next };
       try {
         localStorage.setItem("lp_lead_statuses", JSON.stringify(updated));
@@ -378,6 +399,20 @@ export default function CustomerPortalPage() {
     });
   };
 
+  const dirStatusLabel = (st: "queued" | "submitted" | "live") =>
+    st === "live"
+      ? t.portal.statusLive
+      : st === "submitted"
+      ? t.portal.statusSubmitted
+      : t.portal.statusQueued;
+
+  const leadStatusLabel = (st: "new" | "replied" | "won") =>
+    st === "won"
+      ? t.portal.leadStatusWon
+      : st === "replied"
+      ? t.portal.leadStatusReplied
+      : t.portal.leadStatusNew;
+
   return (
     <div className="min-h-screen bg-[#07090d] text-slate-100 obsidian-grid overflow-x-hidden">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07090d]/90 backdrop-blur-md">
@@ -392,7 +427,7 @@ export default function CustomerPortalPage() {
             </Link>
             <span className="text-slate-600">/</span>
             <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-300">
-              CUSTOMER PORTAL
+              {t.portal.headerLabel}
             </span>
           </div>
 
@@ -418,9 +453,7 @@ export default function CustomerPortalPage() {
               <h1 className="text-2xl sm:text-3xl font-[family-name:var(--font-display)] font-bold text-white">
                 {t.portal.title}
               </h1>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                {t.portal.subtitle}
-              </p>
+              <p className="text-sm text-slate-400 leading-relaxed">{t.portal.subtitle}</p>
             </div>
 
             <form onSubmit={handleLoginSubmit} className="space-y-3">
@@ -438,7 +471,7 @@ export default function CustomerPortalPage() {
               >
                 {loading ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Checking...
+                    <Loader2 className="w-4 h-4 animate-spin" /> {t.portal.checkingBtn}
                   </>
                 ) : (
                   t.portal.submitBtn
@@ -458,8 +491,8 @@ export default function CustomerPortalPage() {
                 className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 space-y-3"
               >
                 <p className="text-xs text-emerald-200 font-semibold">
-                  ✓ Active plan verified for {verifiedUnboundEmail}! Enter your SaaS URL to activate
-                  your live Fix Pack &amp; Buyer Radar workspace:
+                  {t.portal.unboundTitlePrefix} {verifiedUnboundEmail}
+                  {t.portal.unboundTitleSuffix}
                 </p>
                 <div className="flex gap-2">
                   <input
@@ -474,7 +507,7 @@ export default function CustomerPortalPage() {
                     disabled={bindingSite}
                     className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs cursor-pointer disabled:opacity-60"
                   >
-                    {bindingSite ? "Activating..." : "Activate →"}
+                    {bindingSite ? t.portal.activatingBtn : t.portal.activateBtn}
                   </button>
                 </div>
               </form>
@@ -489,7 +522,7 @@ export default function CustomerPortalPage() {
                   onClick={() => setActiveReport(DEMO_ACMEFLOW_REPORT)}
                   className="px-3.5 py-2 rounded-lg border border-white/15 hover:border-emerald-400/50 bg-white/[0.03] text-xs font-[family-name:var(--font-mono)] text-slate-200 transition cursor-pointer"
                 >
-                  Preview Sample Demo Workspace (AcmeFlow) →
+                  {t.portal.previewDemoBtn}
                 </button>
               </div>
             </div>
@@ -501,15 +534,14 @@ export default function CustomerPortalPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-xs font-[family-name:var(--font-mono)] text-emerald-300">
                   <ShieldCheck className="w-4 h-4" />
-                  <span>ACTIVE WORKSPACE · {activePlanLabel}</span>
+                  <span>
+                    {t.portal.activeWorkspace} · {activePlanLabel}
+                  </span>
                 </div>
                 <h1 className="text-2xl font-[family-name:var(--font-display)] font-bold text-white">
                   {activeReport.productName} ({activeReport.domain})
                 </h1>
-                <p className="text-xs text-slate-400">
-                  Apply the Cursor/Claude prompts below, deploy your changes, then click Re-Scan to
-                  verify your readiness score jump.
-                </p>
+                <p className="text-xs text-slate-400">{t.portal.workspaceHint}</p>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -539,12 +571,14 @@ export default function CustomerPortalPage() {
                 <div className="flex items-center gap-3">
                   <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
                   <div className="text-xs sm:text-sm text-emerald-100">
-                    <strong>Live Re-Scan Complete ({rescanResult.domain}):</strong> Current edge
-                    readiness score is{" "}
+                    <strong>
+                      {t.portal.rescanDonePrefix} ({rescanResult.domain}):
+                    </strong>{" "}
+                    {t.portal.rescanDoneMid}{" "}
                     <span className="font-[family-name:var(--font-mono)] font-bold text-white">
                       {rescanResult.score}/100
                     </span>{" "}
-                    with {rescanResult.leaksCount} remaining items detected.
+                    · {rescanResult.leaksCount} {t.portal.rescanDoneSuffix}
                   </div>
                 </div>
               </section>
@@ -555,10 +589,10 @@ export default function CustomerPortalPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <span className="text-xs font-[family-name:var(--font-mono)] text-amber-300 uppercase font-semibold">
-                    50+ HIGH-DR DIRECTORY DISTRIBUTION TRACKER (DR 45–91)
+                    {t.portal.dirTrackerBadge}
                   </span>
                   <h2 className="text-lg font-[family-name:var(--font-display)] font-bold text-white mt-0.5">
-                    Backlink &amp; Referral Traffic Proof for {activeReport.domain}
+                    {t.portal.dirTrackerTitlePrefix} {activeReport.domain}
                   </h2>
                 </div>
                 <button
@@ -574,14 +608,16 @@ export default function CustomerPortalPage() {
                       }),
                     ].join("\n");
                     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                    const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");
-                    a.href = URL.createObjectURL(blob);
+                    a.href = url;
                     a.download = `${activeReport.slug}-50-directories-backlinks.csv`;
                     a.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
                   }}
                   className="px-3.5 py-2 rounded-lg border border-amber-400/40 bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 text-xs font-semibold transition cursor-pointer shrink-0"
                 >
-                  Export 50-Directory CSV Proof ↓
+                  {t.portal.exportCsvBtn}
                 </button>
               </div>
 
@@ -610,12 +646,12 @@ export default function CustomerPortalPage() {
                               : "bg-white/10 text-slate-400"
                           }`}
                         >
-                          {st}
+                          {dirStatusLabel(st)}
                         </span>
                       </div>
                       <p className="text-xs font-semibold text-white truncate">{dir.name}</p>
                       <p className="text-[10px] text-slate-500 truncate">
-                        {live?.liveBacklinkUrl ? "Verified Backlink ↗" : dir.category}
+                        {live?.liveBacklinkUrl ? t.portal.verifiedBacklink : dir.category}
                       </p>
                     </a>
                   );
@@ -629,7 +665,7 @@ export default function CustomerPortalPage() {
                 <div className="flex items-center gap-2">
                   <Terminal className="w-5 h-5 text-emerald-400" />
                   <h2 className="text-lg font-[family-name:var(--font-display)] font-bold text-white">
-                    Unlocked Cursor &amp; Claude Code Fix Prompts ({activeReport.leaks.length})
+                    {t.portal.promptsTitle} ({activeReport.leaks.length})
                   </h2>
                 </div>
 
@@ -640,7 +676,8 @@ export default function CustomerPortalPage() {
                   >
                     <div className="flex items-center justify-between text-xs font-[family-name:var(--font-mono)]">
                       <span className="text-amber-300 uppercase">
-                        FIX #0{idx + 1} · {leak.category}
+                        {t.portal.fixTagPrefix}
+                        {idx + 1} · {localizeCategory(leak.category, locale)}
                       </span>
                       <button
                         onClick={() => copyText(leak.id, leak.cursorFixPrompt)}
@@ -648,16 +685,18 @@ export default function CustomerPortalPage() {
                       >
                         {copiedId === leak.id ? (
                           <>
-                            <Check className="w-3 h-3" /> Copied
+                            <Check className="w-3 h-3" /> {t.common.copied}
                           </>
                         ) : (
                           <>
-                            <Copy className="w-3 h-3" /> Copy Prompt
+                            <Copy className="w-3 h-3" /> {t.common.copyPrompt}
                           </>
                         )}
                       </button>
                     </div>
-                    <h3 className="text-sm font-semibold text-white">{leak.title}</h3>
+                    <h3 className="text-sm font-semibold text-white">
+                      {localizeLeakTitle(leak.title, locale)}
+                    </h3>
                     <pre className="text-xs font-[family-name:var(--font-mono)] text-slate-200 bg-black/50 border border-white/10 rounded-lg p-3 whitespace-pre-wrap break-words">
                       {leak.cursorFixPrompt}
                     </pre>
@@ -666,14 +705,12 @@ export default function CustomerPortalPage() {
 
                 <div className="rounded-xl border border-white/10 bg-[#0c1018] p-5 space-y-3">
                   <div className="flex items-center justify-between text-xs font-[family-name:var(--font-mono)]">
-                    <span className="text-emerald-400 uppercase">
-                      READY-TO-DEPLOY public/llms.txt
-                    </span>
+                    <span className="text-emerald-400 uppercase">{t.portal.readyLlmsHeader}</span>
                     <button
                       onClick={() => copyText("portal-llms", activeReport.generatedLlmsTxtPreview)}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 cursor-pointer"
                     >
-                      {copiedId === "portal-llms" ? "Copied!" : "Copy File"}
+                      {copiedId === "portal-llms" ? t.common.copiedBang : t.common.copyFile}
                     </button>
                   </div>
                   <pre className="text-xs font-[family-name:var(--font-mono)] text-slate-300 bg-black/50 border border-white/10 rounded-lg p-3 whitespace-pre-wrap break-words">
@@ -688,24 +725,20 @@ export default function CustomerPortalPage() {
                   <div className="flex items-center gap-2">
                     <Radar className="w-5 h-5 text-emerald-400" />
                     <h2 className="text-lg font-[family-name:var(--font-display)] font-bold text-white">
-                      Unlocked High-Intent Buyer Feed ({activeReport.buyerLeads.length})
+                      {t.portal.buyersTitle} ({activeReport.buyerLeads.length})
                     </h2>
                   </div>
                   <span className="text-xs font-[family-name:var(--font-mono)] text-slate-400">
-                    Click badge to track outreach
+                    {t.portal.clickBadgeHint}
                   </span>
                 </div>
 
                 <div className="space-y-3">
-                  {activePlanCode === "fixpack" ? (
+                  {activePlanCode === "blitz" ? (
                     <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-5 space-y-3">
-                      <p className="text-sm font-bold text-white">
-                        24/7 Buyer Intent Radar is included in Radar Pro ($29/mo)
-                      </p>
+                      <p className="text-sm font-bold text-white">{t.portal.radarUpgradeTitle}</p>
                       <p className="text-xs text-slate-300 leading-relaxed">
-                        Your One-Time Fix Pack ($19) unlocks all Cursor prompts, /llms.txt, and
-                        unlimited Re-Scans on the left. Upgrade to Radar Pro to unlock daily fresh
-                        community buyer threads and weekly competitor /vs/ landing pages.
+                        {t.portal.radarUpgradeDesc}
                       </p>
                       <button
                         onClick={async () => {
@@ -723,7 +756,7 @@ export default function CustomerPortalPage() {
                         }}
                         className="px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs cursor-pointer"
                       >
-                        Upgrade to Buyer Radar Pro ($29/mo) →
+                        {t.portal.radarUpgradeBtn}
                       </button>
                     </div>
                   ) : (
@@ -748,13 +781,18 @@ export default function CustomerPortalPage() {
                                   : "bg-white/10 text-slate-300"
                               }`}
                             >
-                              {st}
+                              {leadStatusLabel(st)}
                             </button>
                           </div>
-                          <h3 className="text-sm font-semibold text-white">{lead.title}</h3>
-                          <p className="text-xs text-slate-400 leading-relaxed">{lead.excerpt}</p>
+                          <h3 className="text-sm font-semibold text-white">
+                            {decodeHtmlEntities(lead.title)}
+                          </h3>
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            {decodeHtmlEntities(lead.excerpt)}
+                          </p>
                           <p className="text-[11px] text-emerald-300/90 bg-emerald-500/10 border border-emerald-500/20 rounded p-2">
-                            <strong>Suggested reply angle:</strong> {lead.suggestedReplyAngle}
+                            <strong>{t.portal.suggestedReplyLabel}</strong>{" "}
+                            {lead.suggestedReplyAngle}
                           </p>
                           <div className="flex justify-end">
                             <a
@@ -763,7 +801,7 @@ export default function CustomerPortalPage() {
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:underline"
                             >
-                              Open Live Thread &amp; Reply <ArrowUpRight className="w-3.5 h-3.5" />
+                              {t.portal.openThreadReply} <ArrowUpRight className="w-3.5 h-3.5" />
                             </a>
                           </div>
                         </div>
@@ -773,11 +811,11 @@ export default function CustomerPortalPage() {
                 </div>
 
                 {/* V42：一键生成 SEO 竞品对比落地页 (/vs/competitor) 源码 */}
-                {activePlanCode !== "fixpack" && (
+                {activePlanCode !== "blitz" && (
                   <div className="rounded-xl border border-white/10 bg-[#0c1018] p-5 space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-400 uppercase font-semibold">
-                        SEO Competitor /vs/ Page Generator
+                        {t.portal.vsGeneratorTitle}
                       </span>
                       <button
                         onClick={() =>
@@ -788,19 +826,21 @@ export default function CustomerPortalPage() {
                         }
                         className="text-xs px-2.5 py-1 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 cursor-pointer"
                       >
-                        {copiedId === "vs-page" ? "Copied Markdown!" : "Copy /vs/ Markdown"}
+                        {copiedId === "vs-page" ? t.portal.copiedMarkdown : t.portal.copyVsMarkdown}
                       </button>
                     </div>
                     <input
                       type="text"
                       value={competitorName}
                       onChange={(e) => setCompetitorName(e.target.value)}
-                      placeholder="Competitor name (e.g. UptimeRobot)"
+                      placeholder={t.portal.competitorPlaceholder}
                       className="w-full rounded-lg border border-white/15 bg-black/50 px-3 py-2 text-xs font-[family-name:var(--font-mono)] text-white"
                     />
                     <p className="text-[11px] text-slate-400">
-                      Generates a ready-to-publish <code>/vs/{competitorName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}</code>{" "}
-                      comparison page targeting high-intent buyers searching &ldquo;{competitorName} alternative&rdquo;.
+                      {t.portal.vsHintPrefix}{" "}
+                      <code>/vs/{competitorName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}</code>{" "}
+                      {t.portal.vsHintMid}
+                      {competitorName} {t.portal.vsHintSuffix}
                     </p>
                   </div>
                 )}
@@ -808,24 +848,18 @@ export default function CustomerPortalPage() {
                 {/* $299 Done-For-You 高毛利升级入口 */}
                 <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 p-5 space-y-2.5">
                   <div className="flex items-center gap-2 text-xs font-[family-name:var(--font-mono)] text-amber-300 font-semibold">
-                    <Sparkles className="w-4 h-4" /> OPTIONAL DONE-FOR-YOU SPRINT ($299)
+                    <Sparkles className="w-4 h-4" /> {t.portal.dfyBadge}
                   </div>
-                  <p className="text-sm font-semibold text-white">
-                    Too busy shipping features to apply SEO fixes or reply to threads yourself?
-                  </p>
+                  <p className="text-sm font-semibold text-white">{t.portal.dfyHeadline}</p>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Our engineering team submits a clean GitHub PR fixing all AEO/SEO/security
-                    headers, ships 5 competitor <code>/vs/</code> pages, and runs a 7-day
-                    non-spam buyer outreach sprint for you.
+                    {t.portal.dfyDescPrefix} <code>/vs/</code> {t.portal.dfyDescSuffix}
                   </p>
                   <button
                     onClick={startDfyCheckout}
                     disabled={dfyLoading}
                     className="inline-flex items-center gap-1.5 mt-1 px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition cursor-pointer disabled:opacity-60"
                   >
-                    {dfyLoading
-                      ? "Opening Secure Checkout..."
-                      : "Book $299 Done-For-You Sprint →"}
+                    {dfyLoading ? t.pricing.loadingCheckout : t.portal.dfyBtn}
                   </button>
                 </div>
               </div>

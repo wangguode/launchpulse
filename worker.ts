@@ -2,7 +2,7 @@
  * LaunchPulse Cloudflare Workers 边缘网关（D1 动态底座版）：
  * 1. POST /api/scan            — 100% 被动无害实时 SEO/AEO/安全头体检 + HN 真实买家匹配（内置防 SSRF）
  * 2. POST /api/track           — 战情页热力埋点（访问次数 / 视频播放最大秒数 / 买家线索点击数）实时写入 D1
- * 3. POST /api/checkout        — 直连 Creem.io 实时收银（$19 Fix Pack / $29/mo Radar Pro）
+ * 3. POST /api/checkout        — 直连 Creem.io 实时收银（$39 50+ Directory Blitz / $29/mo Radar Pro / $299 DFY）
  * 4. POST /api/webhook         — Creem HMAC-SHA256 验签并自动入账 D1 customers_orders + 签发 Magic Token
  * 5. POST /api/portal/lookup   — 免密客户工作台查询（凭 Magic Token 或付款邮箱拉取已购报告与买家线索）
  * 6. POST /api/portal/lead-status — 客户在工作台标记线索状态（new / replied / won）
@@ -164,11 +164,14 @@ async function safeGet(url: string, timeoutMs = 6000) {
 function cleanEntities(raw: string): string {
   return raw
     .replace(/<[^>]+>/g, " ")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
     .replace(/&quot;/g, '"')
-    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&apos;/g, "'")
     .replace(/&amp;/g, "&")
     .replace(/&gt;/g, ">")
     .replace(/&lt;/g, "<")
+    .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -320,10 +323,11 @@ async function handleLiveScan(request: Request): Promise<Response> {
     }> = [];
 
     try {
+      const since45d = Math.floor((Date.now() - 45 * 86400 * 1000) / 1000);
       const hnRes = await fetch(
         `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(
           queryTerm
-        )}&tags=comment&hitsPerPage=6`
+        )}&tags=comment&numericFilters=created_at_i>${since45d}&hitsPerPage=15`
       );
       if (hnRes.ok) {
         const hnData = (await hnRes.json()) as {
@@ -336,17 +340,22 @@ async function handleLiveScan(request: Request): Promise<Response> {
           }>;
         };
         for (const hit of hnData.hits || []) {
+          const st = cleanEntities(hit.story_title || "");
+          if (/^show hn:/i.test(st) || /^\[dead\]/i.test(st) || /who is hiring|who wants to be hired/i.test(st)) {
+            continue;
+          }
           const excerpt = cleanEntities(hit.comment_text || "");
           if (excerpt.length < 40) continue;
           leads.push({
             source: "Hacker News",
             author: `@${hit.author || "dev"}`,
             postedAt: (hit.created_at || "").slice(0, 10),
-            title: cleanEntities(hit.story_title || "Developer thread"),
+            title: st || "Developer thread",
             excerpt: excerpt.slice(0, 150) + (excerpt.length > 150 ? "..." : ""),
             url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
             unlocked: leads.length < 3,
           });
+          if (leads.length >= 6) break;
         }
       }
     } catch {
@@ -591,7 +600,9 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
       const plan = obj.metadata?.plan || "radar";
       const slug = obj.metadata?.slug || "";
       const targetUrl = obj.metadata?.targetUrl || "";
-      const amountUsd = Math.round((obj.order?.amount || (plan === "fixpack" ? 1900 : 2900)) / 100);
+      const fallbackCents =
+        plan === "dfy" ? 29900 : plan === "blitz" || plan === "fixpack" ? 3900 : 2900;
+      const amountUsd = Math.round((obj.order?.amount || fallbackCents) / 100);
       const magicToken = crypto.randomUUID().replace(/-/g, "");
 
       if (email) {
@@ -641,15 +652,22 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
           const portalLink = `${origin}/portal?token=${magicToken}`;
           const warRoomLink = slug ? `${origin}/audit/${slug}?token=${magicToken}` : portalLink;
 
+          const planDisplayName =
+            plan === "dfy"
+              ? "Done-For-You Growth Sprint ($299)"
+              : plan === "blitz" || plan === "fixpack"
+              ? "50+ Directory Distribution Blitz ($39)"
+              : "24/7 Buyer Intent Radar Pro ($29/mo)";
+
           await sendResendEmail(env, {
             to: email,
-            subject: `Your LaunchPulse ${plan === "dfy" ? "Done-For-You Sprint" : plan === "fixpack" ? "Launch Fix Pack" : "Buyer Radar Pro"} is unlocked`,
+            subject: `Your LaunchPulse ${planDisplayName} is unlocked`,
             text: [
               "Welcome to LaunchPulse!",
               "",
               "Your payment is confirmed and your workspace is unlocked immediately (no password needed).",
               "",
-              `• Customer Portal (Cursor prompts, /llms.txt, Re-Scan & Buyer Feed): ${portalLink}`,
+              `• Customer Portal (50+ Directory Tracker, Bonus /llms.txt, Re-Scan & Buyer Feed): ${portalLink}`,
               slug ? `• Unlocked War-Room Report: ${warRoomLink}` : "",
               "",
               "Need anything? Simply reply to this email (hello@statementflow.win).",

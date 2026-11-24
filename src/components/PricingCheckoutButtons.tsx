@@ -6,10 +6,10 @@ import { useI18n } from "@/components/I18nProvider";
 
 export default function PricingCheckoutButtons() {
   const { t } = useI18n();
-  const [loading, setLoading] = useState<"fixpack" | "radar" | null>(null);
+  const [loading, setLoading] = useState<"blitz" | "radar" | null>(null);
   const [error, setError] = useState("");
 
-  const startCheckout = async (plan: "fixpack" | "radar") => {
+  const startCheckout = async (plan: "blitz" | "radar") => {
     setLoading(plan);
     setError("");
     try {
@@ -23,9 +23,9 @@ export default function PricingCheckoutButtons() {
         window.location.href = data.checkoutUrl;
         return;
       }
-      setError(data.error || "Unable to open checkout right now.");
+      setError(data.error || t.common.unableCheckoutError);
     } catch {
-      setError("Network error while connecting to Creem checkout.");
+      setError(t.common.networkCheckoutError);
     } finally {
       setLoading(null);
     }
@@ -51,24 +51,22 @@ export default function PricingCheckoutButtons() {
                 <span className="text-4xl font-[family-name:var(--font-display)] font-bold text-white">
                   $0
                 </span>
-                <span className="text-xs text-slate-500">forever</span>
+                <span className="text-xs text-slate-500">{t.pricing.freePeriod}</span>
               </div>
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Verify our diagnostic accuracy and click real buyer threads before spending a cent.
-            </p>
+            <p className="text-xs text-slate-400 leading-relaxed">{t.pricing.freeDesc}</p>
             <ul className="space-y-2.5 text-xs text-slate-300 pt-2">
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Instant Launch Readiness score (0–100)</span>
+                <span>{t.pricing.freeF1}</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Top 3 critical SEO / AEO / security leaks</span>
+                <span>{t.pricing.freeF2}</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>First 3 live community buyer links unlocked</span>
+                <span>{t.pricing.freeF3}</span>
               </li>
             </ul>
           </div>
@@ -92,41 +90,38 @@ export default function PricingCheckoutButtons() {
                 <span className="text-4xl font-[family-name:var(--font-display)] font-bold text-white">
                   $39
                 </span>
-                <span className="text-xs text-slate-400">one-time blitz</span>
+                <span className="text-xs text-slate-400">{t.pricing.fixPeriod}</span>
               </div>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              We manually &amp; programmatically distribute your SaaS to 50+ high-DR directories to
-              drive real backlinks &amp; referral clicks.
-            </p>
+            <p className="text-xs text-slate-300 leading-relaxed">{t.pricing.fixDesc}</p>
             <ul className="space-y-2.5 text-xs text-slate-200 pt-2">
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Submissions to 50+ AI &amp; SaaS directories (DR 45–91)</span>
+                <span>{t.pricing.fixF1}</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Live backlink proof tracker &amp; CSV report in /portal</span>
+                <span>{t.pricing.fixF2}</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Saves 15+ hours of tedious directory form-filling</span>
+                <span>{t.pricing.fixF3}</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>
-                  <strong>Free Bonus:</strong> Custom <code>/llms.txt</code> + SEO fix prompts
+                  <strong>{t.pricing.fixF4Prefix}</strong> {t.pricing.fixF4Text}
                 </span>
               </li>
             </ul>
           </div>
 
           <button
-            onClick={() => startCheckout("fixpack")}
+            onClick={() => startCheckout("blitz")}
             disabled={loading !== null}
             className="mt-8 w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition cursor-pointer disabled:opacity-60"
           >
-            {loading === "fixpack" ? t.pricing.loadingCheckout : t.pricing.fixBtn}
+            {loading === "blitz" ? t.pricing.loadingCheckout : t.pricing.fixBtn}
           </button>
         </div>
 
@@ -145,28 +140,26 @@ export default function PricingCheckoutButtons() {
                 <span className="text-4xl font-[family-name:var(--font-display)] font-bold text-white">
                   $29
                 </span>
-                <span className="text-xs text-slate-400">/ month</span>
+                <span className="text-xs text-slate-400">{t.pricing.radarPeriod}</span>
               </div>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Everything in Fix Pack plus 24/7 alerts whenever buyers ask for a tool in your space.
-            </p>
+            <p className="text-xs text-slate-300 leading-relaxed">{t.pricing.radarDesc}</p>
             <ul className="space-y-2.5 text-xs text-slate-100 pt-2">
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Includes full $19 Launch Fix Pack &amp; AI prompts</span>
+                <span>{t.pricing.radarF1}</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Unlock all 10+ live Reddit, HN &amp; GitHub buyer threads</span>
+                <span>{t.pricing.radarF2}</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Daily high-intent buyer alerts + non-spam reply drafts</span>
+                <span>{t.pricing.radarF3}</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>2 SEO competitor &ldquo;Alternative-to&rdquo; pages / week</span>
+                <span>{t.pricing.radarF4}</span>
               </li>
             </ul>
           </div>

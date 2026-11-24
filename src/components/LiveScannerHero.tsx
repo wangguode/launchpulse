@@ -12,6 +12,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
+import {
+  decodeHtmlEntities,
+  localizeCategory,
+  localizeLeakTitle,
+  localizeSeverity,
+} from "@/lib/i18n";
 
 interface ScanResult {
   domain: string;
@@ -39,12 +45,12 @@ interface ScanResult {
 }
 
 export default function LiveScannerHero() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [urlInput, setUrlInput] = useState("");
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ScanResult | null>(null);
-  const [checkoutLoading, setCheckoutLoading] = useState<"fixpack" | "radar" | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState<"blitz" | "radar" | null>(null);
 
   const runLiveScan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,18 +66,18 @@ export default function LiveScannerHero() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Scan failed. Please check the URL.");
+        setError(data.error || t.scanner.scanFailed);
       } else {
         setResult(data as ScanResult);
       }
     } catch {
-      setError("Network error while running passive edge scan.");
+      setError(t.scanner.networkScanError);
     } finally {
       setScanning(false);
     }
   };
 
-  const triggerCheckout = async (plan: "fixpack" | "radar", targetUrl?: string) => {
+  const triggerCheckout = async (plan: "blitz" | "radar", targetUrl?: string) => {
     setCheckoutLoading(plan);
     setError("");
     try {
@@ -85,9 +91,9 @@ export default function LiveScannerHero() {
         window.location.href = data.checkoutUrl;
         return;
       }
-      setError(data.error || "Unable to open checkout right now.");
+      setError(data.error || t.common.unableCheckoutError);
     } catch {
-      setError("Network error connecting to Creem checkout.");
+      setError(t.common.networkCheckoutError);
     } finally {
       setCheckoutLoading(null);
     }
@@ -104,7 +110,7 @@ export default function LiveScannerHero() {
           value={urlInput}
           onChange={(e) => setUrlInput(e.target.value)}
           placeholder={t.hero.placeholder}
-          aria-label="Your SaaS URL"
+          aria-label={t.hero.placeholder}
           className="flex-1 bg-transparent px-4 py-3.5 text-sm sm:text-base font-[family-name:var(--font-mono)] text-white placeholder:text-slate-500 focus:outline-none"
         />
         <button
@@ -137,16 +143,16 @@ export default function LiveScannerHero() {
           <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-white/10">
             <div>
               <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-400 uppercase">
-                LIVE EDGE SNAPSHOT · {result.domain}
+                {t.scanner.liveSnapshot} · {result.domain}
               </span>
               <h3 className="text-xl sm:text-2xl font-[family-name:var(--font-display)] font-bold text-white mt-1">
-                {result.title}
+                {decodeHtmlEntities(result.title)}
               </h3>
             </div>
             <div className="flex items-center gap-4 tabular-nums">
               <div className="text-right">
                 <p className="text-[11px] font-[family-name:var(--font-mono)] text-slate-400">
-                  READINESS SCORE
+                  {t.scanner.readinessScore}
                 </p>
                 <p className="text-3xl font-bold text-amber-400">
                   {result.score}
@@ -161,7 +167,9 @@ export default function LiveScannerHero() {
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-white">
                 <ShieldAlert className="w-4 h-4 text-red-400" />
-                <span>Detected SEO / AEO / Header Leaks ({result.leaksCount})</span>
+                <span>
+                  {t.scanner.detectedLeaks} ({result.leaksCount})
+                </span>
               </div>
               {result.leaks.map((lk, i) => (
                 <div
@@ -169,10 +177,13 @@ export default function LiveScannerHero() {
                   className="rounded-xl border border-white/10 bg-black/40 p-3.5 space-y-1"
                 >
                   <span className="text-[10px] font-[family-name:var(--font-mono)] uppercase text-red-300 bg-red-500/15 px-2 py-0.5 rounded">
-                    {lk.severity} · {lk.category}
+                    {localizeSeverity(lk.severity, locale)} ·{" "}
+                    {localizeCategory(lk.category, locale)}
                   </span>
-                  <p className="text-sm font-semibold text-white">{lk.title}</p>
-                  <p className="text-xs text-slate-400">{lk.evidence}</p>
+                  <p className="text-sm font-semibold text-white">
+                    {localizeLeakTitle(lk.title, locale)}
+                  </p>
+                  <p className="text-xs text-slate-400 break-words">{lk.evidence}</p>
                 </div>
               ))}
             </div>
@@ -182,17 +193,18 @@ export default function LiveScannerHero() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm font-semibold text-white">
                   <Radar className="w-4 h-4 text-emerald-400" />
-                  <span>Matched Developer Discussions (&ldquo;{result.queryTerm}&rdquo;)</span>
+                  <span>
+                    {t.scanner.matchedDiscussions} (&ldquo;{result.queryTerm}&rdquo;)
+                  </span>
                 </div>
                 <span className="text-[11px] font-[family-name:var(--font-mono)] text-emerald-300">
-                  First 3 Free
+                  {t.scanner.first3Free}
                 </span>
               </div>
 
               {result.leads.length === 0 ? (
                 <div className="rounded-xl border border-white/10 bg-black/30 p-4 text-xs text-slate-400">
-                  Order the $29/mo Radar Pro pack to run deep multi-keyword Reddit + HN + GitHub
-                  monitoring for {result.domain}.
+                  {t.scanner.noLeadsFallback} <strong>{result.domain}</strong>.
                 </div>
               ) : (
                 result.leads.map((ld, idx) =>
@@ -207,15 +219,19 @@ export default function LiveScannerHero() {
                         </span>
                         <span>{ld.postedAt}</span>
                       </div>
-                      <p className="text-xs font-semibold text-white">{ld.title}</p>
-                      <p className="text-xs text-slate-400 line-clamp-2">{ld.excerpt}</p>
+                      <p className="text-xs font-semibold text-white">
+                        {decodeHtmlEntities(ld.title)}
+                      </p>
+                      <p className="text-xs text-slate-400 line-clamp-2">
+                        {decodeHtmlEntities(ld.excerpt)}
+                      </p>
                       <a
                         href={ld.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs text-emerald-400 hover:underline pt-1"
                       >
-                        Open Live Thread <ArrowUpRight className="w-3 h-3" />
+                        {t.scanner.openLiveThread} <ArrowUpRight className="w-3 h-3" />
                       </a>
                     </div>
                   ) : (
@@ -224,7 +240,7 @@ export default function LiveScannerHero() {
                       className="rounded-xl border border-white/10 bg-black/35 p-3 flex items-center justify-between"
                     >
                       <span className="text-xs text-slate-400 blur-[4px] select-none truncate">
-                        {ld.title} — {ld.excerpt}
+                        {decodeHtmlEntities(ld.title)} — {decodeHtmlEntities(ld.excerpt)}
                       </span>
                       <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     </div>
@@ -236,24 +252,24 @@ export default function LiveScannerHero() {
 
           <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs text-slate-300">
-              Want a custom 90s teardown video, ready-to-paste Cursor prompts &amp; daily buyer
-              alerts for <strong>{result.domain}</strong>?
+              {t.scanner.upsellPromptPrefix} <strong>{result.domain}</strong>
+              {t.scanner.upsellPromptSuffix}
             </p>
             <div className="flex items-center gap-2.5 shrink-0">
               <button
-                onClick={() => triggerCheckout("fixpack", result.origin)}
+                onClick={() => triggerCheckout("blitz", result.origin)}
                 disabled={checkoutLoading !== null}
-                className="px-4 py-2.5 rounded-lg border border-white/20 hover:border-white/40 text-xs font-semibold text-white cursor-pointer"
+                className="px-4 py-2.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-xs font-bold text-slate-950 cursor-pointer disabled:opacity-60"
               >
-                {checkoutLoading === "fixpack" ? "Loading..." : "Get Fix Pack ($19)"}
+                {checkoutLoading === "blitz" ? t.common.loading : t.scanner.getBlitzBtn}
               </button>
               <button
                 onClick={() => triggerCheckout("radar", result.origin)}
                 disabled={checkoutLoading !== null}
-                className="px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                {checkoutLoading === "radar" ? "Loading..." : "Start 24/7 Radar ($29/mo)"}
+                {checkoutLoading === "radar" ? t.common.loading : t.scanner.startRadarBtn}
               </button>
             </div>
           </div>
