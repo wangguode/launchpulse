@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
+import { I18nProvider } from "@/components/I18nProvider";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -104,7 +105,7 @@ export default function RootLayout({
         />
       </head>
       <body className="font-[family-name:var(--font-sans)] bg-[#07090d] text-slate-100 selection:bg-emerald-500/30 selection:text-emerald-200">
-        {children}
+        <I18nProvider>{children}</I18nProvider>
       </body>
     </html>
   );

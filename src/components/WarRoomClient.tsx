@@ -17,12 +17,15 @@ import {
   Unlock,
 } from "lucide-react";
 import type { StartupAuditReport } from "@/types/audit";
+import { useI18n } from "@/components/I18nProvider";
+import LangSwitcher from "@/components/LangSwitcher";
 
 interface Props {
   report: StartupAuditReport;
 }
 
 export default function WarRoomClient({ report }: Props) {
+  const { t } = useI18n();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastReportedSecRef = useRef<number>(0);
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -137,6 +140,7 @@ export default function WarRoomClient({ report }: Props) {
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
+            <LangSwitcher />
             <a
               href={report.targetUrl}
               target="_blank"
@@ -152,8 +156,8 @@ export default function WarRoomClient({ report }: Props) {
                 className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition cursor-pointer disabled:opacity-60"
               >
                 {loadingPlan === "radar"
-                  ? "Opening Checkout..."
-                  : `Unlock All ${report.buyerLeads.length} Buyers ($29/mo)`}
+                  ? t.pricing.loadingCheckout
+                  : t.warRoom.unlockAll}
               </button>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-semibold">
@@ -184,10 +188,10 @@ export default function WarRoomClient({ report }: Props) {
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2 text-xs font-[family-name:var(--font-mono)]">
                 <span className="px-2.5 py-1 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                  PREPARED EXCLUSIVELY FOR {report.productName.toUpperCase()}
+                  {t.warRoom.exclusivePrefix} {report.productName.toUpperCase()}
                 </span>
                 <span className="text-slate-400">
-                  Passive read-only scan · {new Date(report.scannedAt).toISOString().slice(0, 10)}
+                  {t.warRoom.passiveScan} · {new Date(report.scannedAt).toISOString().slice(0, 10)}
                 </span>
               </div>
               <h1 className="text-2xl sm:text-4xl font-[family-name:var(--font-display)] font-bold text-white tracking-tight leading-tight">
@@ -347,7 +351,7 @@ export default function WarRoomClient({ report }: Props) {
               <div className="flex items-center gap-2.5">
                 <ShieldAlert className="w-5 h-5 text-red-400" />
                 <h2 className="text-xl font-[family-name:var(--font-display)] font-bold text-white">
-                  Detected Conversion &amp; AI Search Leaks
+                  {t.warRoom.leaksSection}
                 </h2>
               </div>
               <span className="text-xs font-[family-name:var(--font-mono)] text-slate-400">
@@ -504,11 +508,11 @@ export default function WarRoomClient({ report }: Props) {
               <div className="flex items-center gap-2.5">
                 <Radar className="w-5 h-5 text-emerald-400" />
                 <h2 className="text-xl font-[family-name:var(--font-display)] font-bold text-white">
-                  Live Buyers &amp; Pain-Point Threads ({report.buyerLeads.length})
+                  {t.warRoom.buyersSection} ({report.buyerLeads.length})
                 </h2>
               </div>
               <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 rounded">
-                First 3 Free to Verify
+                {t.warRoom.first3Free}
               </span>
             </div>
 

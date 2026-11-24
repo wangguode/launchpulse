@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { getAllAudits } from "@/data/audits";
 import type { StartupAuditReport } from "@/types/audit";
+import { useI18n } from "@/components/I18nProvider";
+import LangSwitcher from "@/components/LangSwitcher";
 
 interface LiveRescanResult {
   domain: string;
@@ -26,6 +28,7 @@ interface LiveRescanResult {
 }
 
 export default function CustomerPortalPage() {
+  const { t } = useI18n();
   const sampleAudits = getAllAudits();
   const [emailInput, setEmailInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -201,12 +204,15 @@ export default function CustomerPortalPage() {
             </span>
           </div>
 
-          <Link
-            href="/"
-            className="text-xs text-slate-400 hover:text-white transition"
-          >
-            ← Back to Scanner
-          </Link>
+          <div className="flex items-center gap-3">
+            <LangSwitcher />
+            <Link
+              href="/"
+              className="hidden sm:inline-block text-xs text-slate-400 hover:text-white transition"
+            >
+              {t.warRoom.backToScanner}
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -215,15 +221,13 @@ export default function CustomerPortalPage() {
           <section className="max-w-xl mx-auto rounded-2xl border border-white/10 bg-[#0c1018] p-7 sm:p-9 space-y-6 shadow-2xl">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-[family-name:var(--font-mono)]">
-                <KeyRound className="w-3.5 h-3.5" /> PASSWORDLESS MAGIC PORTAL
+                <KeyRound className="w-3.5 h-3.5" /> {t.portal.badge}
               </div>
               <h1 className="text-2xl sm:text-3xl font-[family-name:var(--font-display)] font-bold text-white">
-                Access Your Fix Pack &amp; Buyer Radar
+                {t.portal.title}
               </h1>
               <p className="text-sm text-slate-400 leading-relaxed">
-                No passwords to remember. Enter the email used at Creem checkout (or paste your Magic
-                Token) to open your unlocked Cursor fix prompts, live Re-Scan verifier, and daily
-                buyer threads.
+                {t.portal.subtitle}
               </p>
             </div>
 

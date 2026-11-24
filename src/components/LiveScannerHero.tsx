@@ -11,6 +11,7 @@ import {
   ShieldAlert,
   Sparkles,
 } from "lucide-react";
+import { useI18n } from "@/components/I18nProvider";
 
 interface ScanResult {
   domain: string;
@@ -38,6 +39,7 @@ interface ScanResult {
 }
 
 export default function LiveScannerHero() {
+  const { t } = useI18n();
   const [urlInput, setUrlInput] = useState("");
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
@@ -101,7 +103,7 @@ export default function LiveScannerHero() {
           type="text"
           value={urlInput}
           onChange={(e) => setUrlInput(e.target.value)}
-          placeholder="https://your-startup.com"
+          placeholder={t.hero.placeholder}
           aria-label="Your SaaS URL"
           className="flex-1 bg-transparent px-4 py-3.5 text-sm sm:text-base font-[family-name:var(--font-mono)] text-white placeholder:text-slate-500 focus:outline-none"
         />
@@ -112,11 +114,11 @@ export default function LiveScannerHero() {
         >
           {scanning ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" /> Scanning Live...
+              <Loader2 className="w-4 h-4 animate-spin" /> {t.hero.scanningBtn}
             </>
           ) : (
             <>
-              Run Free Audit &amp; Lead Scan <ArrowRight className="w-4 h-4" />
+              {t.hero.scanBtn} <ArrowRight className="w-4 h-4" />
             </>
           )}
         </button>

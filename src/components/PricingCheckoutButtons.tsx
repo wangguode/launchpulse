@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { Check, Sparkles } from "lucide-react";
+import { useI18n } from "@/components/I18nProvider";
 
 export default function PricingCheckoutButtons() {
+  const { t } = useI18n();
   const [loading, setLoading] = useState<"fixpack" | "radar" | null>(null);
   const [error, setError] = useState("");
 
@@ -43,7 +45,7 @@ export default function PricingCheckoutButtons() {
           <div className="space-y-4">
             <div>
               <p className="text-xs font-[family-name:var(--font-mono)] text-slate-400 uppercase">
-                FREE SNAPSHOT
+                {t.pricing.freeLabel}
               </p>
               <div className="mt-2 flex items-baseline gap-1 tabular-nums">
                 <span className="text-4xl font-[family-name:var(--font-display)] font-bold text-white">
@@ -75,7 +77,7 @@ export default function PricingCheckoutButtons() {
             href="#"
             className="mt-8 w-full py-3 rounded-xl border border-white/15 hover:border-white/35 text-center text-xs font-semibold text-white transition"
           >
-            Scan Your URL Above ↑
+            {t.pricing.freeBtn}
           </a>
         </div>
 
@@ -84,7 +86,7 @@ export default function PricingCheckoutButtons() {
           <div className="space-y-4">
             <div>
               <p className="text-xs font-[family-name:var(--font-mono)] text-amber-300 uppercase">
-                ONE-TIME LAUNCH FIX PACK
+                {t.pricing.fixLabel}
               </p>
               <div className="mt-2 flex items-baseline gap-1 tabular-nums">
                 <span className="text-4xl font-[family-name:var(--font-display)] font-bold text-white">
@@ -123,20 +125,20 @@ export default function PricingCheckoutButtons() {
             disabled={loading !== null}
             className="mt-8 w-full py-3 rounded-xl bg-white hover:bg-slate-200 text-slate-950 font-bold text-xs transition cursor-pointer disabled:opacity-60"
           >
-            {loading === "fixpack" ? "Opening Secure Checkout..." : "Buy Launch Fix Pack — $19"}
+            {loading === "fixpack" ? t.pricing.loadingCheckout : t.pricing.fixBtn}
           </button>
         </div>
 
         {/* Tier 3: Growth & Buyer Radar Pro ($29/mo) */}
         <div className="rounded-2xl border-2 border-emerald-500/60 bg-[#0c1520] p-7 flex flex-col justify-between relative shadow-[0_16px_50px_rgba(16,185,129,0.12)]">
           <span className="absolute -top-3 right-6 px-3 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-bold uppercase tracking-wider">
-            Best ROI · Cancel Anytime
+            {t.pricing.radarBadge}
           </span>
 
           <div className="space-y-4">
             <div>
               <p className="text-xs font-[family-name:var(--font-mono)] text-emerald-300 uppercase">
-                GROWTH &amp; BUYER RADAR PRO
+                {t.pricing.radarLabel}
               </p>
               <div className="mt-2 flex items-baseline gap-1 tabular-nums">
                 <span className="text-4xl font-[family-name:var(--font-display)] font-bold text-white">
@@ -174,7 +176,7 @@ export default function PricingCheckoutButtons() {
             className="mt-8 w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            {loading === "radar" ? "Opening Secure Checkout..." : "Start 24/7 Buyer Radar — $29/mo"}
+            {loading === "radar" ? t.pricing.loadingCheckout : t.pricing.radarBtn}
           </button>
         </div>
       </div>
