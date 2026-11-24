@@ -533,38 +533,41 @@ async function fetchRealBuyerLeads(browser, target) {
   const collected = [];
   const seenUrls = new Set();
 
-  // 1. Hacker News Algolia 最近真实痛点评论与 Ask HN
+  // 1. Hacker News Algolia 按相关性精准检索（强制剔除 [dead] / 招聘帖噪音）
+  const noiseRe = /^\[dead\]|^\[flagged\]|who is hiring|who wants to be hired|freelancer\?/i;
   for (const q of target.searchQueries.hn) {
     try {
-      const u = `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(
+      const u = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(
         q
-      )}&tags=comment&hitsPerPage=8`;
+      )}&tags=(story,comment)&hitsPerPage=10`;
       const res = await fetch(u);
       if (res.ok) {
         const data = await res.json();
         for (const h of data.hits || []) {
           const itemUrl = `https://news.ycombinator.com/item?id=${h.objectID}`;
           if (seenUrls.has(itemUrl)) continue;
-          const cleanText = decodeHtmlEntities(h.comment_text || "");
-          if (cleanText.length < 55) continue;
+          const storyTitle = decodeHtmlEntities(h.story_title || h.title || "");
+          if (!storyTitle || noiseRe.test(storyTitle)) continue;
+          const cleanText = decodeHtmlEntities(h.comment_text || h.story_text || storyTitle);
+          if (cleanText.length < 40) continue;
           // 排除目标产品自己的 Show HN 帖子
-          if ((h.story_title || "").toLowerCase().includes(target.productName.toLowerCase())) {
+          if (storyTitle.toLowerCase().includes(target.productName.toLowerCase())) {
             continue;
           }
           seenUrls.add(itemUrl);
           const intentBoost =
-            /\b(expired|outage|looking for|wish|tool|alert|monitor|manage|parallel|worktree|diff|hard|pain)\b/i.test(
-              cleanText
+            /\b(expired|outage|looking for|wish|tool|alert|monitor|manage|parallel|worktree|diff|hard|pain|alternative)\b/i.test(
+              `${storyTitle} ${cleanText}`
             )
-              ? 94
-              : 86;
+              ? 95
+              : 87;
           collected.push({
             id: `hn-${h.objectID}`,
             source: "Hacker News",
             community: "Hacker News Thread",
             author: `@${h.author || "hn_dev"}`,
             postedAt: (h.created_at || "").slice(0, 10),
-            title: decodeHtmlEntities(h.story_title || "Developer workflow discussion"),
+            title: storyTitle.slice(0, 120),
             excerpt: cleanText.slice(0, 175) + (cleanText.length > 175 ? "..." : ""),
             url: itemUrl,
             intentScore: intentBoost,

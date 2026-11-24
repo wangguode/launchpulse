@@ -145,11 +145,41 @@ export default function CustomerPortalPage() {
     }
   };
 
-  const cycleLeadStatus = (id: string) => {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = localStorage.getItem("lp_lead_statuses");
+      if (saved) setLeadStatuses(JSON.parse(saved));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const cycleLeadStatus = (lead: { id: string; source: string; community: string; title: string; url: string }) => {
     setLeadStatuses((prev) => {
-      const cur = prev[id] || "new";
-      const next = cur === "new" ? "replied" : cur === "replied" ? "won" : "new";
-      return { ...prev, [id]: next };
+      const cur = prev[lead.id] || "new";
+      const next: "new" | "replied" | "won" = cur === "new" ? "replied" : cur === "replied" ? "won" : "new";
+      const updated = { ...prev, [lead.id]: next };
+      try {
+        localStorage.setItem("lp_lead_statuses", JSON.stringify(updated));
+        fetch("/api/portal/lead-status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: emailInput.includes("@") ? emailInput.trim() : "demo@launchpulse.local",
+            slug: activeReport?.slug || "",
+            leadId: lead.id,
+            status: next,
+            title: lead.title,
+            url: lead.url,
+            source: lead.source,
+            community: lead.community,
+          }),
+        }).catch(() => {});
+      } catch {
+        // ignore
+      }
+      return updated;
     });
   };
 
@@ -385,7 +415,7 @@ export default function CustomerPortalPage() {
                             {lead.source} · {lead.community} · {lead.postedAt}
                           </span>
                           <button
-                            onClick={() => cycleLeadStatus(lead.id)}
+                            onClick={() => cycleLeadStatus(lead)}
                             className={`px-2 py-0.5 rounded uppercase text-[10px] font-bold cursor-pointer ${
                               st === "won"
                                 ? "bg-emerald-500 text-slate-950"

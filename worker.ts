@@ -635,6 +635,69 @@ export default {
     if (url.pathname === "/api/portal/lookup" && request.method === "POST") {
       return handlePortalLookup(request, env);
     }
+    if (url.pathname === "/api/portal/verify-unlock" && request.method === "POST") {
+      if (!env.DB) return jsonResponse({ unlocked: false });
+      try {
+        const body = (await request.json()) as { token?: string; email?: string; slug?: string };
+        const token = (body.token || "").trim();
+        const email = (body.email || "").trim().toLowerCase();
+        if (!token && !email) return jsonResponse({ unlocked: false });
+        const row = token
+          ? await env.DB.prepare(
+              `SELECT plan FROM customers_orders WHERE magic_token = ?1 AND status = 'active' LIMIT 1`
+            )
+              .bind(token)
+              .first<{ plan: string }>()
+          : await env.DB.prepare(
+              `SELECT plan FROM customers_orders WHERE customer_email = ?1 AND status = 'active' LIMIT 1`
+            )
+              .bind(email)
+              .first<{ plan: string }>();
+        return jsonResponse({ unlocked: Boolean(row), plan: row?.plan || null });
+      } catch {
+        return jsonResponse({ unlocked: false }, 400);
+      }
+    }
+    if (url.pathname === "/api/portal/lead-status" && request.method === "POST") {
+      if (!env.DB) return jsonResponse({ ok: true, persisted: false });
+      try {
+        const body = (await request.json()) as {
+          email?: string;
+          slug?: string;
+          leadId?: string;
+          status?: string;
+          title?: string;
+          url?: string;
+          source?: string;
+          community?: string;
+        };
+        const email = (body.email || "demo@launchpulse.local").trim().toLowerCase();
+        const leadId = (body.leadId || "").slice(0, 80);
+        const status = ["new", "replied", "won", "archived"].includes(body.status || "")
+          ? body.status
+          : "new";
+        if (!leadId) return jsonResponse({ error: "Missing leadId" }, 400);
+        await env.DB.prepare(
+          `INSERT INTO radar_deliveries (customer_email, slug, lead_id, source, community, title, excerpt, url, lead_status)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, ?8)
+           ON CONFLICT(customer_email, lead_id) DO UPDATE SET lead_status = ?8`
+        )
+          .bind(
+            email,
+            body.slug || "",
+            leadId,
+            body.source || "Community",
+            body.community || "",
+            (body.title || "").slice(0, 160),
+            body.url || "",
+            status
+          )
+          .run();
+        return jsonResponse({ ok: true, persisted: true, status });
+      } catch {
+        return jsonResponse({ ok: false }, 400);
+      }
+    }
     if (url.pathname === "/api/admin/overview" && request.method === "GET") {
       return handleAdminOverview(request, env);
     }

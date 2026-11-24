@@ -104,6 +104,10 @@ async function main() {
     }
     const domain = parsed.hostname.replace(/^www\./, "").toLowerCase();
     if (existingDomains.has(domain) || SKIP_DOMAINS.some((s) => domain.includes(s))) continue;
+    // 剔除非商业 SaaS 的小游戏、导览、博客、小说与测验类玩具站
+    if (/\b(game|puzzle|sudoku|wordle|tour|map tour|novel|poem|podcast|gallery|quiz|rpg|flash)\b/i.test(title)) {
+      continue;
+    }
 
     const home = await passiveFetch(parsed.origin, 5500);
     if (!home.ok) continue;

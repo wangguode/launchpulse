@@ -47,9 +47,22 @@ export default function WarRoomClient({ report }: Props) {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("unlocked") === "1") {
-        setIsUnlocked(true);
-        setUnlockedPlan(params.get("plan") || "radar");
+      const token = params.get("token")?.trim();
+      if (token) {
+        // 严格走服务端 D1 订单验真，彻底堵死手动拼 ?unlocked=1 白嫖漏洞
+        fetch("/api/portal/verify-unlock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, slug: report.slug }),
+        })
+          .then((r) => r.json())
+          .then((d: { unlocked?: boolean; plan?: string }) => {
+            if (d.unlocked) {
+              setIsUnlocked(true);
+              setUnlockedPlan(d.plan || "radar");
+            }
+          })
+          .catch(() => {});
       }
       // 上报专属战情页打开事件到 Cloudflare D1
       trackEvent("view");
