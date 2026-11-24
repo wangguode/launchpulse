@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+.venv/
+.wrangler/
+.tmp-video/
+.env
+.env.local
+.dev.vars
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts

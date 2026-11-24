@@ -1,0 +1,17 @@
+# LaunchPulse
+
+> Personalized 90-second launch video teardowns, AI search visibility (/llms.txt + JSON-LD) fixes, and 24/7 high-intent buyer radar for newly launched SaaS & AI founders.
+
+LaunchPulse helps Vibe Coders, solo SaaS founders, and indie engineering teams bridge the gap between shipping a product and getting paying customers. It combines passive, non-intrusive technical SEO/AEO/UX diagnostics with real-time community buyer intent monitoring across Hacker News, Reddit, and GitHub.
+
+## Core Capabilities
+- **Instant Passive Launch & AEO Audit**: Checks meta robots, `/llms.txt` AI search manifests, `SoftwareApplication` JSON-LD schemas, clickjacking/CSP hardening headers, mobile viewport overflow, and bottom-of-funnel `/vs/` comparison gaps.
+- **Personalized 90-Second Video Teardown**: Generates an audio-first narrated walkthrough inspecting the founder's live product, red-boxing conversion leaks, and showcasing waiting community buyers.
+- **Copy-Paste Cursor & Claude Code Fix Pack ($19 one-time)**: Ready-to-run prompts and generated `/llms.txt` + JSON-LD files to ship every fix in under 15 minutes.
+- **24/7 Buyer Intent Radar Pro ($29/month)**: Continuous monitoring for high-intent developer threads asking for tools in your exact niche, with first 3 leads unlocked free to verify before paying.
+
+## Key Links
+- Homepage & Free Live Scanner: https://pulse.statementflow.win
+- Sample War-Room Audit (CertNudge): https://pulse.statementflow.win/audit/certnudge
+- Sample War-Room Audit (Trieste): https://pulse.statementflow.win/audit/trieste
+- Support & Founder Contact: mailto:hello@statementflow.win

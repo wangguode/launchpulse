@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "launchpulse",
+  "main": "worker.ts",
+  "compatibility_date": "2024-11-01",
+  "assets": {
+    "directory": "./out",
+    "binding": "ASSETS"
+  },
+  "routes": [
+    {
+      "pattern": "pulse.statementflow.win",
+      "custom_domain": true
+    }
+  ],
+  "build": {
+    "command": "npm run build"
+  }
+}
