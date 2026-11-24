@@ -639,7 +639,16 @@ export default function DashboardPage() {
               </div>
 
               {data.links.length === 0 ? (
-                <p className="text-xs text-amber-300">{v2.dash.noTrafficYet}</p>
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <p className="text-xs text-slate-200">{v2.dash.noTrafficYet}</p>
+                  <button
+                    type="button"
+                    onClick={() => setTab("campaign")}
+                    className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shrink-0 cursor-pointer transition"
+                  >
+                    {isZh ? "去第一步：填写我的网站 →" : isJa ? "ステップ1へ進む →" : "Step 1: Add My SaaS →"}
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {data.links.map((lk) => {

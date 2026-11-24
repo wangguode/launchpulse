@@ -51,6 +51,14 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* 彻底关闭 code / pre 连字特性，防止 <!-- 和 --> 被渲染成奇怪箭头看起来像乱码 */
+code,
+pre,
+input[class*="font-mono"] {
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+}
+
 .obsidian-grid {
   background-image:
     linear-gradient(var(--grid-line) 1px, transparent 1px),

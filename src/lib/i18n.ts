@@ -354,7 +354,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       fixLabel: "50+ DIRECTORY DISTRIBUTION BLITZ",
       fixPeriod: "one-time blitz",
       fixDesc:
-        "We manually & programmatically distribute your SaaS to 50+ high-DR directories to drive real backlinks & referral clicks.",
+        "Our growth specialists hand-submit your SaaS to 50+ vetted high-DR directories — zero spam bots, real backlinks & referral traffic.",
       fixF1: "Submissions to 50+ AI & SaaS directories (DR 45–91)",
       fixF2: "Live backlink proof tracker & CSV report in /portal",
       fixF3: "Saves 15+ hours of tedious directory form-filling",
@@ -625,7 +625,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       freeBtn: "在上方输入网址免费扫描 ↑",
       fixLabel: "50+ 高权重目录流量分发冲刺包",
       fixPeriod: "一次性买断",
-      fixDesc: "人工 + 自动化将你的 SaaS 批量提交至 50+ 海外高权重目录，直接带来真实外链与推荐点击。",
+      fixDesc: "由增长专员人工逐站将你的 SaaS 精选提交至 50+ 海外高权重目录，拒绝垃圾群发，稳拿真实外链与精准推荐流量。",
       fixF1: "提交至 50+ 海外高权重 AI/SaaS 目录（DR 45–91）",
       fixF2: "/portal 工作台实时外链进度追踪 + CSV 回执导出",
       fixF3: "替你省下 15+ 小时枯燥重复的目录填表时间",
@@ -892,7 +892,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       fixLabel: "50+ ディレクトリ一括配信パック",
       fixPeriod: "買い切り",
       fixDesc:
-        "手動＋自動で50以上の高DR海外ディレクトリへSaaSを掲載し、確かな被リンクと流入を獲得します。",
+        "専任スタッフが50以上の厳選高DR海外ディレクトリへ1件ずつ丁寧に手動掲載申請。スパム一切なしで確かな被リンクと流入を獲得します。",
       fixF1: "50+ の海外有力 AI / SaaS ディレクトリへ掲載（DR 45–91）",
       fixF2: "/portal でリアルタイム被リンク進捗確認＆CSV出力",
       fixF3: "15時間以上の煩雑なディレクトリ入力作業を削減",
