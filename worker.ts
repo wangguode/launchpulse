@@ -784,6 +784,608 @@ async function handlePortalLookup(request: Request, env: Env): Promise<Response>
 }
 
 /**
+ * V2 密码学安全哈希与会话工具（Web Crypto PBKDF2-SHA256 + HttpOnly Session Cookie）
+ */
+function bytesToHex(buf: ArrayBuffer | Uint8Array): string {
+  const arr = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  return Array.from(arr)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function hashPassword(password: string, saltHex?: string): Promise<{ hash: string; salt: string }> {
+  const saltBytes = saltHex
+    ? new Uint8Array((saltHex.match(/.{1,2}/g) || []).map((b) => parseInt(b, 16)))
+    : crypto.getRandomValues(new Uint8Array(16));
+  const salt = bytesToHex(saltBytes);
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt: saltBytes, iterations: 100000, hash: "SHA-256" },
+    keyMaterial,
+    256
+  );
+  return { hash: bytesToHex(bits), salt };
+}
+
+function parseCookies(request: Request): Record<string, string> {
+  const header = request.headers.get("cookie") || "";
+  const out: Record<string, string> = {};
+  for (const part of header.split(";")) {
+    const idx = part.indexOf("=");
+    if (idx > 0) {
+      out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
+    }
+  }
+  return out;
+}
+
+function makeSessionCookie(token: string, maxAgeSec = 30 * 86400): string {
+  return `lp_session=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSec}`;
+}
+
+function clearSessionCookie(): string {
+  return `lp_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+}
+
+async function getSessionUser(
+  request: Request,
+  env: Env
+): Promise<{ id: number; email: string; name: string; role: string } | null> {
+  if (!env.DB) return null;
+  const cookies = parseCookies(request);
+  const token = (cookies.lp_session || "").trim();
+  if (!token) return null;
+  const row = await env.DB.prepare(
+    `SELECT u.id, u.email, u.name, u.role, s.expires_at
+     FROM sessions s JOIN users u ON s.user_id = u.id
+     WHERE s.token = ?1 LIMIT 1`
+  )
+    .bind(token)
+    .first<{ id: number; email: string; name: string; role: string; expires_at: string }>();
+  if (!row) return null;
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    await env.DB.prepare(`DELETE FROM sessions WHERE token = ?1`).bind(token).run();
+    return null;
+  }
+  return { id: row.id, email: row.email, name: row.name, role: row.role };
+}
+
+function randomShortCode(prefix = ""): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  let rand = "";
+  for (const b of bytes) rand += chars[b % chars.length];
+  const cleanPrefix = prefix.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 6);
+  return cleanPrefix ? `${cleanPrefix}-${rand}` : rand;
+}
+
+async function handleAuthRegister(request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+  try {
+    const body = (await request.json()) as { email?: string; password?: string; name?: string };
+    const email = (body.email || "").trim().toLowerCase();
+    const password = body.password || "";
+    const name = (body.name || "").trim().slice(0, 60) || email.split("@")[0];
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return jsonResponse({ error: "Please enter a valid email address." }, 400);
+    }
+    if (password.length < 6) {
+      return jsonResponse({ error: "Password must be at least 6 characters." }, 400);
+    }
+    const existing = await env.DB.prepare(`SELECT id FROM users WHERE email = ?1 LIMIT 1`)
+      .bind(email)
+      .first();
+    if (existing) {
+      return jsonResponse({ error: "An account with this email already exists. Please log in." }, 409);
+    }
+    const { hash, salt } = await hashPassword(password);
+    await env.DB.prepare(
+      `INSERT INTO users (email, name, password_hash, password_salt, role) VALUES (?1, ?2, ?3, ?4, 'customer')`
+    )
+      .bind(email, name, hash, salt)
+      .run();
+    const user = await env.DB.prepare(`SELECT id, email, name, role FROM users WHERE email = ?1 LIMIT 1`)
+      .bind(email)
+      .first<{ id: number; email: string; name: string; role: string }>();
+    if (!user) return jsonResponse({ error: "Account creation failed." }, 500);
+
+    const sessionToken = bytesToHex(crypto.getRandomValues(new Uint8Array(24)));
+    const expiresAt = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
+    await env.DB.prepare(
+      `INSERT INTO sessions (token, user_id, email, expires_at) VALUES (?1, ?2, ?3, ?4)`
+    )
+      .bind(sessionToken, user.id, user.email, expiresAt)
+      .run();
+
+    return new Response(JSON.stringify({ ok: true, user }), {
+      status: 201,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Set-Cookie": makeSessionCookie(sessionToken),
+        ...SECURITY_HEADERS,
+      },
+    });
+  } catch {
+    return jsonResponse({ error: "Invalid registration payload." }, 400);
+  }
+}
+
+async function handleAuthLogin(request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+  try {
+    const body = (await request.json()) as { email?: string; password?: string };
+    const email = (body.email || "").trim().toLowerCase();
+    const password = body.password || "";
+    if (!email || !password) {
+      return jsonResponse({ error: "Email and password are required." }, 400);
+    }
+    const user = await env.DB.prepare(
+      `SELECT id, email, name, role, password_hash, password_salt FROM users WHERE email = ?1 LIMIT 1`
+    )
+      .bind(email)
+      .first<{
+        id: number;
+        email: string;
+        name: string;
+        role: string;
+        password_hash: string;
+        password_salt: string;
+      }>();
+    if (!user) {
+      return jsonResponse({ error: "Invalid email or password." }, 401);
+    }
+    const { hash } = await hashPassword(password, user.password_salt);
+    if (!timingSafeEqualHex(hash, user.password_hash)) {
+      return jsonResponse({ error: "Invalid email or password." }, 401);
+    }
+    const sessionToken = bytesToHex(crypto.getRandomValues(new Uint8Array(24)));
+    const expiresAt = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
+    await env.DB.prepare(
+      `INSERT INTO sessions (token, user_id, email, expires_at) VALUES (?1, ?2, ?3, ?4)`
+    )
+      .bind(sessionToken, user.id, user.email, expiresAt)
+      .run();
+
+    return new Response(
+      JSON.stringify({ ok: true, user: { id: user.id, email: user.email, name: user.name, role: user.role } }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Set-Cookie": makeSessionCookie(sessionToken),
+          ...SECURITY_HEADERS,
+        },
+      }
+    );
+  } catch {
+    return jsonResponse({ error: "Invalid login payload." }, 400);
+  }
+}
+
+async function handleAuthLogout(request: Request, env: Env): Promise<Response> {
+  if (env.DB) {
+    const cookies = parseCookies(request);
+    if (cookies.lp_session) {
+      await env.DB.prepare(`DELETE FROM sessions WHERE token = ?1`).bind(cookies.lp_session).run();
+    }
+  }
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Set-Cookie": clearSessionCookie(),
+      ...SECURITY_HEADERS,
+    },
+  });
+}
+
+async function handleDashboardOverview(request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+  const user = await getSessionUser(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const [ordersRes, campaignsRes, linksRes, dirsRes, deliveriesRes, clicksDailyRes, convDailyRes] =
+    await Promise.all([
+      env.DB.prepare(
+        `SELECT order_id, slug, target_url, plan, amount_usd, status, created_at FROM customers_orders WHERE customer_email = ?1 ORDER BY id DESC`
+      )
+        .bind(user.email)
+        .all(),
+      env.DB.prepare(
+        `SELECT id, slug, product_name, target_url, tagline, competitors, status, created_at, updated_at FROM campaigns WHERE user_email = ?1 ORDER BY id DESC`
+      )
+        .bind(user.email)
+        .all(),
+      env.DB.prepare(
+        `SELECT code, campaign_id, channel, label, destination_url, clicks_count, conversions_count, created_at FROM tracking_links WHERE user_email = ?1 ORDER BY clicks_count DESC, created_at DESC`
+      )
+        .bind(user.email)
+        .all<{
+          code: string;
+          campaign_id: number;
+          channel: string;
+          label: string;
+          destination_url: string;
+          clicks_count: number;
+          conversions_count: number;
+          created_at: string;
+        }>(),
+      env.DB.prepare(
+        `SELECT directory_id, directory_name, directory_url, dr, category, status, live_backlink_url, updated_at FROM directory_submissions WHERE customer_email = ?1 ORDER BY dr DESC`
+      )
+        .bind(user.email)
+        .all<{ status: string }>(),
+      env.DB.prepare(
+        `SELECT lead_id, source, community, title, excerpt, url, reply_draft, lead_status, delivered_at FROM radar_deliveries WHERE customer_email = ?1 ORDER BY id DESC LIMIT 30`
+      )
+        .bind(user.email)
+        .all(),
+      env.DB.prepare(
+        `SELECT substr(clicked_at, 1, 10) as day, COUNT(*) as cnt FROM link_clicks WHERE user_email = ?1 AND clicked_at >= datetime('now', '-14 days') GROUP BY day ORDER BY day ASC`
+      )
+        .bind(user.email)
+        .all<{ day: string; cnt: number }>(),
+      env.DB.prepare(
+        `SELECT substr(created_at, 1, 10) as day, COUNT(*) as cnt FROM conversions WHERE user_email = ?1 AND created_at >= datetime('now', '-14 days') GROUP BY day ORDER BY day ASC`
+      )
+        .bind(user.email)
+        .all<{ day: string; cnt: number }>(),
+    ]);
+
+  const links = linksRes.results || [];
+  const dirs = dirsRes.results || [];
+  const totalClicks = links.reduce((sum, l) => sum + Number(l.clicks_count || 0), 0);
+  const totalConversions = links.reduce((sum, l) => sum + Number(l.conversions_count || 0), 0);
+  const conversionRate = totalClicks > 0 ? Number(((totalConversions / totalClicks) * 100).toFixed(2)) : 0;
+
+  // 构建近 14 天连续日期序列，确保折线图平滑直观
+  const clickMap = new Map((clicksDailyRes.results || []).map((r) => [r.day, Number(r.cnt)]));
+  const convMap = new Map((convDailyRes.results || []).map((r) => [r.day, Number(r.cnt)]));
+  const dailySeries: Array<{ date: string; clicks: number; conversions: number }> = [];
+  for (let i = 13; i >= 0; i -= 1) {
+    const d = new Date(Date.now() - i * 86400 * 1000).toISOString().slice(0, 10);
+    dailySeries.push({ date: d, clicks: clickMap.get(d) || 0, conversions: convMap.get(d) || 0 });
+  }
+
+  const channelMap = new Map<string, { clicks: number; conversions: number }>();
+  for (const l of links) {
+    const cur = channelMap.get(l.channel) || { clicks: 0, conversions: 0 };
+    cur.clicks += Number(l.clicks_count || 0);
+    cur.conversions += Number(l.conversions_count || 0);
+    channelMap.set(l.channel, cur);
+  }
+  const channelBreakdown = Array.from(channelMap.entries()).map(([channel, v]) => ({
+    channel,
+    clicks: v.clicks,
+    conversions: v.conversions,
+    cvr: v.clicks > 0 ? Number(((v.conversions / v.clicks) * 100).toFixed(2)) : 0,
+  }));
+
+  return jsonResponse({
+    user,
+    orders: ordersRes.results || [],
+    campaigns: campaignsRes.results || [],
+    links,
+    directories: dirs,
+    deliveries: deliveriesRes.results || [],
+    stats: {
+      totalClicks,
+      totalConversions,
+      conversionRate,
+      directoriesLive: dirs.filter((d) => d.status === "live").length,
+      directoriesSubmitted: dirs.filter((d) => d.status === "submitted" || d.status === "live").length,
+      dailySeries,
+      channelBreakdown,
+    },
+  });
+}
+
+async function handleDashboardSaveCampaign(request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+  const user = await getSessionUser(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  try {
+    const body = (await request.json()) as {
+      productName?: string;
+      targetUrl?: string;
+      tagline?: string;
+      competitors?: string;
+    };
+    const target = parseSafePublicHttpsUrl(body.targetUrl || "");
+    if (!target) {
+      return jsonResponse({ error: "Please enter a valid public HTTPS website URL." }, 400);
+    }
+    const productName = (body.productName || "").trim().slice(0, 80) || target.hostname.replace(/^www\./, "");
+    const slug = target.hostname
+      .replace(/^www\./, "")
+      .split(".")[0]
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "");
+    const tagline = (body.tagline || "").trim().slice(0, 200);
+    const competitors = (body.competitors || "").trim().slice(0, 160);
+
+    await env.DB.prepare(
+      `INSERT INTO campaigns (user_email, slug, product_name, target_url, tagline, competitors, status, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', datetime('now'))
+       ON CONFLICT(user_email, slug) DO UPDATE SET
+         product_name = ?3, target_url = ?4, tagline = ?5, competitors = ?6, updated_at = datetime('now')`
+    )
+      .bind(user.email, slug, productName, target.origin, tagline, competitors)
+      .run();
+
+    const campaign = await env.DB.prepare(
+      `SELECT id, slug, product_name, target_url FROM campaigns WHERE user_email = ?1 AND slug = ?2 LIMIT 1`
+    )
+      .bind(user.email, slug)
+      .first<{ id: number; slug: string; product_name: string; target_url: string }>();
+
+    if (campaign) {
+      // 自动为新项目签发 3 条即插即用的归因追踪短链（目录外链 / 社区回复 / SEO 竞品页）
+      const existingLinks = await env.DB.prepare(
+        `SELECT COUNT(*) as cnt FROM tracking_links WHERE campaign_id = ?1`
+      )
+        .bind(campaign.id)
+        .first<{ cnt: number }>();
+
+      if (!existingLinks || Number(existingLinks.cnt) === 0) {
+        const defaults = [
+          { channel: "directory", label: "50+ Directory Distribution" },
+          { channel: "community", label: "HN / Reddit Buyer Replies" },
+          { channel: "seo", label: "Competitor /vs/ & /llms.txt" },
+        ];
+        for (const d of defaults) {
+          const code = randomShortCode(`${slug.slice(0, 4)}${d.channel[0]}`);
+          await env.DB.prepare(
+            `INSERT OR IGNORE INTO tracking_links (code, campaign_id, user_email, channel, label, destination_url)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+          )
+            .bind(code, campaign.id, user.email, d.channel, d.label, campaign.target_url)
+            .run();
+        }
+      }
+    }
+
+    return jsonResponse({ ok: true, campaign });
+  } catch {
+    return jsonResponse({ error: "Invalid campaign payload." }, 400);
+  }
+}
+
+async function handleDashboardCreateLink(request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+  const user = await getSessionUser(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  try {
+    const body = (await request.json()) as {
+      campaignId?: number;
+      channel?: string;
+      label?: string;
+      destinationUrl?: string;
+    };
+    const target = parseSafePublicHttpsUrl(body.destinationUrl || "");
+    if (!target) return jsonResponse({ error: "Invalid HTTPS destination URL." }, 400);
+    const channel = ["directory", "community", "seo", "custom"].includes(body.channel || "")
+      ? body.channel!
+      : "custom";
+    const label = (body.label || "Custom Campaign Link").trim().slice(0, 80);
+    const code = randomShortCode(channel.slice(0, 3));
+    await env.DB.prepare(
+      `INSERT INTO tracking_links (code, campaign_id, user_email, channel, label, destination_url)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+    )
+      .bind(code, Number(body.campaignId || 0), user.email, channel, label, target.toString())
+      .run();
+    return jsonResponse({ ok: true, code });
+  } catch {
+    return jsonResponse({ error: "Unable to create link." }, 400);
+  }
+}
+
+/**
+ * 边缘追踪短链跳转（/r/:code）：复刻 Dub 架构，毫秒级 302 跳转 + 写入 D1 点击明细与 UTM 归因
+ */
+async function handleShortLinkRedirect(code: string, request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return new Response("Not Found", { status: 404 });
+  const cleanCode = code.toLowerCase().replace(/[^a-z0-9-_]/g, "").slice(0, 32);
+  if (!cleanCode) return new Response("Not Found", { status: 404 });
+
+  const link = await env.DB.prepare(
+    `SELECT code, campaign_id, user_email, channel, destination_url FROM tracking_links WHERE code = ?1 LIMIT 1`
+  )
+    .bind(cleanCode)
+    .first<{
+      code: string;
+      campaign_id: number;
+      user_email: string;
+      channel: string;
+      destination_url: string;
+    }>();
+
+  if (!link) return new Response("Tracking link not found", { status: 404 });
+
+  const ua = request.headers.get("user-agent") || "";
+  const device = /mobile|android|iphone|ipad/i.test(ua) ? "mobile" : "desktop";
+  const referer = (request.headers.get("referer") || "").slice(0, 200);
+  const cfCountry = ((request as Request & { cf?: { country?: string } }).cf?.country || "UN").slice(0, 8);
+
+  // 仅对真实 GET 访问计入点击，避免 HEAD 探测虚增点击数
+  if (request.method === "GET") {
+    try {
+      await Promise.all([
+        env.DB.prepare(`UPDATE tracking_links SET clicks_count = clicks_count + 1 WHERE code = ?1`)
+          .bind(link.code)
+          .run(),
+        env.DB.prepare(
+          `INSERT INTO link_clicks (code, campaign_id, user_email, channel, country, referer, device)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
+        )
+          .bind(link.code, link.campaign_id, link.user_email, link.channel, cfCountry, referer, device)
+          .run(),
+      ]);
+    } catch {
+      // ignore
+    }
+  }
+
+  let dest = link.destination_url;
+  try {
+    const destUrl = new URL(link.destination_url);
+    destUrl.searchParams.set("utm_source", "launchpulse");
+    destUrl.searchParams.set("utm_medium", link.channel);
+    destUrl.searchParams.set("lp_ref", link.code);
+    dest = destUrl.toString();
+  } catch {
+    // fallback raw url
+  }
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: dest,
+      "Cache-Control": "no-store",
+      ...SECURITY_HEADERS,
+    },
+  });
+}
+
+/**
+ * 客户网站 1 行转化追踪脚本（/api/pixel.js）与转化回传（POST /api/pixel）
+ */
+function handlePixelScript(): Response {
+  const js = `(function(){try{var p=new URLSearchParams(location.search);var r=p.get("lp_ref");if(r)localStorage.setItem("lp_ref",r);window.lpConvert=function(ev,val){var c=localStorage.getItem("lp_ref")||"";fetch("https://pulse.statementflow.win/api/pixel",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:c,event:ev||"signup",valueUsd:Number(val||0)}),keepalive:true}).catch(function(){});};}catch(e){}})();`;
+  return new Response(js, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/javascript; charset=utf-8",
+      "Cache-Control": "public, max-age=3600",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}
+
+async function handlePixelConversion(request: Request, env: Env): Promise<Response> {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+  if (!env.DB) return new Response(JSON.stringify({ ok: false }), { status: 500, headers: corsHeaders });
+  try {
+    const body = (await request.json()) as { code?: string; event?: string; valueUsd?: number };
+    const code = (body.code || "").toLowerCase().replace(/[^a-z0-9-_]/g, "").slice(0, 32);
+    if (!code) {
+      return new Response(JSON.stringify({ ok: false, error: "Missing tracking code" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+    const link = await env.DB.prepare(
+      `SELECT code, campaign_id, user_email FROM tracking_links WHERE code = ?1 LIMIT 1`
+    )
+      .bind(code)
+      .first<{ code: string; campaign_id: number; user_email: string }>();
+    if (!link) {
+      return new Response(JSON.stringify({ ok: false, error: "Unknown code" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+    const ev = body.event === "purchase" ? "purchase" : "signup";
+    const val = Math.max(0, Math.min(100000, Number(body.valueUsd || 0)));
+    await Promise.all([
+      env.DB.prepare(`UPDATE tracking_links SET conversions_count = conversions_count + 1 WHERE code = ?1`)
+        .bind(link.code)
+        .run(),
+      env.DB.prepare(
+        `INSERT INTO conversions (campaign_id, user_email, code, event_type, value_usd) VALUES (?1, ?2, ?3, ?4, ?5)`
+      )
+        .bind(link.campaign_id, link.user_email, link.code, ev, val)
+        .run(),
+    ]);
+    return new Response(JSON.stringify({ ok: true, code: link.code, event: ev }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
+  } catch {
+    return new Response(JSON.stringify({ ok: false }), {
+      status: 400,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
+  }
+}
+
+/**
+ * 在线可视化管理台聚合接口（受 ADMIN_API_KEY 保护）
+ */
+async function handleAdminDashboard(request: Request, env: Env): Promise<Response> {
+  const adminKey = env.ADMIN_API_KEY?.trim();
+  const provided = request.headers.get("x-admin-key") || "";
+  if (!adminKey || !provided || !timingSafeEqualHex(provided, adminKey)) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+
+  const [usersRes, campaignsRes, ordersRes, linksRes, dirsRes, outreachRes] = await Promise.all([
+    env.DB.prepare(`SELECT id, email, name, role, created_at FROM users ORDER BY id DESC LIMIT 100`).all(),
+    env.DB.prepare(`SELECT * FROM campaigns ORDER BY updated_at DESC LIMIT 100`).all(),
+    env.DB.prepare(`SELECT * FROM customers_orders ORDER BY created_at DESC LIMIT 100`).all<{
+      plan: string;
+      amount_usd: number;
+      status: string;
+    }>(),
+    env.DB.prepare(`SELECT * FROM tracking_links ORDER BY clicks_count DESC LIMIT 200`).all<{
+      clicks_count: number;
+      conversions_count: number;
+    }>(),
+    env.DB.prepare(`SELECT * FROM directory_submissions ORDER BY updated_at DESC LIMIT 200`).all(),
+    env.DB.prepare(`SELECT * FROM outreach_logs ORDER BY last_event_at DESC LIMIT 100`).all(),
+  ]);
+
+  const orders = ordersRes.results || [];
+  const links = linksRes.results || [];
+  const totalRevenueUsd = orders
+    .filter((o) => o.status === "active")
+    .reduce((s, o) => s + Number(o.amount_usd || 0), 0);
+  const activeMrrUsd = orders
+    .filter((o) => o.status === "active" && o.plan === "radar")
+    .reduce((s, o) => s + Number(o.amount_usd || 29), 0);
+  const totalClicks = links.reduce((s, l) => s + Number(l.clicks_count || 0), 0);
+  const totalConversions = links.reduce((s, l) => s + Number(l.conversions_count || 0), 0);
+  const overallCvr = totalClicks > 0 ? Number(((totalConversions / totalClicks) * 100).toFixed(2)) : 0;
+
+  return jsonResponse({
+    syncedAt: new Date().toISOString(),
+    kpis: {
+      totalUsers: (usersRes.results || []).length,
+      totalCampaigns: (campaignsRes.results || []).length,
+      totalOrders: orders.length,
+      totalRevenueUsd,
+      activeMrrUsd,
+      totalClicks,
+      totalConversions,
+      overallCvr,
+    },
+    users: usersRes.results || [],
+    campaigns: campaignsRes.results || [],
+    orders,
+    links,
+    directories: dirsRes.results || [],
+    outreach: outreachRes.results || [],
+  });
+}
+
+/**
  * 内部指挥台同步接口（受 ADMIN_API_KEY 保护，供本地 PocketBase 拉取实时数据）
  */
 async function handleAdminOverview(request: Request, env: Env): Promise<Response> {
@@ -811,6 +1413,52 @@ async function handleAdminOverview(request: Request, env: Env): Promise<Response
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    // V2 边缘追踪短链跳转（/r/:code）与转化像素
+    if (url.pathname.startsWith("/r/") && (request.method === "GET" || request.method === "HEAD")) {
+      const code = url.pathname.slice(3).split("/")[0];
+      return handleShortLinkRedirect(code, request, env);
+    }
+    if (url.pathname === "/api/pixel.js" && request.method === "GET") {
+      return handlePixelScript();
+    }
+    if (url.pathname === "/api/pixel" && (request.method === "POST" || request.method === "OPTIONS")) {
+      return handlePixelConversion(request, env);
+    }
+
+    // V2 注册登录认证接口
+    if (url.pathname === "/api/auth/register" && request.method === "POST") {
+      if (!checkRateLimit(request, 10)) return jsonResponse({ error: "Too many attempts." }, 429);
+      return handleAuthRegister(request, env);
+    }
+    if (url.pathname === "/api/auth/login" && request.method === "POST") {
+      if (!checkRateLimit(request, 15)) return jsonResponse({ error: "Too many login attempts." }, 429);
+      return handleAuthLogin(request, env);
+    }
+    if (url.pathname === "/api/auth/logout" && request.method === "POST") {
+      return handleAuthLogout(request, env);
+    }
+    if (url.pathname === "/api/auth/me" && request.method === "GET") {
+      const user = await getSessionUser(request, env);
+      return jsonResponse({ authenticated: Boolean(user), user });
+    }
+
+    // V2 客户控制台聚合与推广项目管理接口
+    if (url.pathname === "/api/dashboard/overview" && request.method === "GET") {
+      return handleDashboardOverview(request, env);
+    }
+    if (url.pathname === "/api/dashboard/campaign" && request.method === "POST") {
+      return handleDashboardSaveCampaign(request, env);
+    }
+    if (url.pathname === "/api/dashboard/links" && request.method === "POST") {
+      return handleDashboardCreateLink(request, env);
+    }
+
+    // V2 在线可视化管理台聚合接口
+    if (url.pathname === "/api/admin/dashboard" && request.method === "GET") {
+      await logAdminAudit(env, request, "admin_dashboard_read");
+      return handleAdminDashboard(request, env);
+    }
 
     if (url.pathname === "/api/scan" && request.method === "POST") {
       if (!checkRateLimit(request, 20)) return jsonResponse({ error: "Rate limit exceeded. Try again in 60s." }, 429);

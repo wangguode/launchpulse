@@ -14,13 +14,15 @@ import { useI18n } from "@/components/I18nProvider";
 import LangSwitcher from "@/components/LangSwitcher";
 import LiveScannerHero from "@/components/LiveScannerHero";
 import PricingCheckoutButtons from "@/components/PricingCheckoutButtons";
+import { V2_DICTIONARIES } from "@/lib/v2-i18n";
 
 interface Props {
   sampleAudits: StartupAuditReport[];
 }
 
 export default function HomeClient({ sampleAudits }: Props) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const v2 = V2_DICTIONARIES[locale];
   const featured = sampleAudits[0];
 
   return (
@@ -46,19 +48,19 @@ export default function HomeClient({ sampleAudits }: Props) {
             <a href="#pricing" className="hover:text-white transition">
               {t.nav.pricing}
             </a>
-            <Link href="/portal" className="hover:text-emerald-300 transition">
-              {t.nav.portal}
+            <Link href="/dashboard" className="hover:text-emerald-300 transition font-medium">
+              {v2.nav.dashboard}
             </Link>
           </nav>
 
           <div className="flex items-center gap-2.5 shrink-0">
             <LangSwitcher />
-            <a
-              href="#pricing"
-              className="hidden sm:inline-block px-3.5 py-2 rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-semibold text-white transition"
+            <Link
+              href="/login"
+              className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-xs font-bold text-slate-950 transition"
             >
-              {t.nav.cta}
-            </a>
+              {v2.nav.login}
+            </Link>
           </div>
         </div>
       </header>

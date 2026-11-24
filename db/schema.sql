@@ -107,3 +107,82 @@ CREATE INDEX IF NOT EXISTS idx_outreach_slug ON outreach_logs(slug);
 CREATE INDEX IF NOT EXISTS idx_orders_email ON customers_orders(customer_email);
 CREATE INDEX IF NOT EXISTS idx_orders_token ON customers_orders(magic_token);
 CREATE INDEX IF NOT EXISTS idx_radar_email ON radar_deliveries(customer_email);
+
+-- 8. V2 SaaS 客户账号表（邮箱 + PBKDF2 加盐密码哈希）
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  password_hash TEXT NOT NULL,
+  password_salt TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'customer', -- customer | admin
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 9. V2 会话表（HttpOnly Cookie 会话凭证，30 天有效）
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  email TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_email ON sessions(email);
+
+-- 10. V2 客户推广项目表（提交网站 URL、卖点、竞品名，关联推流与归因）
+CREATE TABLE IF NOT EXISTS campaigns (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_email TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  product_name TEXT NOT NULL,
+  target_url TEXT NOT NULL,
+  tagline TEXT NOT NULL DEFAULT '',
+  competitors TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active', -- active | paused
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_email, slug)
+);
+CREATE INDEX IF NOT EXISTS idx_campaigns_email ON campaigns(user_email);
+
+-- 11. V2 边缘归因追踪短链表（复刻 Dub 架构：/r/:code -> 302 跳转 + UTM 归因）
+CREATE TABLE IF NOT EXISTS tracking_links (
+  code TEXT PRIMARY KEY,
+  campaign_id INTEGER NOT NULL,
+  user_email TEXT NOT NULL,
+  channel TEXT NOT NULL DEFAULT 'directory', -- directory | community | seo | custom
+  label TEXT NOT NULL DEFAULT '',
+  destination_url TEXT NOT NULL,
+  clicks_count INTEGER NOT NULL DEFAULT 0,
+  conversions_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_links_campaign ON tracking_links(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_links_email ON tracking_links(user_email);
+
+-- 12. V2 短链实时点击明细表（记录渠道、来源、国家、UA、日期用于趋势图与排行）
+CREATE TABLE IF NOT EXISTS link_clicks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL,
+  campaign_id INTEGER NOT NULL,
+  user_email TEXT NOT NULL,
+  channel TEXT NOT NULL DEFAULT 'directory',
+  country TEXT NOT NULL DEFAULT 'UN',
+  referer TEXT NOT NULL DEFAULT '',
+  device TEXT NOT NULL DEFAULT 'desktop',
+  clicked_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_clicks_campaign_date ON link_clicks(campaign_id, clicked_at);
+CREATE INDEX IF NOT EXISTS idx_clicks_email_date ON link_clicks(user_email, clicked_at);
+
+-- 13. V2 转化回传明细表（由客户官网 1 行像素或回调触发：signup / purchase）
+CREATE TABLE IF NOT EXISTS conversions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  campaign_id INTEGER NOT NULL,
+  user_email TEXT NOT NULL,
+  code TEXT NOT NULL DEFAULT '',
+  event_type TEXT NOT NULL DEFAULT 'signup', -- signup | purchase
+  value_usd REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_conv_email_date ON conversions(user_email, created_at);

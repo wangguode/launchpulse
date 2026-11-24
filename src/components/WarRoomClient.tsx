@@ -19,6 +19,7 @@ import {
 import type { StartupAuditReport } from "@/types/audit";
 import { useI18n } from "@/components/I18nProvider";
 import LangSwitcher from "@/components/LangSwitcher";
+import { V2_DICTIONARIES } from "@/lib/v2-i18n";
 import {
   decodeHtmlEntities,
   localizeCategory,
@@ -34,6 +35,7 @@ interface Props {
 
 export default function WarRoomClient({ report }: Props) {
   const { locale, t } = useI18n();
+  const v2 = V2_DICTIONARIES[locale];
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastReportedSecRef = useRef<number>(0);
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -156,6 +158,12 @@ export default function WarRoomClient({ report }: Props) {
 
           <div className="flex items-center gap-2.5 shrink-0">
             <LangSwitcher />
+            <Link
+              href="/login"
+              className="hidden sm:inline-flex items-center px-3 py-1.5 rounded-lg border border-white/15 hover:border-emerald-400/50 text-xs text-slate-200 hover:text-white transition"
+            >
+              {v2.nav.login}
+            </Link>
             <a
               href={report.targetUrl}
               target="_blank"
