@@ -1,9 +1,31 @@
 "use client";
 
-import { ArrowRight, CheckCircle2, FolderPlus, Sparkles } from "lucide-react";
-import Button from "@/components/ui/Button";
-import StatusBadge from "@/components/ui/StatusBadge";
-import RevenuePulseChart from "@/components/console/RevenuePulseChart";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import {
+  IconArrowRight,
+  IconCheck,
+  IconFolderPlus,
+  IconSparkles,
+  IconTrendingUp,
+} from "@tabler/icons-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { Separator } from "@/components/ui/separator";
 import type { RadarLeadRecord, ReconciledDirectoryRow, ReconciledLedger } from "@/lib/console-ledger";
 
 interface TodayCommandViewProps {
@@ -21,10 +43,29 @@ interface TodayCommandViewProps {
   onCreateProject: () => void;
 }
 
+const areaChartConfig = {
+  revenueUsd: {
+    label: "归因营收 ($)",
+    color: "var(--chart-2)",
+  },
+  clicks: {
+    label: "有效点击",
+    color: "var(--chart-1)",
+  },
+} satisfies ChartConfig;
+
+const barChartConfig = {
+  revenueUsd: {
+    label: "归因美元 ($)",
+    color: "var(--chart-2)",
+  },
+} satisfies ChartConfig;
+
 /**
- * 视图 ①：今日指挥台（2:1 行动驱动左右分栏，严格对齐效果图 2）
- * - 左 64%：今日待办行动流（原地闭环） + 最新外链验活回执
- * - 右 36%：营收与归因脉搏（单锚点主数值 + 全宽无留白趋势图 + 4 步漏斗 + 渠道对账明细）
+ * 视图 ①：今日总览与归因（100% 复用 Kiranism/next-shadcn-dashboard-starter 原装 OverViewLayout + Recharts 3 规范）
+ * - 顶部 4 张官方 @container/card KPI 指标卡（全部同源对账，绝不重复）
+ * - 中部 7 列网格：左 4 列 Recharts AreaChart 30 天营收/点击双曲线 + 右 3 列今日待办行动流
+ * - 底部 7 列网格：左 4 列 Recharts BarChart 按渠道营收拆解（严格恒等） + 右 3 列最新外链验活回执
  */
 export default function TodayCommandView({
   ledger,
@@ -50,326 +91,399 @@ export default function TodayCommandView({
 
   const firstMissing = isZh
     ? ledger.brandKit.missingItemsZh[0] || "核心物料"
-    : ledger.brandKit.missingItemsEn[0] || "key brand asset";
+    : ledger.brandKit.missingItemsEn[0] || "brand asset";
+
+  const rpv =
+    ledger.revenue.funnel.clicks > 0
+      ? (ledger.revenue.totalUsd / ledger.revenue.funnel.clicks).toFixed(2)
+      : "0.00";
+
+  const areaData = ledger.revenue.dailySeries.map((pt) => ({
+    date: pt.date.slice(5),
+    revenueUsd: pt.revenueUsd,
+    clicks: pt.clicks,
+  }));
+
+  const channelBarData = ledger.revenue.channels.map((ch) => ({
+    channel: isZh ? ch.labelZh : ch.labelEn,
+    revenueUsd: ch.revenueUsd,
+    clicks: ch.clicks,
+  }));
 
   return (
-    <div className="flex-1 grid grid-cols-1 xl:grid-cols-[minmax(0,1.65fr)_minmax(340px,1fr)] divide-y xl:divide-y-0 xl:divide-x divide-[var(--border-hairline)]">
-      {/* ==================== 左栏（64%）：行动流 + 外链验活回执 ==================== */}
-      <section className="p-5 sm:p-7 space-y-6 min-w-0">
-        {/* 顶部标题与动态态势（无多余 kicker） */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-          <div className="space-y-1">
-            <h1 className="lp-display text-[21px] sm:text-[22px] font-semibold text-[var(--ink-primary)] tracking-tight">
-              {isZh ? "今日增长指挥台" : "Today's Growth Command Center"}
-            </h1>
-            <p className="text-[13.5px] text-[var(--ink-secondary)]">
-              {!hasProject
-                ? isZh
-                  ? "先创建你的首个出海项目，系统将自动生成 100 目录排期与求购监听。"
-                  : "Add your first product to unlock 100-directory scheduling and buyer intent alerts."
-                : activeTodoCount > 0
-                  ? isZh
-                    ? `今日有 ${activeTodoCount} 项推进可直接带来高权重外链与付费咨询`
-                    : `${activeTodoCount} concrete actions today will directly drive backlinks and qualified buyers`
-                  : isZh
-                    ? "今日关键推进已全部清零，系统正每小时监测海外求购与外链存活"
-                    : "All priority actions cleared — monitoring live buyer threads and backlinks hourly"}
-            </p>
-          </div>
-
-          {!hasProject && (
-            <Button variant="primary" size="sm" onClick={onCreateProject}>
-              <FolderPlus className="w-3.5 h-3.5" strokeWidth={1.75} />
-              {isZh ? "创建首个项目" : "Create Project"}
-            </Button>
-          )}
+    <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+      {/* 顶部标题区 */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {isZh ? "今日增长指挥台" : "Growth Overview"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {activeTodoCount > 0
+              ? isZh
+                ? `今日有 ${activeTodoCount} 项关键推进可直接带来高权重外链与海外付费咨询`
+                : `${activeTodoCount} priority actions today to drive backlinks and revenue`
+              : isZh
+                ? "今日待办已全部清零，系统正持续监测海外求购与外链存活"
+                : "All priority tasks cleared — monitoring backlinks and leads continuously"}
+          </p>
         </div>
 
-        {/* 今日待办行动流 */}
-        <div className="rounded-[9px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] overflow-hidden">
-          <div className="px-4 py-2.5 bg-[var(--bg-surface)] border-b border-[var(--border-hairline)] flex items-center justify-between">
-            <h2 className="text-[13px] font-semibold text-[var(--ink-primary)]">
-              {isZh ? "今日待办行动流" : "Today's Action Queue"}
-            </h2>
-            <span className="text-[11.5px] text-[var(--ink-muted)] tabular-nums">
-              {isZh ? `剩余 ${activeTodoCount} 项` : `${activeTodoCount} open`}
-            </span>
-          </div>
+        {!hasProject && (
+          <Button size="sm" onClick={onCreateProject}>
+            <IconFolderPlus className="size-4" />
+            {isZh ? "创建首个出海项目" : "Create Project"}
+          </Button>
+        )}
+      </div>
 
-          {activeTodoCount === 0 ? (
-            <div className="px-4 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 text-[13.5px] text-[var(--ink-secondary)]">
-                <CheckCircle2 className="w-4 h-4 text-[var(--status-live)] shrink-0" strokeWidth={1.8} />
+      {/* Kiranism 原装 4 列 @container/card KPI 卡片组（严格单一数据源，0 矛盾） */}
+      <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs md:grid-cols-2 lg:grid-cols-4">
+        <Card className="@container/card">
+          <CardHeader>
+            <CardDescription>{isZh ? "近 30 天归因营收" : "Attributed Revenue (30d)"}</CardDescription>
+            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              ${ledger.revenue.totalUsd.toLocaleString()}
+            </CardTitle>
+            <CardAction>
+              <Badge variant="outline" className="tabular-nums">
+                <IconTrendingUp className="size-3.5" />
+                +${ledger.revenue.deltaUsd.toLocaleString()}
+              </Badge>
+            </CardAction>
+          </CardHeader>
+          <CardFooter className="flex-col items-start gap-1 text-sm">
+            <div className="line-clamp-1 font-medium tabular-nums">
+              {isZh ? `单次访问产出 $${rpv}` : `$${rpv} revenue per visit`}
+            </div>
+            <div className="text-muted-foreground text-xs">
+              {isZh ? "目录 + 社区 + 对比页三渠道精确合计" : "Exact sum across all active channels"}
+            </div>
+          </CardFooter>
+        </Card>
+
+        <Card className="@container/card">
+          <CardHeader>
+            <CardDescription>{isZh ? "导流转化漏斗" : "Conversion Funnel"}</CardDescription>
+            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              {ledger.revenue.funnel.paid} {isZh ? "付费" : "Paid"}
+            </CardTitle>
+            <CardAction>
+              <Badge variant="outline" className="tabular-nums">
+                {ledger.revenue.funnel.clicks.toLocaleString()} {isZh ? "点击" : "clicks"}
+              </Badge>
+            </CardAction>
+          </CardHeader>
+          <CardFooter className="flex-col items-start gap-1 text-sm">
+            <div className="line-clamp-1 font-medium tabular-nums">
+              {ledger.revenue.funnel.visits.toLocaleString()} {isZh ? "进站" : "visits"} →{" "}
+              {ledger.revenue.funnel.signups} {isZh ? "注册" : "signups"}
+            </div>
+            <div className="text-muted-foreground text-xs">
+              {isZh ? "Cloudflare 边缘短链与像素实测" : "Edge shortlink & pixel verified"}
+            </div>
+          </CardFooter>
+        </Card>
+
+        <Card className="@container/card">
+          <CardHeader>
+            <CardDescription>{isZh ? "已验活目录外链" : "Verified Backlinks"}</CardDescription>
+            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              {ledger.dirCounts.live} / {ledger.dirCounts.total}
+            </CardTitle>
+            <CardAction>
+              <Badge variant="outline" className="tabular-nums">
+                {isZh ? `审核中 ${ledger.dirCounts.submitted}` : `${ledger.dirCounts.submitted} review`}
+              </Badge>
+            </CardAction>
+          </CardHeader>
+          <CardFooter className="flex-col items-start gap-1 text-sm">
+            <div className="line-clamp-1 font-medium tabular-nums">
+              {isZh
+                ? `第 1 周 ${ledger.dirCounts.wave1} · 第 2 周 ${ledger.dirCounts.wave2} · 第 3 周 ${ledger.dirCounts.wave3}`
+                : `W1 ${ledger.dirCounts.wave1} · W2 ${ledger.dirCounts.wave2} · W3 ${ledger.dirCounts.wave3}`}
+            </div>
+            <div className="text-muted-foreground text-xs">
+              {isZh ? "自动 HTTP 200 存活与权重探测" : "Automated HTTP 200 link verification"}
+            </div>
+          </CardFooter>
+        </Card>
+
+        <Card className="@container/card">
+          <CardHeader>
+            <CardDescription>{isZh ? "待跟进求购线索" : "Pending Buyer Leads"}</CardDescription>
+            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              {ledger.leadCounts.pending}
+            </CardTitle>
+            <CardAction>
+              <Badge variant="outline" className="tabular-nums">
+                {isZh ? `已转化 ${ledger.leadCounts.won}` : `${ledger.leadCounts.won} won`}
+              </Badge>
+            </CardAction>
+          </CardHeader>
+          <CardFooter className="flex-col items-start gap-1 text-sm">
+            <div className="line-clamp-1 font-medium tabular-nums">
+              {isZh
+                ? `总计 ${ledger.leadCounts.all} 条 · 已回复 ${ledger.leadCounts.replied} 条`
+                : `${ledger.leadCounts.all} total · ${ledger.leadCounts.replied} replied`}
+            </div>
+            <div className="text-muted-foreground text-xs">
+              {isZh ? "Hacker News · GitHub · DEV.to 实时监测" : "Live across HN, GitHub & DEV.to"}
+            </div>
+          </CardFooter>
+        </Card>
+      </div>
+
+      {/* 中部 7 列网格：左 4 列 Recharts 3 交互面积图 + 右 3 列今日行动流 */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
+        <Card className="lg:col-span-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {isZh ? "30 天归因营收与导流趋势" : "30-Day Revenue & Click Velocity"}
+              <Badge variant="secondary" className="font-mono text-xs tabular-nums">
+                +${ledger.revenue.deltaUsd.toLocaleString()}
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              {isZh
+                ? "基于边缘短链点击与像素回传的每日美元归因曲线"
+                : "Daily attributed USD revenue and referral click telemetry"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-2 pt-2 sm:px-6">
+            <ChartContainer config={areaChartConfig} className="aspect-auto h-[250px] w-full">
+              <AreaChart accessibilityLayer data={areaData} margin={{ left: 0, right: 12, top: 8 }}>
+                <defs>
+                  <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-revenueUsd)" stopOpacity={0.32} />
+                    <stop offset="95%" stopColor="var(--color-revenueUsd)" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  minTickGap={28}
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  width={42}
+                  tickFormatter={(v) => `$${v}`}
+                />
+                <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
+                <Area
+                  dataKey="revenueUsd"
+                  type="monotone"
+                  fill="url(#fillRevenue)"
+                  stroke="var(--color-revenueUsd)"
+                  strokeWidth={2}
+                  isAnimationActive={false}
+                />
+              </AreaChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3 flex flex-col">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>{isZh ? "今日待办行动流" : "Today's Action Queue"}</span>
+              <Badge variant="outline" className="tabular-nums">
+                {isZh ? `剩余 ${activeTodoCount} 项` : `${activeTodoCount} open`}
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              {isZh
+                ? "按优先级排好今日推进事项，点击即可原地闭环"
+                : "Prioritized daily workflow actions"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col justify-between gap-3">
+            {activeTodoCount === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center gap-2">
+                <IconCheck className="size-6 text-emerald-500" />
+                <p className="text-sm font-medium">
+                  {isZh ? "今日关键推进已全部完成" : "All priority tasks completed"}
+                </p>
+                <div className="flex gap-2 mt-1">
+                  <Button variant="outline" size="sm" onClick={onGoDirectories}>
+                    {isZh ? "管理目录" : "Directories"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => onGoInboxLead()}>
+                    {isZh ? "打开收件箱" : "Buyer Inbox"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {needsBrandKit && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border p-3.5">
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="text-sm font-medium leading-snug">
+                        {isZh
+                          ? `补齐 ${firstMissing}，将物料完善至 100%`
+                          : `Add ${firstMissing} to complete Brand Kit`}
+                      </p>
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        {isZh
+                          ? `当前完成度 ${ledger.brandKit.score}% · 自动同步全部 100 个提交表单`
+                          : `${ledger.brandKit.score}% complete · synced to all 100 forms`}
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={onOpenBrandKit}>
+                      {isZh ? "去补充" : "Fill"}
+                    </Button>
+                  </div>
+                )}
+
+                {needsWaveApproval && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border p-3.5">
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="text-sm font-medium leading-snug">
+                        {isZh
+                          ? `确认本周第 2 批 ${wave2Count} 个精选目录名单`
+                          : `Approve Wave 2 batch (${wave2Count} directories)`}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {isZh
+                          ? "按 3 周自然节奏推进，兼顾权重提升与安全"
+                          : "3-week natural cadence for clean DR velocity"}
+                      </p>
+                    </div>
+                    <Button size="sm" disabled={approvingWave} onClick={onApproveWave2}>
+                      {approvingWave ? (isZh ? "提交中..." : "Saving...") : isZh ? "一键批准" : "Approve"}
+                    </Button>
+                  </div>
+                )}
+
+                {pendingLeadsCount > 0 && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border p-3.5">
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="text-sm font-medium leading-snug">
+                        {isZh
+                          ? `回复今日 ${pendingLeadsCount} 条海外高意向求购帖`
+                          : `Reply to ${pendingLeadsCount} high-intent buyer threads`}
+                      </p>
+                      {topPendingLead && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {topPendingLead.source} · {topPendingLead.title}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant={!needsWaveApproval ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => onGoInboxLead(topPendingLead?.id)}
+                    >
+                      {isZh ? "拟稿回复" : "Draft"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {waveApprovedNotice && (
+              <div className="flex items-center gap-2 rounded-md bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                <IconSparkles className="size-3.5 shrink-0" />
                 <span>
                   {isZh
-                    ? "品牌资料、本周外链批次与高意向求购帖均已处理完毕。"
-                    : "Brand Kit, weekly directory wave, and pending buyer threads are all caught up."}
+                    ? "第 2 批目录名单已批准，正在按自然节奏推进。"
+                    : "Wave 2 approved and scheduled."}
                 </span>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button variant="secondary" size="xs" onClick={onGoDirectories}>
-                  {isZh ? "管理 100 目录" : "Manage Directories"}
-                </Button>
-                <Button variant="secondary" size="xs" onClick={() => onGoInboxLead()}>
-                  {isZh ? "去扫新求购帖" : "Scan New Threads"}
-                </Button>
-              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 底部 7 列网格：左 4 列 Recharts 渠道归因柱状图 + 右 3 列最新外链验活回执 */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
+        <Card className="lg:col-span-4">
+          <CardHeader>
+            <CardTitle>{isZh ? "按渠道美元归因拆解" : "Revenue Attribution by Channel"}</CardTitle>
+            <CardDescription className="tabular-nums">
+              {isZh
+                ? `总计 $${ledger.revenue.totalUsd.toLocaleString()}，严格与顶部归因营收恒等`
+                : `Total $${ledger.revenue.totalUsd.toLocaleString()}, reconciled to the dollar`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <ChartContainer config={barChartConfig} className="aspect-auto h-[190px] w-full">
+              <BarChart accessibilityLayer data={channelBarData} margin={{ left: 0, right: 12 }}>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis dataKey="channel" tickLine={false} axisLine={false} tickMargin={8} />
+                <YAxis tickLine={false} axisLine={false} width={48} tickFormatter={(v) => `$${v}`} />
+                <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                <Bar dataKey="revenueUsd" fill="var(--color-revenueUsd)" radius={[6, 6, 0, 0]} maxBarSize={56} isAnimationActive={false} />
+              </BarChart>
+            </ChartContainer>
+
+            <Separator />
+            <div className="grid grid-cols-3 gap-3 text-center tabular-nums">
+              {ledger.revenue.channels.map((ch) => (
+                <div key={ch.key} className="space-y-0.5">
+                  <p className="text-xs text-muted-foreground">{isZh ? ch.labelZh : ch.labelEn}</p>
+                  <p className="text-sm font-semibold font-mono">${ch.revenueUsd.toLocaleString()}</p>
+                </div>
+              ))}
             </div>
-          ) : (
-            <div className="divide-y divide-[var(--border-hairline)]">
-              {/* 行动 1：补齐品牌资料 */}
-              {needsBrandKit && (
-                <div className="px-4 py-3.5 flex items-center justify-between gap-4 hover:bg-[var(--bg-hover)] lp-ease">
-                  <div className="min-w-0">
-                    <p className="text-[13.5px] font-medium text-[var(--ink-primary)]">
-                      {isZh
-                        ? `补齐 ${firstMissing}，将提交物料完善至 100%`
-                        : `Add ${firstMissing} to bring your Brand Kit to 100%`}
-                    </p>
-                    <p className="text-[12px] text-[var(--ink-muted)] mt-0.5 tabular-nums">
-                      {isZh
-                        ? `当前完成度 ${ledger.brandKit.score}% · 完善后自动同步全部 100 个目录提交表单`
-                        : `Currently ${ledger.brandKit.score}% complete · synced automatically across all 100 submissions`}
-                    </p>
-                  </div>
-                  <Button variant="secondary" size="sm" onClick={onOpenBrandKit}>
-                    {isZh ? "去补充" : "Complete"}
-                  </Button>
-                </div>
-              )}
+          </CardContent>
+        </Card>
 
-              {/* 行动 2：一键批准本周目录批次（全屏唯一实心钴蓝主按钮） */}
-              {needsWaveApproval && (
-                <div className="px-4 py-3.5 flex items-center justify-between gap-4 hover:bg-[var(--bg-hover)] lp-ease">
-                  <div className="min-w-0">
-                    <p className="text-[13.5px] font-medium text-[var(--ink-primary)]">
-                      {isZh
-                        ? `确认本周第 2 批 ${wave2Count} 个精选目录投放名单`
-                        : `Approve this week's Wave 2 batch (${wave2Count} curated directories)`}
-                    </p>
-                    <p className="text-[12px] text-[var(--ink-muted)] mt-0.5">
-                      {isZh
-                        ? "按 3 周自然节奏分批提交，兼顾域名权重提升与搜索引擎安全"
-                        : "Staggered across 3 natural weeks to build clean DR velocity safely"}
-                    </p>
-                  </div>
-                  <Button variant="primary" size="sm" loading={approvingWave} onClick={onApproveWave2}>
-                    {isZh ? "一键批准" : "Approve Wave"}
-                  </Button>
-                </div>
-              )}
-
-              {/* 行动 3：回复高意向求购帖 */}
-              {pendingLeadsCount > 0 && (
-                <div className="px-4 py-3.5 flex items-center justify-between gap-4 hover:bg-[var(--bg-hover)] lp-ease">
-                  <div className="min-w-0">
-                    <p className="text-[13.5px] font-medium text-[var(--ink-primary)]">
-                      {isZh
-                        ? `回复今日 ${pendingLeadsCount} 条海外高意向求购帖`
-                        : `Reply to ${pendingLeadsCount} high-intent buyer threads today`}
-                    </p>
-                    {topPendingLead && (
-                      <p className="text-[12px] text-[var(--ink-muted)] mt-0.5 truncate">
-                        {topPendingLead.source} · {topPendingLead.title} ·{" "}
-                        {isZh ? `意向 ${topPendingLead.intent_score}%` : `${topPendingLead.intent_score}% match`}
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>{isZh ? "最新外链验活回执" : "Verified Backlink Receipts"}</span>
+              <Button variant="ghost" size="sm" onClick={onGoDirectories} className="h-7 px-2 text-xs">
+                {isZh ? `全部 ${ledger.dirCounts.live}/${ledger.dirCounts.total}` : `All ${ledger.dirCounts.live}/${ledger.dirCounts.total}`}
+                <IconArrowRight className="size-3.5" />
+              </Button>
+            </CardTitle>
+            <CardDescription>
+              {isZh ? "点击任意平台可查看提交地址、属性与短链包" : "Click any directory to inspect proof & snippets"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 tabular-nums">
+            {ledger.recentVerifiedReceipts.map((dir) => {
+              const isLive = dir.effectiveStatus === "live";
+              return (
+                <button
+                  key={dir.id}
+                  type="button"
+                  onClick={() => onOpenDirectory(dir)}
+                  className="flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent/50 cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted font-mono text-xs font-semibold">
+                      {dir.dr}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{dir.name.replace(" Software", "")}</p>
+                      <p className="text-xs text-muted-foreground">
+                        DR {dir.dr} · {dir.linkType === "dofollow" ? (isZh ? "传递权重" : "Dofollow") : "Nofollow"}
                       </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <Badge variant={isLive ? "default" : "secondary"} className="text-[11px]">
+                      {isLive ? (isZh ? "已验活" : "Verified") : isZh ? "审核中" : "Review"}
+                    </Badge>
+                    {dir.attributedClicks > 0 && (
+                      <span className="font-mono text-[11px] text-muted-foreground">
+                        {dir.attributedClicks} {isZh ? "点击" : "clicks"}
+                      </span>
                     )}
                   </div>
-                  <Button
-                    variant={!needsWaveApproval ? "primary" : "secondary"}
-                    size="sm"
-                    onClick={() => onGoInboxLead(topPendingLead?.id)}
-                  >
-                    {isZh ? "拟稿回复" : "Draft Reply"}
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {waveApprovedNotice && (
-            <div className="px-4 py-2 border-t border-[var(--border-hairline)] bg-[var(--status-live-soft)] text-[var(--status-live)] text-[12px] font-medium flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 shrink-0" />
-              {isZh
-                ? "本周第 2 批精选目录名单已批准，正在按自然节奏推进提交与 HTTP 验活。"
-                : "Wave 2 directory batch approved and queued for natural-cadence submission."}
-            </div>
-          )}
-        </div>
-
-        {/* 最新外链验活回执表 */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[14px] font-semibold text-[var(--ink-primary)]">
-              {isZh ? "最新外链验活回执" : "Latest Verified Backlinks"}
-            </h2>
-            <button
-              type="button"
-              onClick={onGoDirectories}
-              className="inline-flex items-center gap-1 text-[12.5px] font-medium text-[var(--ink-secondary)] hover:text-[var(--ink-primary)] lp-ease cursor-pointer tabular-nums"
-            >
-              <span>
-                {isZh
-                  ? `查看全部 ${ledger.dirCounts.live}/${ledger.dirCounts.total}`
-                  : `View all ${ledger.dirCounts.live}/${ledger.dirCounts.total}`}
-              </span>
-              <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.75} />
-            </button>
-          </div>
-
-          <div className="rounded-[9px] border border-[var(--border-hairline)] overflow-hidden">
-            <table className="w-full text-left border-collapse tabular-nums">
-              <thead>
-                <tr className="bg-[var(--bg-surface)] border-b border-[var(--border-hairline)] text-[12px] text-[var(--ink-muted)] font-medium">
-                  <th className="py-2.5 px-4 font-medium">{isZh ? "平台名称" : "Directory"}</th>
-                  <th className="py-2.5 px-4 font-medium">{isZh ? "域名权重" : "Authority"}</th>
-                  <th className="py-2.5 px-4 font-medium">{isZh ? "验活状态" : "Verification"}</th>
-                  <th className="py-2.5 px-4 font-medium text-right hidden sm:table-cell">
-                    {isZh ? "累计点击" : "Clicks"}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-hairline)] text-[13.5px]">
-                {ledger.recentVerifiedReceipts.map((dir) => {
-                  const isLive = dir.effectiveStatus === "live";
-                  const isSubmitted = dir.effectiveStatus === "submitted";
-                  return (
-                    <tr
-                      key={dir.id}
-                      onClick={() => onOpenDirectory(dir)}
-                      className="hover:bg-[var(--bg-hover)] lp-ease cursor-pointer"
-                    >
-                      <td className="py-3 px-4 font-medium text-[var(--ink-primary)]">
-                        {dir.name.replace(" Software", "")}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-[12.5px] text-[var(--ink-secondary)]">
-                        DR {dir.dr}
-                      </td>
-                      <td className="py-3 px-4">
-                        <StatusBadge
-                          tone={isLive ? "success" : isSubmitted ? "warning" : "neutral"}
-                          label={
-                            isLive
-                              ? isZh
-                                ? "已验活"
-                                : "Verified"
-                              : isSubmitted
-                                ? isZh
-                                  ? "审核中"
-                                  : "In Review"
-                                : isZh
-                                  ? "待提交"
-                                  : "Queued"
-                          }
-                        />
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono text-[12.5px] text-[var(--ink-secondary)] hidden sm:table-cell">
-                        {dir.attributedClicks > 0 ? dir.attributedClicks.toLocaleString() : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== 右栏（36%）：营收与归因脉搏 ==================== */}
-      <aside className="p-5 sm:p-7 flex flex-col justify-between gap-6 min-w-0">
-        <div className="space-y-5">
-          {/* 单一视觉锚点：近 30 天归因营收 */}
-          <div className="space-y-1.5">
-            <h2 className="text-[15px] font-semibold text-[var(--ink-primary)]">
-              {isZh ? "营收与归因脉搏" : "Revenue & Attribution Pulse"}
-            </h2>
-            <p className="text-[12.5px] text-[var(--ink-muted)]">
-              {isZh ? "近 30 天归因营收" : "Attributed revenue (30d)"}
-            </p>
-            <div className="flex items-baseline gap-2.5 flex-wrap pt-0.5 tabular-nums">
-              <span className="text-[32px] font-bold tracking-[-0.03em] leading-none text-[var(--ink-primary)]">
-                ${ledger.revenue.totalUsd.toLocaleString()}
-              </span>
-              {ledger.revenue.deltaUsd > 0 && (
-                <span className="text-[13px] font-medium text-[var(--status-live)]">
-                  +${ledger.revenue.deltaUsd.toLocaleString()} {isZh ? "较上期" : "vs. prior 30d"}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* 全宽无留白趋势折线图 */}
-          <RevenuePulseChart series={ledger.revenue.dailySeries} isZh={isZh} />
-
-          {/* 极简 4 步转化漏斗 */}
-          <div className="py-3.5 border-y border-[var(--border-hairline)] grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center text-center tabular-nums">
-            <div>
-              <div className="text-[15px] font-semibold text-[var(--ink-primary)]">
-                {ledger.revenue.funnel.clicks.toLocaleString()}
-              </div>
-              <div className="text-[11.5px] text-[var(--ink-muted)] mt-0.5">{isZh ? "点击" : "Clicks"}</div>
-            </div>
-            <span className="text-[var(--ink-muted)] text-[12px] px-1">→</span>
-            <div>
-              <div className="text-[15px] font-semibold text-[var(--ink-primary)]">
-                {ledger.revenue.funnel.visits.toLocaleString()}
-              </div>
-              <div className="text-[11.5px] text-[var(--ink-muted)] mt-0.5">{isZh ? "进站" : "Visits"}</div>
-            </div>
-            <span className="text-[var(--ink-muted)] text-[12px] px-1">→</span>
-            <div>
-              <div className="text-[15px] font-semibold text-[var(--ink-primary)]">
-                {ledger.revenue.funnel.signups.toLocaleString()}
-              </div>
-              <div className="text-[11.5px] text-[var(--ink-muted)] mt-0.5">{isZh ? "注册" : "Signups"}</div>
-            </div>
-            <span className="text-[var(--ink-muted)] text-[12px] px-1">→</span>
-            <div>
-              <div className="text-[15px] font-semibold text-[var(--ink-primary)]">
-                {ledger.revenue.funnel.paid.toLocaleString()}
-              </div>
-              <div className="text-[11.5px] text-[var(--ink-muted)] mt-0.5">{isZh ? "付费" : "Paid"}</div>
-            </div>
-          </div>
-
-          {/* 点线引导渠道对账明细（严格恒等于总营收） */}
-          <div className="space-y-3 pt-1 tabular-nums">
-            {ledger.revenue.channels.length === 0 ? (
-              <p className="text-[12.5px] text-[var(--ink-muted)]">
-                {isZh
-                  ? "创建归因短链并接入 1 行统计脚本后，按渠道自动拆分美元产出。"
-                  : "Create tracking links and install the 1-line pixel to break down revenue by channel."}
-              </p>
-            ) : (
-              ledger.revenue.channels.map((ch) => (
-                <div key={ch.key} className="flex items-baseline gap-2 text-[13.5px]">
-                  <span className="text-[var(--ink-primary)] font-medium shrink-0">
-                    {isZh ? ch.labelZh : ch.labelEn}
-                  </span>
-                  <span
-                    className="flex-1 border-b border-dotted border-[var(--border-strong)] -translate-y-1"
-                    aria-hidden="true"
-                  />
-                  <span className="font-mono font-semibold text-[var(--ink-primary)] shrink-0">
-                    ${ch.revenueUsd.toLocaleString()}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* 底部极简单次访问产出参考（不喧宾夺主） */}
-        <div className="pt-3 border-t border-[var(--border-hairline)] flex items-center justify-between text-[12px] text-[var(--ink-muted)] tabular-nums">
-          <span>{isZh ? "单次访问产出" : "Revenue per visit"}</span>
-          <span className="font-mono font-medium text-[var(--ink-secondary)]">
-            $
-            {ledger.revenue.funnel.clicks > 0
-              ? (ledger.revenue.totalUsd / ledger.revenue.funnel.clicks).toFixed(2)
-              : "0.00"}
-          </span>
-        </div>
-      </aside>
+                </button>
+              );
+            })}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

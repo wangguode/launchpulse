@@ -20,7 +20,7 @@ import BrandMark from "@/components/BrandMark";
 import LangSwitcher from "@/components/LangSwitcher";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import AppShell, { type ShellNavItem } from "@/components/ui/AppShell";
-import Button from "@/components/ui/Button";
+import Button from "@/components/ui/lp-button";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { DISTRIBUTION_DIRECTORIES, type DirectoryChannel } from "@/data/directories";
 

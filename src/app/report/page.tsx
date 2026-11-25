@@ -2,14 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ExternalLink, Printer, ShieldCheck } from "lucide-react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { IconExternalLink, IconPrinter, IconShieldCheck } from "@tabler/icons-react";
 import { useI18n } from "@/components/I18nProvider";
 import BrandMark from "@/components/BrandMark";
-import ThemeSwitcher from "@/components/ThemeSwitcher";
 import LangSwitcher from "@/components/LangSwitcher";
-import Button from "@/components/ui/Button";
-import StatusBadge from "@/components/ui/StatusBadge";
-import RevenuePulseChart from "@/components/console/RevenuePulseChart";
+import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { Separator } from "@/components/ui/separator";
 import { buildSampleOverview, deriveConsoleLedger, formatChannelLabel } from "@/lib/console-ledger";
 
 interface PublicReportData {
@@ -34,6 +37,10 @@ interface PublicReportData {
     topDirectories: Array<{ name: string; dr: number; linkType?: string; url?: string }>;
   };
 }
+
+const reportChartConfig = {
+  revenueUsd: { label: "归因营收 ($)", color: "var(--chart-2)" },
+} satisfies ChartConfig;
 
 function buildFallbackSampleReport(): PublicReportData {
   const sample = buildSampleOverview();
@@ -79,8 +86,7 @@ function buildFallbackSampleReport(): PublicReportData {
 }
 
 /**
- * V5 公开只读增长归因战报页（/report?id=... 或 /report/:shareId）
- * 严格遵循 V5 Framed Sheet / True-Dark Obsidian 精密版式，支持打印导出 PDF
+ * 标准官方 shadcn/ui + Recharts 3 公开可核验增长战报页（/report）
  */
 export default function PublicGrowthReportPage() {
   const { locale } = useI18n();
@@ -103,208 +109,157 @@ export default function PublicGrowthReportPage() {
       })
       .then((json) => setData(json))
       .catch(() => {
-        if (shareId === "demo-acmeflow") {
-          setData(buildFallbackSampleReport());
-        } else {
-          setError(isZh ? "未找到对应的公开增长战报链接。" : "Public growth report not found.");
-        }
+        if (shareId === "demo-acmeflow") setData(buildFallbackSampleReport());
+        else setError(isZh ? "未找到对应的公开增长战报。" : "Report not found.");
       })
       .finally(() => setLoading(false));
   }, [isZh]);
 
-  const normalizedSeries = (data?.stats.dailySeries || []).map((pt) => ({
-    date: pt.date,
-    clicks: pt.clicks,
-    conversions: pt.conversions,
+  const series = (data?.stats.dailySeries || []).map((pt) => ({
+    date: pt.date.slice(5),
     revenueUsd: typeof pt.revenueUsd === "number" ? pt.revenueUsd : Math.round(pt.clicks * (data?.stats.rpv || 1.2)),
   }));
 
   return (
-    <div className="min-h-screen bg-[var(--bg-frame)] text-[var(--ink-primary)] flex flex-col">
-      <header className="h-12 px-4 sm:px-6 border-b border-[var(--border-hairline)] bg-[var(--bg-frame)] flex items-center justify-between gap-3 print:hidden">
-        <div className="flex items-center gap-2 text-[13px] min-w-0">
-          <Link href="/" className="inline-flex items-center gap-2 font-semibold text-[14.5px] text-[var(--ink-primary)] shrink-0">
-            <BrandMark className="w-5 h-5" />
-            <span>LaunchPulse</span>
-          </Link>
-          <span className="text-[var(--border-strong)]">/</span>
-          <span className="text-[var(--ink-secondary)] truncate">{isZh ? "公开可核验战报" : "Public Report"}</span>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <LangSwitcher />
-          <div className="hidden sm:block">
-            <ThemeSwitcher />
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <header className="h-14 border-b px-4 sm:px-6 flex items-center justify-between print:hidden">
+        <Link href="/" className="flex items-center gap-2 font-semibold text-sm">
+          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <BrandMark className="size-4" tone="light" />
           </div>
-          <Button variant="secondary" size="xs" onClick={() => window.print()}>
-            <Printer className="w-3.5 h-3.5" />
-            {isZh ? "导出 PDF" : "Print / PDF"}
+          <span>LaunchPulse</span>
+          <Badge variant="secondary" className="ml-1">{isZh ? "公开战报" : "Public Report"}</Badge>
+        </Link>
+        <div className="flex items-center gap-2">
+          <LangSwitcher />
+          <ThemeModeToggle />
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <IconPrinter className="size-4" />
+            {isZh ? "导出 PDF" : "Print"}
           </Button>
         </div>
       </header>
 
-      <main className="flex-1 p-3 sm:p-5 max-w-[1040px] w-full mx-auto">
+      <main className="mx-auto w-full max-w-5xl flex-1 p-4 sm:p-6 space-y-6">
         {loading ? (
-          <div className="rounded-[10px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] p-16 text-center text-[13px] text-[var(--ink-muted)]">
-            {isZh ? "正在拉取实时边缘归因战报..." : "Loading verified attribution report..."}
-          </div>
+          <Card className="p-16 text-center text-sm text-muted-foreground">
+            {isZh ? "正在加载边缘归因战报..." : "Loading report..."}
+          </Card>
         ) : error || !data ? (
-          <div className="rounded-[10px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] p-16 text-center space-y-3">
-            <p className="text-[15px] font-semibold text-[var(--ink-primary)]">{error}</p>
-            <Link href="/report?id=demo-acmeflow" className="text-[13px] text-[var(--accent-primary)] hover:underline">
+          <Card className="p-16 text-center space-y-3">
+            <p className="font-semibold">{error}</p>
+            <Button variant="link" render={<Link href="/report?id=demo-acmeflow" />}>
               {isZh ? "查看 AcmeFlow 示例战报 →" : "Open Sample Report →"}
-            </Link>
-          </div>
+            </Button>
+          </Card>
         ) : (
-          <div className="rounded-[10px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] overflow-hidden divide-y divide-[var(--border-hairline)]">
-            {/* 头部认证与产品信息 */}
-            <div className="p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1.5">
-                <h1 className="lp-display text-[22px] sm:text-[26px] font-semibold text-[var(--ink-primary)]">
-                  {data.title}
-                </h1>
-                <div className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--ink-secondary)]">
-                  <span className="font-medium text-[var(--ink-primary)]">{data.productName}</span>
-                  <span>·</span>
-                  <a
-                    href={data.targetUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-mono text-[12.5px] text-[var(--accent-primary)] hover:underline inline-flex items-center gap-1"
-                  >
-                    {data.targetUrl.replace(/^https?:\/\//, "")}
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
+          <div className="space-y-6">
+            <Card>
+              <CardHeader className="flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <CardTitle className="text-2xl">{data.title}</CardTitle>
+                  <CardDescription className="flex items-center gap-2">
+                    <span className="font-medium text-foreground">{data.productName}</span>
+                    <span>·</span>
+                    <a
+                      href={data.targetUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-xs text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      {data.targetUrl.replace(/^https?:\/\//, "")}
+                      <IconExternalLink className="size-3" />
+                    </a>
+                  </CardDescription>
                 </div>
-              </div>
+                <Badge variant="secondary" className="gap-1.5 w-fit">
+                  <IconShieldCheck className="size-3.5 text-emerald-500" />
+                  {isZh ? "Cloudflare 边缘归因实证" : "Verified Edge Attribution"}
+                </Badge>
+              </CardHeader>
+            </Card>
 
-              <div className="flex items-center gap-2 text-[12px] text-[var(--status-live)] font-medium shrink-0">
-                <ShieldCheck className="w-4 h-4 shrink-0" />
-                <span>{isZh ? "Cloudflare 边缘归因实证" : "Verified Edge Attribution"}</span>
-              </div>
-            </div>
-
-            {/* 核心 2:1 归因脉搏与外链回执 */}
-            <div className="grid lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-[var(--border-hairline)]">
-              {/* 左 7 列：主营收焦点 + 全宽趋势图 + 4 步漏斗 */}
-              <div className="lg:col-span-7 p-6 sm:p-7 space-y-6 tabular-nums">
-                <div className="flex flex-wrap items-baseline justify-between gap-3">
-                  <div>
-                    <p className="text-[12.5px] text-[var(--ink-muted)]">
-                      {data.showRevenue
-                        ? isZh
-                          ? "近 30 天归因美元营收"
-                          : "Attributed Revenue (30d)"
-                        : isZh
-                          ? "近 30 天累计有效点击"
-                          : "Attributed Clicks (30d)"}
-                    </p>
-                    <p className="text-[34px] font-bold tracking-[-0.03em] text-[var(--ink-primary)] mt-1">
-                      {data.showRevenue
-                        ? `$${data.stats.attributedRevenueUsd.toLocaleString()}`
-                        : data.stats.totalClicks.toLocaleString()}
-                    </p>
-                  </div>
-
-                  <div className="text-right text-[12.5px] text-[var(--ink-muted)]">
+            <div className="grid gap-4 lg:grid-cols-7 tabular-nums">
+              <Card className="lg:col-span-4">
+                <CardHeader>
+                  <CardDescription>{isZh ? "近 30 天归因美元营收" : "Attributed Revenue (30d)"}</CardDescription>
+                  <CardTitle className="text-3xl font-bold">
+                    ${data.stats.attributedRevenueUsd.toLocaleString()}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ChartContainer config={reportChartConfig} className="aspect-auto h-[220px] w-full">
+                    <AreaChart data={series}>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis dataKey="date" tickLine={false} axisLine={false} minTickGap={28} />
+                      <YAxis tickLine={false} axisLine={false} width={44} tickFormatter={(v) => `$${v}`} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Area
+                        dataKey="revenueUsd"
+                        type="monotone"
+                        fill="var(--color-revenueUsd)"
+                        fillOpacity={0.2}
+                        stroke="var(--color-revenueUsd)"
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ChartContainer>
+                  <Separator />
+                  <div className="grid grid-cols-4 text-center">
                     <div>
-                      {isZh ? "已验活目录：" : "Verified backlinks: "}
-                      <strong className="font-mono text-[var(--ink-primary)]">
-                        {data.stats.directoriesLive}/{data.stats.directoriesTotal || 100}
-                      </strong>
+                      <div className="font-semibold">{data.stats.funnel.clicks.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">{isZh ? "点击" : "Clicks"}</div>
                     </div>
-                    <div className="mt-0.5">
-                      {isZh ? "单次访问产出：" : "Revenue / visit: "}
-                      <strong className="font-mono text-[var(--ink-primary)]">${data.stats.rpv.toFixed(2)}</strong>
+                    <div>
+                      <div className="font-semibold">{data.stats.funnel.qualifiedVisits.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">{isZh ? "进站" : "Visits"}</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold">{data.stats.funnel.signups}</div>
+                      <div className="text-xs text-muted-foreground">{isZh ? "注册" : "Signups"}</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold">{data.stats.funnel.purchases}</div>
+                      <div className="text-xs text-muted-foreground">{isZh ? "付费" : "Paid"}</div>
                     </div>
                   </div>
-                </div>
+                </CardContent>
+              </Card>
 
-                <RevenuePulseChart series={normalizedSeries} isZh={isZh} />
-
-                <div className="py-3.5 border-t border-[var(--border-hairline)] grid grid-cols-4 text-center">
-                  <div>
-                    <div className="text-[16px] font-semibold text-[var(--ink-primary)]">
-                      {data.stats.funnel.clicks.toLocaleString()}
-                    </div>
-                    <div className="text-[11.5px] text-[var(--ink-muted)] mt-0.5">{isZh ? "点击" : "Clicks"}</div>
-                  </div>
-                  <div>
-                    <div className="text-[16px] font-semibold text-[var(--ink-primary)]">
-                      {data.stats.funnel.qualifiedVisits.toLocaleString()}
-                    </div>
-                    <div className="text-[11.5px] text-[var(--ink-muted)] mt-0.5">{isZh ? "进站" : "Visits"}</div>
-                  </div>
-                  <div>
-                    <div className="text-[16px] font-semibold text-[var(--ink-primary)]">
-                      {data.stats.funnel.signups.toLocaleString()}
-                    </div>
-                    <div className="text-[11.5px] text-[var(--ink-muted)] mt-0.5">{isZh ? "注册" : "Signups"}</div>
-                  </div>
-                  <div>
-                    <div className="text-[16px] font-semibold text-[var(--ink-primary)]">
-                      {data.stats.funnel.purchases.toLocaleString()}
-                    </div>
-                    <div className="text-[11.5px] text-[var(--ink-muted)] mt-0.5">{isZh ? "付费" : "Paid"}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 右 5 列：渠道拆解 + 权威外链样本 */}
-              <div className="lg:col-span-5 p-6 sm:p-7 space-y-6 tabular-nums">
-                <div className="space-y-3">
-                  <h2 className="text-[13.5px] font-semibold text-[var(--ink-primary)]">
-                    {isZh ? "按渠道归因拆解" : "Revenue by Channel"}
-                  </h2>
-                  <div className="space-y-2.5 text-[13px]">
+              <Card className="lg:col-span-3">
+                <CardHeader>
+                  <CardTitle className="text-base">{isZh ? "渠道拆解与权威外链" : "Channels & Backlinks"}</CardTitle>
+                  <CardDescription>
+                    {isZh
+                      ? `已验活 ${data.stats.directoriesLive}/${data.stats.directoriesTotal || 100} 站 · 单次访问产出 $${data.stats.rpv.toFixed(2)}`
+                      : `${data.stats.directoriesLive}/${data.stats.directoriesTotal || 100} live · $${data.stats.rpv.toFixed(2)}/visit`}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2 text-sm">
                     {data.stats.channelBreakdown.map((ch) => (
-                      <div key={ch.channel} className="flex items-baseline gap-2">
-                        <span className="font-medium text-[var(--ink-primary)] shrink-0">
-                          {formatChannelLabel(ch.channel, isZh)}
-                        </span>
-                        <span className="flex-1 border-b border-dotted border-[var(--border-strong)] -translate-y-1" />
-                        <span className="font-mono font-semibold text-[var(--ink-primary)] shrink-0">
-                          {data.showRevenue && typeof ch.revenueUsd === "number"
-                            ? `$${ch.revenueUsd.toLocaleString()}`
-                            : `${ch.clicks} ${isZh ? "点击" : "clicks"}`}
-                        </span>
+                      <div key={ch.channel} className="flex items-center justify-between">
+                        <span>{formatChannelLabel(ch.channel, isZh)}</span>
+                        <span className="font-mono font-semibold">${(ch.revenueUsd || 0).toLocaleString()}</span>
                       </div>
                     ))}
                   </div>
-                </div>
-
-                <div className="space-y-3 pt-4 border-t border-[var(--border-hairline)]">
-                  <h2 className="text-[13.5px] font-semibold text-[var(--ink-primary)]">
-                    {isZh ? "代表性已验活高权重外链" : "Verified High-DR Backlinks"}
-                  </h2>
-                  <div className="divide-y divide-[var(--border-hairline)] border border-[var(--border-hairline)] rounded-[8px] text-[12.5px]">
-                    {(data.stats.topDirectories || []).slice(0, 6).map((dir, i) => (
-                      <div key={i} className="px-3.5 py-2.5 flex items-center justify-between gap-2">
-                        <span className="font-medium text-[var(--ink-primary)] truncate">{dir.name}</span>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="font-mono text-[var(--ink-secondary)]">DR {dir.dr}</span>
-                          <StatusBadge tone="success" label={isZh ? "已验活" : "Live"} />
+                  <Separator />
+                  <div className="space-y-2">
+                    {data.stats.topDirectories.slice(0, 5).map((d, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs rounded-md border px-3 py-2">
+                        <span className="font-medium truncate">{d.name}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-mono text-muted-foreground">DR {d.dr}</span>
+                          <Badge variant="secondary" className="text-[10px]">
+                            {isZh ? "已验活" : "Live"}
+                          </Badge>
                         </div>
                       </div>
                     ))}
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 底部 CTA */}
-            <div className="px-6 py-4 bg-[var(--bg-surface)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
-              <p className="text-[12.5px] text-[var(--ink-secondary)]">
-                {isZh
-                  ? "由 LaunchPulse 边缘归因引擎实时生成，支持向团队或投资人透明分享。"
-                  : "Generated live by LaunchPulse Edge Attribution."}
-              </p>
-              <Link
-                href="/dashboard?sample=1"
-                className="h-8 px-3.5 rounded-[7px] lp-btn-primary text-[12.5px] font-medium inline-flex items-center justify-center shrink-0"
-              >
-                {isZh ? "免费体验同款增长指挥台" : "Try Command Center"}
-              </Link>
+                </CardContent>
+              </Card>
             </div>
           </div>
         )}

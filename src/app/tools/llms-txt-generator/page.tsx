@@ -7,7 +7,7 @@ import { useI18n } from "@/components/I18nProvider";
 import BrandMark from "@/components/BrandMark";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import LangSwitcher from "@/components/LangSwitcher";
-import Button from "@/components/ui/Button";
+import Button from "@/components/ui/lp-button";
 import StatusBadge from "@/components/ui/StatusBadge";
 
 const SAMPLE_LLMS = `# AcmeFlow

@@ -2,27 +2,43 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
-  CreditCard,
-  FolderPlus,
-  Inbox,
-  LayoutGrid,
-  Link2,
-  LogOut,
-  Moon,
-  Plus,
-  RefreshCw,
-  Share2,
-  Sun,
-  UserCheck,
-  X,
-} from "lucide-react";
+  IconCreditCard,
+  IconFolderPlus,
+  IconInbox,
+  IconLayoutDashboard,
+  IconLink,
+  IconLogout,
+  IconMoon,
+  IconPlus,
+  IconRefresh,
+  IconShare,
+  IconSun,
+  IconUserCheck,
+} from "@tabler/icons-react";
 import { useI18n } from "@/components/I18nProvider";
 import { useTheme } from "@/components/ThemeProvider";
 import AppShell, { type ShellNavItem } from "@/components/ui/AppShell";
-import Button from "@/components/ui/Button";
-import CommandPalette, { type CommandItem } from "@/components/ui/CommandPalette";
-import ThemeSwitcher from "@/components/ThemeSwitcher";
+import CommandPalette, { type CommandActionItem } from "@/components/ui/CommandPalette";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 import TodayCommandView from "@/components/console/TodayCommandView";
 import DirectoriesChannelsView from "@/components/console/DirectoriesChannelsView";
 import BuyerInboxView from "@/components/console/BuyerInboxView";
@@ -39,13 +55,11 @@ import {
 type CoreView = "today" | "directories" | "inbox";
 
 /**
- * LaunchPulse V5 行动驱动「每日增长指挥台」（/dashboard）
- * -----------------------------------------------------------------
- * - 6 合 3 极简核心导航：今日指挥台 / 外链与渠道 / 买家收件箱
- * - 静音底栏收纳：品牌资料 (完整度%) 侧滑抽屉 + 套餐与账单/AEO 工具抽屉
- * - 单一数据源绝对对账（deriveConsoleLedger）+ 全局 ⌘K 命令面板
+ * LaunchPulse 增长指挥台（/dashboard）
+ * 100% 复用 Kiranism/next-shadcn-dashboard-starter (MIT) 原装 shadcn/ui 架构 + Recharts 3 + TanStack Table + cmdk + Resizable
+ * 后端零改动直连 Cloudflare Workers + D1 全部 34 个线上 API
  */
-export default function DashboardV5Page() {
+export default function DashboardPage() {
   const { locale, setLocale } = useI18n();
   const { resolvedTheme, toggleTheme } = useTheme();
   const isZh = locale === "zh";
@@ -56,34 +70,23 @@ export default function DashboardV5Page() {
   const [isSampleMode, setIsSampleMode] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState<number>(0);
 
-  // 侧滑抽屉 & 全局命令面板状态
   const [cmdOpen, setCmdOpen] = useState(false);
   const [brandDrawerOpen, setBrandDrawerOpen] = useState(false);
   const [billingDrawerOpen, setBillingDrawerOpen] = useState(false);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
 
-  // 联动高亮定位状态
   const [focusLeadId, setFocusLeadId] = useState<number | null>(null);
   const [focusDirId, setFocusDirId] = useState<string | null>(null);
-
-  // 批处理与即时反馈
   const [approvingWave, setApprovingWave] = useState(false);
   const [waveApprovedNotice, setWaveApprovedNotice] = useState(false);
   const [sharingReport, setSharingReport] = useState(false);
   const [checkoutPlan, setCheckoutPlan] = useState<string | null>(null);
-  const [toast, setToast] = useState("");
 
-  // 新建项目表单
   const [projName, setProjName] = useState("");
   const [projUrl, setProjUrl] = useState("");
   const [projTagline, setProjTagline] = useState("");
   const [savingProj, setSavingProj] = useState(false);
   const [projError, setProjError] = useState("");
-
-  const flashToast = useCallback((msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3800);
-  }, []);
 
   const loadOverview = useCallback(async (campId?: number) => {
     try {
@@ -117,10 +120,8 @@ export default function DashboardV5Page() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
-      const initialView = sp.get("view");
-      if (initialView === "directories" || initialView === "inbox" || initialView === "today") {
-        setView(initialView);
-      }
+      const v = sp.get("view");
+      if (v === "directories" || v === "inbox" || v === "today") setView(v);
       if (sp.get("sample") === "1") {
         setIsSampleMode(true);
         setData(buildSampleOverview());
@@ -129,10 +130,9 @@ export default function DashboardV5Page() {
         return;
       }
     }
-    loadOverview();
+    void loadOverview();
   }, [loadOverview]);
 
-  // 全局 ⌘K / Ctrl+K 快捷键监听
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -155,9 +155,8 @@ export default function DashboardV5Page() {
   }, [data, isSampleMode]);
 
   const topPendingLead = useMemo(() => {
-    const list = data?.radarLeads || [];
     return (
-      list
+      (data?.radarLeads || [])
         .filter((l) => l.status === "new" || l.status === "drafted")
         .sort((a, b) => b.intent_score - a.intent_score)[0] || null
     );
@@ -166,15 +165,13 @@ export default function DashboardV5Page() {
   const handleSwitchProject = async (nextId: number) => {
     setSelectedCampaignId(nextId);
     setWaveApprovedNotice(false);
-    if (!isSampleMode) {
-      await loadOverview(nextId);
-    }
+    if (!isSampleMode) await loadOverview(nextId);
   };
 
   const handleSaveNewProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSampleMode) {
-      setProjError(isZh ? "体验模式仅用于预览，注册登录后即可创建并保存你的真实项目。" : "Sign in to create live projects.");
+      setProjError(isZh ? "体验模式仅用于预览，登录后即可创建并保存真实项目。" : "Sign in to create live projects.");
       return;
     }
     setSavingProj(true);
@@ -191,21 +188,20 @@ export default function DashboardV5Page() {
       });
       const json = (await res.json()) as { ok?: boolean; campaign?: { id: number }; error?: string };
       if (!res.ok) {
-        setProjError(json.error || (isZh ? "保存失败，请检查网址格式" : "Save failed"));
+        setProjError(json.error || "Save failed");
       } else {
         setProjName("");
         setProjUrl("");
         setProjTagline("");
         setNewProjectOpen(false);
+        toast.success(isZh ? "新出海项目已创建" : "Project created");
         await loadOverview(json.campaign?.id);
-        flashToast(isZh ? "新项目已创建" : "Project created");
       }
     } finally {
       setSavingProj(false);
     }
   };
 
-  // 一键批准本周第 2 批精选目录
   const handleApproveWave2 = async () => {
     if (!ledger || ledger.dirCounts.wave2PendingIds.length === 0) return;
     const ids = ledger.dirCounts.wave2PendingIds;
@@ -223,7 +219,7 @@ export default function DashboardV5Page() {
           };
         });
         setWaveApprovedNotice(true);
-        flashToast(isZh ? `已批量批准本周 ${ids.length} 个精选目录进入提交流程` : `Approved ${ids.length} directories`);
+        toast.success(isZh ? `已批量批准本周 ${ids.length} 个精选目录` : `Approved ${ids.length} directories`);
         return;
       }
       await fetch("/api/dashboard/directory-pref", {
@@ -238,7 +234,7 @@ export default function DashboardV5Page() {
       });
       setWaveApprovedNotice(true);
       await loadOverview(activeCampaign?.id);
-      flashToast(isZh ? `已批准本周 ${ids.length} 个精选目录` : `Approved ${ids.length} Wave 2 directories`);
+      toast.success(isZh ? `已批准本周 ${ids.length} 个精选目录` : `Approved ${ids.length} directories`);
     } finally {
       setApprovingWave(false);
     }
@@ -250,15 +246,18 @@ export default function DashboardV5Page() {
     scheduledWave: 1 | 2 | 3
   ) => {
     if (isSampleMode) {
-      setData((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          directories: prev.directories.map((d) =>
-            d.directory_id === directoryId ? { ...d, moderation_state: moderationState, scheduled_wave: scheduledWave } : d
-          ),
-        };
-      });
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              directories: prev.directories.map((d) =>
+                d.directory_id === directoryId
+                  ? { ...d, moderation_state: moderationState, scheduled_wave: scheduledWave }
+                  : d
+              ),
+            }
+          : prev
+      );
       return;
     }
     await fetch("/api/dashboard/directory-pref", {
@@ -275,13 +274,9 @@ export default function DashboardV5Page() {
   };
 
   const handleLocalLeadStatus = (leadId: number, status: RadarLeadRecord["status"]) => {
-    setData((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        radarLeads: prev.radarLeads.map((l) => (l.id === leadId ? { ...l, status } : l)),
-      };
-    });
+    setData((prev) =>
+      prev ? { ...prev, radarLeads: prev.radarLeads.map((l) => (l.id === leadId ? { ...l, status } : l)) } : prev
+    );
   };
 
   const handleBrandKitSaved = async (updatedSampleKit?: BrandKitRecord) => {
@@ -295,12 +290,8 @@ export default function DashboardV5Page() {
   const handleShareReport = async () => {
     if (isSampleMode) {
       const url = `${window.location.origin}/report?id=demo-acmeflow`;
-      try {
-        await navigator.clipboard.writeText(url);
-      } catch {
-        // ignore
-      }
-      flashToast(isZh ? "已复制体验公开战报链接" : "Sample report URL copied");
+      navigator.clipboard?.writeText(url).catch(() => {});
+      toast.success(isZh ? "已复制体验公开战报链接" : "Sample report URL copied");
       return;
     }
     if (!activeCampaign) return;
@@ -317,12 +308,8 @@ export default function DashboardV5Page() {
       });
       const json = (await res.json()) as { reportUrl?: string };
       if (json.reportUrl) {
-        try {
-          await navigator.clipboard.writeText(json.reportUrl);
-        } catch {
-          // ignore
-        }
-        flashToast(isZh ? `公开战报链接已复制：${json.reportUrl}` : `Copied report: ${json.reportUrl}`);
+        navigator.clipboard?.writeText(json.reportUrl).catch(() => {});
+        toast.success(isZh ? "公开只读战报链接已复制" : "Public report copied");
         await loadOverview(activeCampaign.id);
       }
     } finally {
@@ -355,15 +342,14 @@ export default function DashboardV5Page() {
     window.location.href = "/login";
   };
 
-  // 构建全局 ⌘K 命令面板项目（含 3 主视图、快捷操作与全部 100 目录直达）
-  const commandItems: CommandItem[] = useMemo(() => {
-    const base: CommandItem[] = [
+  const commandItems: CommandActionItem[] = useMemo(() => {
+    const base: CommandActionItem[] = [
       {
         id: "nav-today",
         group: isZh ? "导航" : "Navigate",
-        label: isZh ? "前往今日指挥台" : "Go to Today Command",
+        label: isZh ? "前往今日增长指挥台" : "Go to Overview",
         shortcut: "G T",
-        icon: <LayoutGrid className="w-3.5 h-3.5" />,
+        icon: <IconLayoutDashboard className="size-4" />,
         onSelect: () => setView("today"),
       },
       {
@@ -371,7 +357,7 @@ export default function DashboardV5Page() {
         group: isZh ? "导航" : "Navigate",
         label: isZh ? "打开外链与渠道（100 目录）" : "Open Directories & Links",
         shortcut: "G D",
-        icon: <Link2 className="w-3.5 h-3.5" />,
+        icon: <IconLink className="size-4" />,
         onSelect: () => setView("directories"),
       },
       {
@@ -379,97 +365,85 @@ export default function DashboardV5Page() {
         group: isZh ? "导航" : "Navigate",
         label: isZh ? "查看买家收件箱" : "Open Buyer Inbox",
         shortcut: "G I",
-        icon: <Inbox className="w-3.5 h-3.5" />,
+        icon: <IconInbox className="size-4" />,
         onSelect: () => setView("inbox"),
       },
       {
         id: "act-brand",
-        group: isZh ? "操作" : "Action",
+        group: isZh ? "快捷操作" : "Actions",
         label: isZh ? "编辑品牌提交资料" : "Edit Brand Kit",
         hint: ledger ? `${ledger.brandKit.score}%` : undefined,
-        icon: <UserCheck className="w-3.5 h-3.5" />,
+        icon: <IconUserCheck className="size-4" />,
         onSelect: () => setBrandDrawerOpen(true),
       },
       {
-        id: "act-report",
-        group: isZh ? "操作" : "Action",
-        label: isZh ? "复制公开只读战报链接" : "Copy Public Report Link",
-        icon: <Share2 className="w-3.5 h-3.5" />,
-        onSelect: () => void handleShareReport(),
-      },
-      {
         id: "act-billing",
-        group: isZh ? "操作" : "Action",
-        label: isZh ? "套餐账单与 AEO 体检" : "Plans, Billing & AEO Check",
-        icon: <CreditCard className="w-3.5 h-3.5" />,
+        group: isZh ? "快捷操作" : "Actions",
+        label: isZh ? "套餐账单与 AEO 工具" : "Plans, Billing & AEO",
+        icon: <IconCreditCard className="size-4" />,
         onSelect: () => setBillingDrawerOpen(true),
       },
       {
+        id: "act-report",
+        group: isZh ? "快捷操作" : "Actions",
+        label: isZh ? "复制公开只读战报链接" : "Copy Public Report",
+        icon: <IconShare className="size-4" />,
+        onSelect: () => void handleShareReport(),
+      },
+      {
         id: "act-theme",
-        group: isZh ? "偏好" : "Preference",
-        label:
-          resolvedTheme === "dark"
-            ? isZh
-              ? "切换到浅色工作纸主题"
-              : "Switch to Light Framed Sheet"
-            : isZh
-              ? "切换到暗黑曜石主题"
-              : "Switch to Obsidian Dark Mode",
-        icon: resolvedTheme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />,
+        group: isZh ? "外观与语言" : "Preferences",
+        label: resolvedTheme === "dark" ? (isZh ? "切换浅色模式" : "Light Mode") : isZh ? "切换暗黑模式" : "Dark Mode",
+        icon: resolvedTheme === "dark" ? <IconSun className="size-4" /> : <IconMoon className="size-4" />,
         onSelect: toggleTheme,
       },
       {
         id: "act-lang",
-        group: isZh ? "偏好" : "Preference",
-        label: isZh ? "切换为纯正英文界面 (Switch to English)" : "切换为中文母语界面 (Chinese)",
-        icon: <RefreshCw className="w-3.5 h-3.5" />,
+        group: isZh ? "外观与语言" : "Preferences",
+        label: isZh ? "Switch to English" : "切换为简体中文",
+        icon: <IconRefresh className="size-4" />,
         onSelect: () => setLocale(isZh ? "en" : "zh"),
       },
     ];
 
-    const dirItems: CommandItem[] = (ledger?.directories || []).map((d) => ({
+    const dirs: CommandActionItem[] = (ledger?.directories || []).slice(0, 30).map((d) => ({
       id: `dir-${d.id}`,
-      group: `DR ${d.dr}`,
+      group: isZh ? "高权重目录" : "Top Directories",
       label: d.name,
-      hint: `${d.url.replace("https://", "")} · ${isZh ? `第 ${d.scheduledWave} 周` : `Week ${d.scheduledWave}`}`,
-      keywords: `${d.category} dr${d.dr} ${d.linkType}`,
+      hint: `DR ${d.dr} · ${d.url.replace("https://", "")}`,
       onSelect: () => {
         setFocusDirId(d.id);
         setView("directories");
       },
     }));
 
-    return [...base, ...dirItems];
+    return [...base, ...dirs];
   }, [isZh, ledger, resolvedTheme, toggleTheme, setLocale]);
 
   if (loading || !data || !ledger) {
     return (
-      <div className="min-h-screen bg-[var(--bg-frame)] text-[var(--ink-muted)] flex items-center justify-center text-[13px]">
-        {isZh ? "正在加载 LaunchPulse 增长指挥台..." : "Loading LaunchPulse Command Center..."}
+      <div className="min-h-screen bg-background text-muted-foreground flex items-center justify-center text-sm">
+        {isZh ? "正在加载 LaunchPulse 增长指挥台..." : "Loading LaunchPulse..."}
       </div>
     );
   }
 
-  // 严格 3 项高频主导航（6 合 3，数字 100% 派生自同一 ledger）
   const navItems: ShellNavItem[] = [
     {
       key: "today",
-      label: isZh ? "今日指挥台" : "Today",
-      mobileLabel: isZh ? "指挥台" : "Today",
-      icon: <LayoutGrid className="w-4 h-4" strokeWidth={1.7} />,
+      label: isZh ? "今日指挥台" : "Overview",
+      icon: <IconLayoutDashboard className="size-4" />,
     },
     {
       key: "directories",
       label: isZh ? "外链与渠道" : "Directories",
-      mobileLabel: isZh ? "外链" : "Links",
-      icon: <Link2 className="w-4 h-4" strokeWidth={1.7} />,
+      icon: <IconLink className="size-4" />,
       badge: ledger.dirCounts.total,
     },
     {
       key: "inbox",
       label: isZh ? "买家收件箱" : "Buyer Inbox",
-      mobileLabel: isZh ? "收件箱" : "Inbox",
-      icon: <Inbox className="w-4 h-4" strokeWidth={1.7} />,
+      icon: <IconInbox className="size-4" />,
       badge: ledger.leadCounts.pending > 0 ? ledger.leadCounts.pending : undefined,
     },
   ];
@@ -487,31 +461,25 @@ export default function DashboardV5Page() {
         onSelect={(key) => setView(key as CoreView)}
         breadcrumbRoot={activeCampaign?.product_name || "LaunchPulse"}
         breadcrumbCurrent={breadcrumbCurrent}
+        navGroupLabel={isZh ? "增长指挥台" : "Workspace"}
         onOpenCommand={() => setCmdOpen(true)}
-        commandLabel={isZh ? "快速跳转" : "Jump to..."}
+        commandLabel={isZh ? "搜索页面或目录..." : "Search..."}
         headerActions={
           isSampleMode ? (
-            <div className="flex items-center gap-2">
-              <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-[5px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] text-[11.5px] text-[var(--ink-muted)]">
+            <div className="flex items-center gap-1.5">
+              <Badge variant="secondary" className="hidden md:inline-flex">
                 {isZh ? "体验数据" : "Sandbox"}
-              </span>
-              <Link
-                href="/login"
-                className="h-7 px-2.5 sm:px-3 rounded-[6px] lp-btn-primary text-[12px] font-medium inline-flex items-center whitespace-nowrap"
-              >
+              </Badge>
+              <Button size="sm" className="h-8" render={<Link href="/login" />}>
                 <span className="sm:hidden">{isZh ? "登录" : "Sign In"}</span>
                 <span className="hidden sm:inline">{isZh ? "登录真实项目" : "Sign In"}</span>
-              </Link>
+              </Button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={handleLogout}
-              title={isZh ? "退出登录" : "Log out"}
-              className="w-7 h-7 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-sheet)] text-[12px] font-semibold text-[var(--ink-primary)] inline-flex items-center justify-center hover:border-[var(--border-strong)] lp-ease cursor-pointer"
-            >
-              {(data.user.name || data.user.email || "U").slice(0, 1).toUpperCase()}
-            </button>
+            <Button variant="outline" size="sm" className="h-8" onClick={handleLogout}>
+              <IconLogout className="size-3.5" />
+              <span className="hidden sm:inline">{isZh ? "退出" : "Log out"}</span>
+            </Button>
           )
         }
         sidebarTopSlot={
@@ -520,7 +488,7 @@ export default function DashboardV5Page() {
               aria-label={isZh ? "切换当前项目" : "Switch project"}
               value={activeCampaign?.id || 0}
               onChange={(e) => handleSwitchProject(Number(e.target.value))}
-              className="flex-1 min-w-0 h-8 px-2.5 rounded-[7px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] text-[12.5px] font-medium text-[var(--ink-primary)] outline-none focus:border-[var(--border-strong)] cursor-pointer"
+              className="flex-1 min-w-0 h-8 rounded-md border border-sidebar-border bg-background px-2 text-xs font-medium text-foreground outline-none"
             >
               {data.campaigns.length === 0 ? (
                 <option value={0}>{isZh ? "尚未创建项目" : "No projects"}</option>
@@ -532,68 +500,43 @@ export default function DashboardV5Page() {
                 ))
               )}
             </select>
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="size-8 shrink-0"
               title={isZh ? "新增项目" : "New project"}
-              aria-label={isZh ? "新增项目" : "New project"}
               onClick={() => setNewProjectOpen(true)}
-              className="w-8 h-8 shrink-0 rounded-[7px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] hover:bg-[var(--bg-hover)] text-[var(--ink-secondary)] hover:text-[var(--ink-primary)] inline-flex items-center justify-center lp-ease cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" strokeWidth={1.8} />
-            </button>
+              <IconPlus className="size-3.5" />
+            </Button>
           </div>
         }
         sidebarFooter={
-          <div className="space-y-1">
-            <button
-              type="button"
-              onClick={() => setBrandDrawerOpen(true)}
-              className="w-full h-8 px-2 rounded-[6px] text-[12.5px] text-[var(--ink-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)] flex items-center justify-between lp-ease cursor-pointer"
-            >
-              <span className="inline-flex items-center gap-2">
-                <UserCheck className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.7} />
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip={isZh ? "品牌提交资料" : "Brand Kit"}
+                onClick={() => setBrandDrawerOpen(true)}
+                className="cursor-pointer"
+              >
+                <IconUserCheck className="size-4" />
                 <span>{isZh ? "品牌资料" : "Brand Kit"}</span>
-              </span>
-              <span className="font-mono text-[11.5px] text-[var(--ink-muted)] tabular-nums">
-                {ledger.brandKit.score}%
-              </span>
-            </button>
-
-            <div className="flex items-center justify-between gap-1 pt-0.5">
-              <button
-                type="button"
+              </SidebarMenuButton>
+              <SidebarMenuBadge className="font-mono tabular-nums">{ledger.brandKit.score}%</SidebarMenuBadge>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip={isZh ? "套餐账单与 AEO 工具" : "Billing & Tools"}
                 onClick={() => setBillingDrawerOpen(true)}
-                className="flex-1 h-8 px-2 rounded-[6px] text-[12.5px] text-[var(--ink-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)] flex items-center gap-2 lp-ease cursor-pointer"
+                className="cursor-pointer"
               >
-                <CreditCard className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.7} />
-                <span className="truncate">{isZh ? "套餐与账单" : "Billing"}</span>
-              </button>
-              <ThemeSwitcher />
-            </div>
-
-            {!isSampleMode && (
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="w-full h-7 px-2 rounded-[6px] text-[11.5px] text-[var(--ink-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)] flex items-center gap-2 lp-ease cursor-pointer"
-              >
-                <LogOut className="w-3 h-3" strokeWidth={1.7} />
-                <span className="truncate">{data.user.email}</span>
-              </button>
-            )}
-          </div>
+                <IconCreditCard className="size-4" />
+                <span>{isZh ? "套餐与工具" : "Billing & AEO"}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
         }
       >
-        {/* 极简全局 Toast 提示 */}
-        {toast && (
-          <div className="px-5 py-2 border-b border-[var(--border-hairline)] bg-[var(--status-live-soft)] text-[var(--status-live)] text-[12.5px] font-medium flex items-center justify-between">
-            <span>{toast}</span>
-            <button type="button" onClick={() => setToast("")} className="opacity-70 hover:opacity-100 cursor-pointer">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
         {view === "today" && (
           <TodayCommandView
             ledger={ledger}
@@ -652,20 +595,14 @@ export default function DashboardV5Page() {
         )}
       </AppShell>
 
-      {/* 全局 ⌘K 命令面板 */}
       <CommandPalette
         open={cmdOpen}
         onClose={() => setCmdOpen(false)}
         items={commandItems}
-        placeholder={
-          isZh
-            ? "输入页面、操作或目录名称（如 SourceForge / 切换主题 / 品牌资料）..."
-            : "Jump to view, action, or any of the 100 directories..."
-        }
-        emptyText={isZh ? "未找到匹配命令或目录" : "No matching commands or directories"}
+        placeholder={isZh ? "输入页面、操作或目录名称（如 SourceForge / 切换主题）..." : "Type a command or directory..."}
+        emptyText={isZh ? "未找到匹配结果" : "No results found"}
       />
 
-      {/* 品牌资料侧滑精编抽屉 */}
       <BrandKitDrawer
         open={brandDrawerOpen}
         onClose={() => setBrandDrawerOpen(false)}
@@ -680,7 +617,6 @@ export default function DashboardV5Page() {
         onSaved={handleBrandKitSaved}
       />
 
-      {/* 套餐账单与 AEO 体检抽屉 */}
       <BillingToolsDrawer
         open={billingDrawerOpen}
         onClose={() => setBillingDrawerOpen(false)}
@@ -698,88 +634,58 @@ export default function DashboardV5Page() {
         sharingReport={sharingReport}
       />
 
-      {/* 新增推广项目精简弹窗 */}
-      {newProjectOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-[2px]"
-          onClick={() => setNewProjectOpen(false)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <form
-            onSubmit={handleSaveNewProject}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-[440px] rounded-[12px] border border-[var(--border-strong)] bg-[var(--bg-sheet)] p-5 space-y-4"
-            style={{ boxShadow: "var(--overlay-shadow)" }}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FolderPlus className="w-4 h-4 text-[var(--accent-primary)]" />
-                <h2 className="text-[15px] font-semibold text-[var(--ink-primary)]">
-                  {isZh ? "新建出海推广项目" : "Add Product Workspace"}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setNewProjectOpen(false)}
-                className="p-1 rounded text-[var(--ink-muted)] hover:text-[var(--ink-primary)] cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* 官方 shadcn Dialog 新增项目弹窗 */}
+      <Dialog open={newProjectOpen} onOpenChange={setNewProjectOpen}>
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={handleSaveNewProject} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <IconFolderPlus className="size-4" />
+                {isZh ? "新建出海推广项目" : "Add Product Workspace"}
+              </DialogTitle>
+              <DialogDescription>
+                {isZh ? "录入官网地址，自动生成 100 目录排期与买家监听队列。" : "Add your SaaS URL to generate directory & buyer queues."}
+              </DialogDescription>
+            </DialogHeader>
 
             <div className="space-y-3">
-              <label className="block space-y-1">
-                <span className="text-[12px] font-medium text-[var(--ink-secondary)]">
-                  {isZh ? "产品名称" : "Product Name"}
-                </span>
-                <input
-                  required
-                  value={projName}
-                  onChange={(e) => setProjName(e.target.value)}
-                  placeholder="AcmeFlow"
-                  className="w-full h-9 px-3 rounded-[7px] border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[13px] text-[var(--ink-primary)] outline-none focus:border-[var(--accent-primary)]"
-                />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-[12px] font-medium text-[var(--ink-secondary)]">
-                  {isZh ? "官网地址" : "Website URL"}
-                </span>
-                <input
+              <div className="space-y-1.5">
+                <Label>{isZh ? "产品名称" : "Product Name"}</Label>
+                <Input required value={projName} onChange={(e) => setProjName(e.target.value)} placeholder="AcmeFlow" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{isZh ? "官网地址" : "Website URL"}</Label>
+                <Input
                   required
                   type="url"
                   value={projUrl}
                   onChange={(e) => setProjUrl(e.target.value)}
                   placeholder="https://your-saas.com"
-                  className="w-full h-9 px-3 rounded-[7px] border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[13px] font-mono text-[var(--ink-primary)] outline-none focus:border-[var(--accent-primary)]"
+                  className="font-mono text-xs"
                 />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-[12px] font-medium text-[var(--ink-secondary)]">
-                  {isZh ? "一句话定位" : "One-line Tagline"}
-                </span>
-                <input
+              </div>
+              <div className="space-y-1.5">
+                <Label>{isZh ? "一句话定位" : "Tagline"}</Label>
+                <Input
                   value={projTagline}
                   onChange={(e) => setProjTagline(e.target.value)}
-                  placeholder={isZh ? "例如：面向开发者的轻量级 SSL 到期告警工具" : "Lightweight SSL expiry alerts for dev teams"}
-                  className="w-full h-9 px-3 rounded-[7px] border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[13px] text-[var(--ink-primary)] outline-none focus:border-[var(--accent-primary)]"
+                  placeholder={isZh ? "面向开发者的轻量级 SSL 到期告警工具" : "Lightweight SSL expiry alerts"}
                 />
-              </label>
+              </div>
+              {projError && <p className="text-xs text-destructive">{projError}</p>}
             </div>
 
-            {projError && <p className="text-[12px] text-[var(--status-danger)]">{projError}</p>}
-
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setNewProjectOpen(false)}>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setNewProjectOpen(false)}>
                 {isZh ? "取消" : "Cancel"}
               </Button>
-              <Button type="submit" variant="primary" size="sm" loading={savingProj}>
-                {isZh ? "创建项目" : "Create"}
+              <Button type="submit" disabled={savingProj}>
+                {savingProj ? (isZh ? "创建中..." : "Creating...") : isZh ? "创建项目" : "Create"}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

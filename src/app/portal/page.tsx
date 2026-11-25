@@ -8,7 +8,7 @@ import { useI18n } from "@/components/I18nProvider";
 import BrandMark from "@/components/BrandMark";
 import LangSwitcher from "@/components/LangSwitcher";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
-import Button from "@/components/ui/Button";
+import Button from "@/components/ui/lp-button";
 
 /**
  * V3 统一免密登录跳板（/portal）：
