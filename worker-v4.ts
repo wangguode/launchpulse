@@ -1758,16 +1758,27 @@ function buildFallbackReply(params: {
       : ` Happy to share the exact checklist we used if helpful (no links).`;
 
   if (tone === "founder") {
-    return `We ran into this exact issue around "${title.slice(0, 72)}" and ended up building ${prod} specifically for ${pitch}. The biggest win was removing manual polling drift and making edge alerts deterministic.${linkTail}`;
+    return `We ran into this exact bottleneck around "${title.slice(0, 72)}" and ended up building ${prod} specifically for ${pitch}. Making the workflow deterministic and low-friction removed most of the manual cleanup right away.${linkTail}`;
   }
   if (tone === "compare") {
-    return `If you're weighing lightweight options on ${source}, the main tradeoff is enterprise suite overhead vs focused reliability. For teams who only need ${pitch}, a lean setup like ${prod} keeps latency and monthly cost predictable without per-seat surprises.${linkTail}`;
+    return `If you're weighing options on ${source}, the biggest tradeoff is bloated enterprise suites vs a focused workflow. For teams who specifically need ${pitch}, a lean approach like ${prod} keeps setup time and monthly overhead predictable.${linkTail}`;
   }
-  return `Been burned by the exact same failure mode described in "${title.slice(0, 72)}". Two practical fixes that saved us immediately: decouple your alerting from the primary vendor stack, and alert at both 14 days and 48 hours with a single deterministic health check.${
+  return `Been burned by the exact same workflow gap described in "${title.slice(0, 72)}". Two practical fixes that helped us immediately: keep the core processing deterministic instead of relying on brittle manual steps, and verify outputs automatically before handoff.${
     zeroLinkMode
-      ? " Happy to walk through the exact setup if you're troubleshooting this today."
+      ? " Happy to share the exact checklist we used if you're solving this today."
       : ` We wrapped that setup into ${prod} (${shortlink}) if you want a quick reference.`
   }`;
+}
+
+function extractAiText(result: unknown): string {
+  if (!result || typeof result !== "object") return typeof result === "string" ? result : "";
+  const r = result as {
+    response?: unknown;
+    choices?: Array<{ message?: { content?: string }; text?: string }>;
+  };
+  if (typeof r.response === "string") return r.response;
+  const choiceText = r.choices?.[0]?.message?.content || r.choices?.[0]?.text || "";
+  return typeof choiceText === "string" ? choiceText : "";
 }
 
 function sanitizeAndValidateReply(raw: string, zeroLinkMode: boolean): string | null {
@@ -1905,10 +1916,17 @@ export async function handleGenerateRadarReply(
       }
     }
 
-    // 路径 2：Cloudflare Workers AI 原生绑定推理（零额外 Key，内置 10s 硬超时与 1 次退避重试）
+    // 路径 2：Cloudflare Workers AI 原生绑定推理（零额外 Key，内置 10s 硬超时与多模型回退）
+    let fallbackReason = env.AI ? "ai_unavailable" : "no_binding";
     if (env.AI) {
-      const cfModel = "@cf/meta/llama-3.1-8b-instruct";
-      for (let attempt = 0; attempt < 2; attempt += 1) {
+      const cfModels = [
+        "@cf/meta/llama-3.1-8b-instruct-fast",
+        "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "@cf/meta/llama-3.1-8b-instruct",
+        "@cf/meta/llama-3-8b-instruct",
+      ];
+      for (let i = 0; i < cfModels.length; i += 1) {
+        const cfModel = cfModels[i];
         try {
           const aiPromise = env.AI.run(cfModel, {
             messages: [
@@ -1918,11 +1936,11 @@ export async function handleGenerateRadarReply(
             max_tokens: 240,
             temperature: 0.65,
           });
-          const result = (await Promise.race([
+          const result = await Promise.race([
             aiPromise,
             new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), timeoutMs)),
-          ])) as { response?: string };
-          const validated = sanitizeAndValidateReply(result?.response || "", zeroLinkMode);
+          ]);
+          const validated = sanitizeAndValidateReply(extractAiText(result), zeroLinkMode);
           if (validated) {
             return jsonRes({
               ok: true,
@@ -1932,10 +1950,13 @@ export async function handleGenerateRadarReply(
               latencyMs: Date.now() - t0,
             });
           }
-        } catch {
-          if (attempt === 0) {
-            await new Promise((r) => setTimeout(r, 500));
-          }
+          fallbackReason = "invalid_output";
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "unknown";
+          fallbackReason = msg.slice(0, 120);
+          // 若是模拟测试或单模型瞬时错误，短暂退避后尝试下一个模型（最多 2 次总计以控制延迟）
+          if (i >= 1) break;
+          await new Promise((r) => setTimeout(r, 350));
         }
       }
     }
@@ -1956,6 +1977,7 @@ export async function handleGenerateRadarReply(
       reply: fallback,
       engine: "contextual-fallback",
       model: "deterministic-template",
+      fallbackReason,
       latencyMs: Date.now() - t0,
     });
   } catch {
