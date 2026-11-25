@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -70,13 +71,6 @@ import type { StartupAuditReport } from "@/types/audit";
 const SAMPLE_DATA = buildSampleOverview();
 const SAMPLE_LEDGER = deriveConsoleLedger(SAMPLE_DATA, true);
 
-const heroChartConfig = {
-  revenueUsd: {
-    label: "归因营收 ($)",
-    color: "var(--chart-2)",
-  },
-} satisfies ChartConfig;
-
 interface LiveScanPayload {
   domain: string;
   origin: string;
@@ -95,6 +89,17 @@ interface LiveScanPayload {
 export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAuditReport[] }) {
   const { locale } = useI18n();
   const isZh = locale === "zh";
+
+  const heroChartConfig = useMemo(
+    () =>
+      ({
+        revenueUsd: {
+          label: isZh ? "归因营收 ($)" : "Attributed Revenue ($)",
+          color: "var(--chart-2)",
+        },
+      }) satisfies ChartConfig,
+    [isZh]
+  );
 
   const scanInputRef = useRef<HTMLInputElement>(null);
   const [scanUrl, setScanUrl] = useState("");
@@ -344,21 +349,21 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
 
             {scanResult && (
               <Card className="mx-auto max-w-2xl text-left">
-                <CardHeader className="pb-2 flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="text-sm font-mono">{scanResult.domain}</CardTitle>
-                    <CardDescription className="text-xs">
-                      {isZh ? `增长健康分 ${scanResult.score}/100 · 发现 ${scanResult.leaksCount} 项待优化` : `Score ${scanResult.score}/100 · ${scanResult.leaksCount} findings`}
-                    </CardDescription>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    render={<Link href={`/audit/live?url=${encodeURIComponent(scanResult.origin)}`} />}
-                  >
-                    {isZh ? "完整报告" : "Full Report"}
-                    <IconArrowUpRight className="size-3.5" />
-                  </Button>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-mono">{scanResult.domain}</CardTitle>
+                  <CardDescription className="text-xs">
+                    {isZh ? `增长健康分 ${scanResult.score}/100 · 发现 ${scanResult.leaksCount} 项待优化` : `Score ${scanResult.score}/100 · ${scanResult.leaksCount} findings`}
+                  </CardDescription>
+                  <CardAction>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      render={<Link href={`/audit/live?url=${encodeURIComponent(scanResult.origin)}`} />}
+                    >
+                      {isZh ? "完整报告" : "Full Report"}
+                      <IconArrowUpRight className="size-3.5" />
+                    </Button>
+                  </CardAction>
                 </CardHeader>
                 <CardContent className="grid sm:grid-cols-2 gap-2 pt-0 text-xs">
                   {scanResult.leaks.slice(0, 4).map((lk, i) => (
@@ -464,7 +469,7 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
                       <span className="font-medium truncate">{dir.name.replace(" Software", "")}</span>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="font-mono text-muted-foreground">DR {dir.dr}</span>
-                        <Badge variant="secondary" className="text-[10px]">
+                        <Badge variant="secondary" className="text-xs">
                           {isZh ? "已验活" : "Live"}
                         </Badge>
                       </div>
@@ -497,15 +502,15 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
 
           <TabsContent value="reply">
             <Card>
-              <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="text-base">{isZh ? "原生英文回复精编器（现场切换体验）" : "Native Reply Studio"}</CardTitle>
-                  <CardDescription>{demoLead.title}</CardDescription>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-muted-foreground">{isZh ? "零链接安全养号" : "Zero-link safe"}</span>
-                  <Switch checked={zeroLink} onCheckedChange={(v) => setZeroLink(Boolean(v))} />
-                </div>
+              <CardHeader>
+                <CardTitle className="text-base">{isZh ? "原生英文回复精编器（现场切换体验）" : "Native Reply Studio"}</CardTitle>
+                <CardDescription>{demoLead.title}</CardDescription>
+                <CardAction>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xs text-muted-foreground">{isZh ? "零链接安全养号" : "Zero-link safe"}</span>
+                    <Switch checked={zeroLink} onCheckedChange={(v) => setZeroLink(Boolean(v))} />
+                  </div>
+                </CardAction>
               </CardHeader>
               <CardContent className="space-y-4">
                 <Tabs value={tone} onValueChange={(v) => setTone(v as ReplyTone)}>
@@ -572,15 +577,15 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
 
           <TabsContent value="roi">
             <Card>
-              <CardHeader className="flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">{isZh ? "每条渠道严格对账到美元" : "Dollar-Reconciled Channel Ledger"}</CardTitle>
-                  <CardDescription>{isZh ? "总营收 $2,088 = $1,102 + $725 + $261" : "$2,088 = $1,102 + $725 + $261"}</CardDescription>
-                </div>
-                <Button variant="outline" size="sm" render={<Link href="/report?id=demo-acmeflow" />}>
-                  {isZh ? "预览公开战报" : "Public Report"}
-                  <IconExternalLink className="size-3.5" />
-                </Button>
+              <CardHeader>
+                <CardTitle className="text-base">{isZh ? "每条渠道严格对账到美元" : "Dollar-Reconciled Channel Ledger"}</CardTitle>
+                <CardDescription>{isZh ? "总营收 $2,088 = $1,102 + $725 + $261" : "$2,088 = $1,102 + $725 + $261"}</CardDescription>
+                <CardAction>
+                  <Button variant="outline" size="sm" render={<Link href="/report?id=demo-acmeflow" />}>
+                    {isZh ? "预览公开战报" : "Public Report"}
+                    <IconExternalLink className="size-3.5" />
+                  </Button>
+                </CardAction>
               </CardHeader>
               <CardContent className="grid sm:grid-cols-3 gap-4 tabular-nums">
                 {SAMPLE_LEDGER.revenue.channels.map((ch) => (
@@ -626,7 +631,7 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
         </div>
 
         <Card>
-          <CardHeader className="flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4">
             <Tabs value={dirFilter} onValueChange={(v) => setDirFilter(v as typeof dirFilter)}>
               <TabsList>
                 <TabsTrigger value="all">{isZh ? "全部 (100)" : "All (100)"}</TabsTrigger>
@@ -634,7 +639,7 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
                 <TabsTrigger value="dofollow">{isZh ? "传递权重" : "Dofollow"}</TabsTrigger>
               </TabsList>
             </Tabs>
-            <div className="relative sm:w-60">
+            <div className="relative sm:w-64">
               <IconSearch className="size-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
               <Input
                 value={dirQuery}
@@ -691,36 +696,40 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
         </Card>
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <Link href="/tools/aeo-checker" className="block">
+          <Link href="/tools/aeo-checker" className="block group">
             <Card className="hover:bg-accent/40 transition-colors h-full">
-              <CardHeader className="flex-row items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <IconShieldCheck className="size-5 text-primary shrink-0 mt-0.5" />
-                  <div>
+              <CardHeader className="flex flex-row items-center justify-between gap-4">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/60">
+                    <IconShieldCheck className="size-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
                     <CardTitle className="text-sm">{isZh ? "AI 搜索可见度体检（12 项实测）" : "12-Point AEO Checker"}</CardTitle>
                     <CardDescription className="text-xs mt-1">
                       {isZh ? "核查 GPTBot / ClaudeBot / PerplexityBot 是否被 robots.txt 误拦" : "Check AI crawler rules & JSON-LD schema"}
                     </CardDescription>
                   </div>
                 </div>
-                <IconArrowUpRight className="size-4 text-muted-foreground shrink-0" />
+                <IconArrowUpRight className="size-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
               </CardHeader>
             </Card>
           </Link>
 
-          <Link href="/tools/llms-txt-generator" className="block">
+          <Link href="/tools/llms-txt-generator" className="block group">
             <Card className="hover:bg-accent/40 transition-colors h-full">
-              <CardHeader className="flex-row items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <IconFileCode className="size-5 text-primary shrink-0 mt-0.5" />
-                  <div>
+              <CardHeader className="flex flex-row items-center justify-between gap-4">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/60">
+                    <IconFileCode className="size-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
                     <CardTitle className="text-sm">{isZh ? "/llms.txt 标准清单生成器" : "/llms.txt Manifest Studio"}</CardTitle>
                     <CardDescription className="text-xs mt-1">
                       {isZh ? "10 秒提取官网定位，一键导出符合 llmstxt.org 规范的 Markdown 文件" : "Generate a clean llmstxt.org index in seconds"}
                     </CardDescription>
                   </div>
                 </div>
-                <IconArrowUpRight className="size-4 text-muted-foreground shrink-0" />
+                <IconArrowUpRight className="size-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
               </CardHeader>
             </Card>
           </Link>

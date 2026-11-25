@@ -133,7 +133,7 @@ export default function DynamicLiveAuditPage() {
 
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 space-y-6">
           <Card>
-            <CardHeader className="flex-row flex-wrap items-center justify-between gap-4">
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
               <div className="space-y-1">
                 <Badge variant="secondary">{isZh ? "实时无害诊断报告" : "Live Passive Audit"}</Badge>
                 <CardTitle className="text-2xl">{instantScan.domain}</CardTitle>

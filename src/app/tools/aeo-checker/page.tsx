@@ -15,7 +15,7 @@ import LangSwitcher from "@/components/LangSwitcher";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
@@ -239,32 +239,32 @@ export default function AeoCheckerToolPage() {
           {/* 右栏：总分与爬虫矩阵 */}
           <div className="lg:col-span-6 space-y-4">
             <Card>
-              <CardHeader className="flex-row items-baseline justify-between gap-3">
-                <div>
-                  <CardDescription>
-                    {resData
-                      ? isZh
-                        ? `${resData.domain} 综合可见度得分`
-                        : `${resData.domain} Readiness Score`
-                      : isZh
-                        ? "体检报告实时预览"
-                        : "Live scorecard preview"}
-                  </CardDescription>
-                  <CardTitle className="text-4xl font-bold tabular-nums mt-1">
-                    {resData ? resData.score : "—"}
-                    <span className="text-base font-normal text-muted-foreground"> / 100</span>
-                  </CardTitle>
-                </div>
+              <CardHeader>
+                <CardDescription>
+                  {resData
+                    ? isZh
+                      ? `${resData.domain} 综合可见度得分`
+                      : `${resData.domain} Readiness Score`
+                    : isZh
+                      ? "体检报告实时预览"
+                      : "Live scorecard preview"}
+                </CardDescription>
+                <CardTitle className="text-4xl font-bold tabular-nums mt-1">
+                  {resData ? resData.score : "—"}
+                  <span className="text-base font-normal text-muted-foreground"> / 100</span>
+                </CardTitle>
                 {resData && (
-                  <Badge variant={resData.diagnostics.llmsTxt.exists ? "default" : "secondary"}>
-                    {resData.diagnostics.llmsTxt.exists
-                      ? isZh
-                        ? "已配置 /llms.txt"
-                        : "/llms.txt found"
-                      : isZh
-                        ? "缺少 /llms.txt"
-                        : "Missing /llms.txt"}
-                  </Badge>
+                  <CardAction>
+                    <Badge variant={resData.diagnostics.llmsTxt.exists ? "default" : "secondary"}>
+                      {resData.diagnostics.llmsTxt.exists
+                        ? isZh
+                          ? "已配置 /llms.txt"
+                          : "/llms.txt found"
+                        : isZh
+                          ? "缺少 /llms.txt"
+                          : "Missing /llms.txt"}
+                    </Badge>
+                  </CardAction>
                 )}
               </CardHeader>
               <CardContent className="space-y-4">

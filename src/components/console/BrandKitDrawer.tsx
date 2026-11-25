@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
@@ -228,7 +235,11 @@ export default function BrandKitDrawer({
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col p-0">
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-lg flex flex-col p-0"
+        initialFocus={false}
+      >
         <SheetHeader className="border-b px-5 py-4 space-y-2.5">
           <div>
             <SheetTitle>{isZh ? "品牌提交资料" : "Brand Kit"}</SheetTitle>
@@ -288,7 +299,9 @@ export default function BrandKitDrawer({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label>{isZh ? "一句话定位（英文 ≤ 60 字符）" : "One-line Tagline"}</Label>
-                  <span className="font-mono text-xs text-muted-foreground">{shortTagline.length}/60</span>
+                  <span className={`font-mono text-xs tabular-nums ${shortTagline.length > 60 ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                    {shortTagline.length}/60
+                  </span>
                 </div>
                 <Input value={shortTagline} onChange={(e) => setShortTagline(e.target.value)} />
               </div>
@@ -296,7 +309,9 @@ export default function BrandKitDrawer({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label>{isZh ? "标准目录简介（120–240 字符）" : "Standard Pitch"}</Label>
-                  <span className="font-mono text-xs text-muted-foreground">{mediumPitch.length}/240</span>
+                  <span className={`font-mono text-xs tabular-nums ${mediumPitch.length > 240 ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                    {mediumPitch.length}/240
+                  </span>
                 </div>
                 <Textarea rows={3} value={mediumPitch} onChange={(e) => setMediumPitch(e.target.value)} />
               </div>
@@ -329,34 +344,46 @@ export default function BrandKitDrawer({
 
             <Separator />
 
-            <div className="grid sm:grid-cols-2 gap-3">
+            <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label>{isZh ? "收费模式" : "Pricing"}</Label>
-                <select
-                  value={pricingModel}
-                  onChange={(e) => setPricingModel(e.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none"
-                >
-                  <option value="freemium">{isZh ? "免费增值 (Freemium)" : "Freemium"}</option>
-                  <option value="free">{isZh ? "完全免费 / 开源" : "Free / OSS"}</option>
-                  <option value="paid">{isZh ? "付费订阅" : "Paid"}</option>
-                  <option value="open-source">{isZh ? "开源自托管" : "Open Source"}</option>
-                </select>
+                <Label>{isZh ? "收费模式" : "Pricing Model"}</Label>
+                <Select value={pricingModel} onValueChange={(v) => v && setPricingModel(String(v))}>
+                  <SelectTrigger className="w-full h-9">
+                    <SelectValue>
+                      {pricingModel === "freemium"
+                        ? isZh ? "免费增值 (Freemium)" : "Freemium"
+                        : pricingModel === "free"
+                          ? isZh ? "完全免费" : "Free"
+                          : pricingModel === "paid"
+                            ? isZh ? "付费订阅" : "Paid"
+                            : isZh ? "开源自托管" : "Open Source"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="freemium">{isZh ? "免费增值 (Freemium)" : "Freemium"}</SelectItem>
+                    <SelectItem value="free">{isZh ? "完全免费" : "Free"}</SelectItem>
+                    <SelectItem value="paid">{isZh ? "付费订阅" : "Paid"}</SelectItem>
+                    <SelectItem value="open-source">{isZh ? "开源自托管" : "Open Source"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>{isZh ? "创始人署名" : "Founder Name"}</Label>
+                  <Input value={founderName} onChange={(e) => setFounderName(e.target.value)} placeholder="Alex Chen" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>{isZh ? "创始人 X 账号" : "Founder X"}</Label>
+                  <Input value={founderX} onChange={(e) => setFounderX(e.target.value)} placeholder="@handle" className="font-mono text-xs" />
+                </div>
               </div>
               <div className="space-y-1.5">
-                <Label>{isZh ? "所属分类" : "Categories"}</Label>
+                <Label>{isZh ? "所属分类（逗号分隔）" : "Categories (comma-separated)"}</Label>
                 <Input value={categoriesText} onChange={(e) => setCategoriesText(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>{isZh ? "主要竞品" : "Competitors"}</Label>
+                <Label>{isZh ? "主要竞品（用于买家雷达监听）" : "Competitors (for Buyer Radar)"}</Label>
                 <Input value={competitorsText} onChange={(e) => setCompetitorsText(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>{isZh ? "创始人署名 / X" : "Founder & X"}</Label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <Input value={founderName} onChange={(e) => setFounderName(e.target.value)} placeholder="Alex" />
-                  <Input value={founderX} onChange={(e) => setFounderX(e.target.value)} placeholder="@handle" className="font-mono text-xs" />
-                </div>
               </div>
             </div>
           </div>

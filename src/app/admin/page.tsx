@@ -26,6 +26,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DISTRIBUTION_DIRECTORIES, type DirectoryChannel } from "@/data/directories";
@@ -380,22 +387,22 @@ export default function AdminConsolePage() {
         </Button>
       }
       sidebarTopSlot={
-        <select
-          value={selectedEmail}
-          onChange={(e) => setSelectedEmail(e.target.value)}
-          aria-label={isZh ? "选择履约客户" : "Select customer"}
-          className="w-full h-8 px-2 rounded-md border border-sidebar-border bg-background text-xs font-medium text-foreground outline-none"
-        >
-          {customerEmails.length === 0 ? (
-            <option value="">{isZh ? "暂无客户" : "No customers"}</option>
-          ) : (
-            customerEmails.map((em) => (
-              <option key={em} value={em}>
-                {em}
-              </option>
-            ))
-          )}
-        </select>
+        <Select value={selectedEmail || "__none__"} onValueChange={(v) => v && v !== "__none__" && setSelectedEmail(String(v))}>
+          <SelectTrigger className="w-full h-8 bg-background text-xs font-medium" aria-label={isZh ? "选择履约客户" : "Select customer"}>
+            <SelectValue>{selectedEmail || (isZh ? "暂无客户" : "No customers")}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {customerEmails.length === 0 ? (
+              <SelectItem value="__none__">{isZh ? "暂无客户" : "No customers"}</SelectItem>
+            ) : (
+              customerEmails.map((em) => (
+                <SelectItem key={em} value={em}>
+                  {em}
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
       }
       sidebarFooter={
         <SidebarMenu>

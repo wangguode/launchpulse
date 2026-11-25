@@ -12,6 +12,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
@@ -105,29 +112,35 @@ export default function DirectoryFinderToolPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5">
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  aria-label={isZh ? "目录分类" : "Category"}
-                  className="h-9 px-2.5 rounded-md border border-input bg-background text-sm text-foreground outline-none"
-                >
-                  <option value="all">{isZh ? "全部分类" : "All Categories"}</option>
-                  <option value="SaaS Directory">{isZh ? "SaaS 综合目录" : "SaaS Directory"}</option>
-                  <option value="AI Aggregator">{isZh ? "AI 工具导航" : "AI Aggregator"}</option>
-                  <option value="Launchpad">{isZh ? "新品首发台" : "Launchpad"}</option>
-                  <option value="Dev & Indie">{isZh ? "开发者社区" : "Dev & Indie"}</option>
-                </select>
+                <Select value={category} onValueChange={(v) => v && setCategory(String(v))}>
+                  <SelectTrigger className="w-[152px] h-9" aria-label={isZh ? "目录分类" : "Category"}>
+                    <SelectValue>
+                      {category === "all"
+                        ? isZh ? "全部分类" : "All Categories"
+                        : formatCategoryLabel(category as (typeof DISTRIBUTION_DIRECTORIES)[number]["category"], isZh)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{isZh ? "全部分类" : "All Categories"}</SelectItem>
+                    <SelectItem value="SaaS Directory">{isZh ? "SaaS 综合目录" : "SaaS Directory"}</SelectItem>
+                    <SelectItem value="AI Aggregator">{isZh ? "AI 工具导航" : "AI Aggregator"}</SelectItem>
+                    <SelectItem value="Launchpad">{isZh ? "新品首发台" : "Launchpad"}</SelectItem>
+                    <SelectItem value="Dev & Indie">{isZh ? "开发者社区" : "Dev & Indie"}</SelectItem>
+                  </SelectContent>
+                </Select>
 
-                <select
-                  value={minDr}
-                  onChange={(e) => setMinDr(Number(e.target.value))}
-                  aria-label={isZh ? "最低 DR" : "Min DR"}
-                  className="h-9 px-2.5 rounded-md border border-input bg-background text-sm text-foreground outline-none"
-                >
-                  <option value={0}>{isZh ? "不限域名权重" : "Any DR"}</option>
-                  <option value={70}>DR 70+</option>
-                  <option value={50}>DR 50+</option>
-                </select>
+                <Select value={String(minDr)} onValueChange={(v) => v !== null && setMinDr(Number(v))}>
+                  <SelectTrigger className="w-[140px] h-9" aria-label={isZh ? "最低 DR" : "Min DR"}>
+                    <SelectValue>
+                      {minDr === 0 ? (isZh ? "不限域名权重" : "Any DR") : `DR ${minDr}+`}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">{isZh ? "不限域名权重" : "Any DR"}</SelectItem>
+                    <SelectItem value="70">DR 70+</SelectItem>
+                    <SelectItem value="50">DR 50+</SelectItem>
+                  </SelectContent>
+                </Select>
 
                 <div className="flex items-center gap-2 rounded-md border px-3 h-9">
                   <Switch id="dofollow-only" checked={onlyDofollow} onCheckedChange={(v) => setOnlyDofollow(Boolean(v))} />

@@ -370,8 +370,8 @@ export function buildSampleOverview(): OverviewPayload {
     brandKit: {
       campaign_id: 1,
       logo_url: "https://acmeflow.example/logo.svg",
-      screenshots: [], // 刻意缺 1 张产品主图 → 85% 完整度，与今日行动流第一条严丝合缝
-      short_tagline: "Automated SSL & domain expiry alerts built for lean SaaS teams",
+      screenshots: [], // 刻意缺 1 张产品主图 → 90% 完整度，与今日行动流第一条严丝合缝
+      short_tagline: "Automated SSL & domain expiry alerts for lean SaaS teams",
       medium_pitch:
         "AcmeFlow polls TLS handshakes and WHOIS registries every 6 hours from 3 global regions and alerts Slack or email before silent renewal failures break production.",
       long_description:
@@ -381,7 +381,7 @@ export function buildSampleOverview(): OverviewPayload {
       competitors: ["UptimeRobot", "Better Stack", "Oh Dear"],
       founder_name: "Alex Chen",
       founder_x: "@alexchen_dev",
-      completeness_score: 85,
+      completeness_score: 90,
     },
     links: [
       {

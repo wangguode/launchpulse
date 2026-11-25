@@ -257,7 +257,7 @@ export default function WarRoomClient({ report }: Props) {
           </Card>
 
           <Card className="lg:col-span-4 flex flex-col justify-between">
-            <CardHeader className="flex-row items-start justify-between">
+            <CardHeader className="flex flex-row items-start justify-between gap-3">
               <div>
                 <CardDescription>{t.warRoom.readiness}</CardDescription>
                 <CardTitle className="text-5xl font-bold font-mono tabular-nums mt-1">
@@ -290,7 +290,7 @@ export default function WarRoomClient({ report }: Props) {
 
         {/* 2. 80 秒实机拆解视频 */}
         <Card className="overflow-hidden">
-          <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 py-3.5 border-b">
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 py-3.5 border-b">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <IconPlayerPlay className="size-4 text-primary" />
               <span>
@@ -406,7 +406,7 @@ export default function WarRoomClient({ report }: Props) {
             ))}
 
             <Card>
-              <CardHeader className="flex-row items-center justify-between pb-3">
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
                 <CardTitle className="text-sm">
                   {t.warRoom.generatedLlmsTitle} {report.domain}
                 </CardTitle>

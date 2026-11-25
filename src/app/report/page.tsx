@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { IconExternalLink, IconPrinter, IconShieldCheck } from "@tabler/icons-react";
@@ -10,7 +10,7 @@ import LangSwitcher from "@/components/LangSwitcher";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Separator } from "@/components/ui/separator";
 import { buildSampleOverview, deriveConsoleLedger, formatChannelLabel } from "@/lib/console-ledger";
@@ -37,10 +37,6 @@ interface PublicReportData {
     topDirectories: Array<{ name: string; dr: number; linkType?: string; url?: string }>;
   };
 }
-
-const reportChartConfig = {
-  revenueUsd: { label: "归因营收 ($)", color: "var(--chart-2)" },
-} satisfies ChartConfig;
 
 function buildFallbackSampleReport(): PublicReportData {
   const sample = buildSampleOverview();
@@ -91,6 +87,14 @@ function buildFallbackSampleReport(): PublicReportData {
 export default function PublicGrowthReportPage() {
   const { locale } = useI18n();
   const isZh = locale === "zh";
+
+  const reportChartConfig = useMemo(
+    () =>
+      ({
+        revenueUsd: { label: isZh ? "归因营收 ($)" : "Attributed Revenue ($)", color: "var(--chart-2)" },
+      }) satisfies ChartConfig,
+    [isZh]
+  );
 
   const [data, setData] = useState<PublicReportData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,27 +159,27 @@ export default function PublicGrowthReportPage() {
         ) : (
           <div className="space-y-6">
             <Card>
-              <CardHeader className="flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <CardTitle className="text-2xl">{data.title}</CardTitle>
-                  <CardDescription className="flex items-center gap-2">
-                    <span className="font-medium text-foreground">{data.productName}</span>
-                    <span>·</span>
-                    <a
-                      href={data.targetUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-xs text-primary hover:underline inline-flex items-center gap-1"
-                    >
-                      {data.targetUrl.replace(/^https?:\/\//, "")}
-                      <IconExternalLink className="size-3" />
-                    </a>
-                  </CardDescription>
-                </div>
-                <Badge variant="secondary" className="gap-1.5 w-fit">
-                  <IconShieldCheck className="size-3.5 text-emerald-500" />
-                  {isZh ? "Cloudflare 边缘归因实证" : "Verified Edge Attribution"}
-                </Badge>
+              <CardHeader>
+                <CardTitle className="text-2xl">{data.title}</CardTitle>
+                <CardDescription className="flex items-center gap-2">
+                  <span className="font-medium text-foreground">{data.productName}</span>
+                  <span>·</span>
+                  <a
+                    href={data.targetUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-xs text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    {data.targetUrl.replace(/^https?:\/\//, "")}
+                    <IconExternalLink className="size-3" />
+                  </a>
+                </CardDescription>
+                <CardAction>
+                  <Badge variant="secondary" className="gap-1.5">
+                    <IconShieldCheck className="size-3.5 text-emerald-500" />
+                    {isZh ? "Cloudflare 边缘归因实证" : "Verified Edge Attribution"}
+                  </Badge>
+                </CardAction>
               </CardHeader>
             </Card>
 
@@ -189,10 +193,10 @@ export default function PublicGrowthReportPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <ChartContainer config={reportChartConfig} className="aspect-auto h-[220px] w-full">
-                    <AreaChart data={series}>
+                    <AreaChart data={series} margin={{ top: 8, right: 20, left: 0, bottom: 0 }}>
                       <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                      <XAxis dataKey="date" tickLine={false} axisLine={false} minTickGap={28} />
-                      <YAxis tickLine={false} axisLine={false} width={44} tickFormatter={(v) => `$${v}`} />
+                      <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={28} />
+                      <YAxis tickLine={false} axisLine={false} width={48} tickFormatter={(v) => `$${v}`} />
                       <ChartTooltip content={<ChartTooltipContent />} />
                       <Area
                         dataKey="revenueUsd"
@@ -201,6 +205,7 @@ export default function PublicGrowthReportPage() {
                         fillOpacity={0.2}
                         stroke="var(--color-revenueUsd)"
                         strokeWidth={2}
+                        isAnimationActive={false}
                       />
                     </AreaChart>
                   </ChartContainer>
@@ -251,7 +256,7 @@ export default function PublicGrowthReportPage() {
                         <span className="font-medium truncate">{d.name}</span>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="font-mono text-muted-foreground">DR {d.dr}</span>
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-xs">
                             {isZh ? "已验活" : "Live"}
                           </Badge>
                         </div>

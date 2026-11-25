@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { IconCopy, IconExternalLink, IconRefresh, IconShare } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Sheet,
   SheetContent,
@@ -87,15 +87,15 @@ export default function BillingToolsDrawer({
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
+      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto p-0">
+        <SheetHeader className="border-b px-5 py-4">
           <SheetTitle>{isZh ? "套餐账单与增长工具" : "Billing & Growth Tools"}</SheetTitle>
           <SheetDescription>
             {isZh ? "Creem 安全结算、公开只读战报与 AEO 实时复检" : "Creem billing, verifiable reports & AEO diagnostics"}
           </SheetDescription>
         </SheetHeader>
 
-        <div className="px-4 pb-6">
+        <div className="p-5">
           <Tabs defaultValue="billing" className="space-y-4">
             <TabsList className="w-full grid grid-cols-2">
               <TabsTrigger value="billing">{isZh ? "套餐与账单" : "Plans & Billing"}</TabsTrigger>
@@ -189,17 +189,17 @@ export default function BillingToolsDrawer({
               </Card>
 
               <Card>
-                <CardHeader className="pb-3 flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="text-sm">{isZh ? "AEO 复检与 /llms.txt" : "AEO & /llms.txt"}</CardTitle>
-                    <CardDescription className="text-xs truncate max-w-[240px]">
-                      {targetUrl || "https://your-saas.com"}
-                    </CardDescription>
-                  </div>
-                  <Button variant="outline" size="sm" disabled={scanning} onClick={runScan}>
-                    <IconRefresh className={`size-3.5 ${scanning ? "animate-spin" : ""}`} />
-                    {isZh ? "复检" : "Scan"}
-                  </Button>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">{isZh ? "AEO 复检与 /llms.txt" : "AEO & /llms.txt"}</CardTitle>
+                  <CardDescription className="text-xs truncate max-w-[240px]">
+                    {targetUrl || "https://your-saas.com"}
+                  </CardDescription>
+                  <CardAction>
+                    <Button variant="outline" size="sm" disabled={scanning} onClick={runScan}>
+                      <IconRefresh className={`size-3.5 ${scanning ? "animate-spin" : ""}`} />
+                      {isZh ? "复检" : "Scan"}
+                    </Button>
+                  </CardAction>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {scanResult && (

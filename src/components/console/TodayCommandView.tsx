@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   IconArrowRight,
@@ -43,29 +44,9 @@ interface TodayCommandViewProps {
   onCreateProject: () => void;
 }
 
-const areaChartConfig = {
-  revenueUsd: {
-    label: "归因营收 ($)",
-    color: "var(--chart-2)",
-  },
-  clicks: {
-    label: "有效点击",
-    color: "var(--chart-1)",
-  },
-} satisfies ChartConfig;
-
-const barChartConfig = {
-  revenueUsd: {
-    label: "归因美元 ($)",
-    color: "var(--chart-2)",
-  },
-} satisfies ChartConfig;
-
 /**
- * 视图 ①：今日总览与归因（100% 复用 Kiranism/next-shadcn-dashboard-starter 原装 OverViewLayout + Recharts 3 规范）
- * - 顶部 4 张官方 @container/card KPI 指标卡（全部同源对账，绝不重复）
- * - 中部 7 列网格：左 4 列 Recharts AreaChart 30 天营收/点击双曲线 + 右 3 列今日待办行动流
- * - 底部 7 列网格：左 4 列 Recharts BarChart 按渠道营收拆解（严格恒等） + 右 3 列最新外链验活回执
+ * 视图 ①：今日总览与归因（官方 shadcn/ui @container/card + Recharts 3）
+ * - 真实新用户 0 项目时展示高转化 3 步冷启动激活向导，彻底消除满屏 $0 落差
  */
 export default function TodayCommandView({
   ledger,
@@ -81,6 +62,87 @@ export default function TodayCommandView({
   onGoDirectories,
   onCreateProject,
 }: TodayCommandViewProps) {
+  const areaChartConfig = useMemo(
+    () =>
+      ({
+        revenueUsd: {
+          label: isZh ? "归因营收 ($)" : "Attributed Revenue ($)",
+          color: "var(--chart-2)",
+        },
+        clicks: {
+          label: isZh ? "有效点击" : "Verified Clicks",
+          color: "var(--chart-1)",
+        },
+      }) satisfies ChartConfig,
+    [isZh]
+  );
+
+  const barChartConfig = useMemo(
+    () =>
+      ({
+        revenueUsd: {
+          label: isZh ? "归因美元 ($)" : "Attributed USD ($)",
+          color: "var(--chart-2)",
+        },
+      }) satisfies ChartConfig,
+    [isZh]
+  );
+
+  if (!hasProject) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center p-4 md:p-8">
+        <Card className="w-full max-w-2xl">
+          <CardHeader className="space-y-2">
+            <Badge variant="secondary" className="w-fit">
+              {isZh ? "30 秒完成冷启动建档" : "30-Second Workspace Setup"}
+            </Badge>
+            <CardTitle className="text-2xl">
+              {isZh ? "添加你的首个出海产品，开启外链与买家雷达" : "Add your first product to launch distribution & buyer radar"}
+            </CardTitle>
+            <CardDescription>
+              {isZh
+                ? "只需粘贴官网地址，系统自动抓取产品 Logo、简介与定位并一键填充 Brand Kit，告别手动填表。"
+                : "Paste your website URL once — we auto-crawl your Brand Kit, pace 100+ directory submissions, and monitor Reddit / HN / GitHub."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid sm:grid-cols-3 gap-3">
+            {[
+              {
+                step: "1",
+                title: isZh ? "输入网址自动抓取" : "Auto-crawl URL",
+                desc: isZh ? "3 秒拉取 Logo、定位、三档英文简介与分类" : "Extracts logo, tagline & pitch automatically",
+              },
+              {
+                step: "2",
+                title: isZh ? "100+ 目录节奏分发" : "100+ Directories",
+                desc: isZh ? "按 DR 权重降序分 3 周推进并自动 HTTP 验活" : "DR-sorted 3-week waves with HTTP checks",
+              },
+              {
+                step: "3",
+                title: isZh ? "Reddit / HN 买家雷达" : "AI Buyer Radar",
+                desc: isZh ? "扫帖抓高意向求购 + 真大模型零链接原生精编" : "Live buyer threads + zero-link AI replies",
+              },
+            ].map((item) => (
+              <div key={item.step} className="rounded-lg border bg-muted/30 p-3.5 space-y-1">
+                <span className="font-mono text-xs text-muted-foreground">0{item.step}</span>
+                <p className="text-sm font-semibold">{item.title}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </CardContent>
+          <CardFooter className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              {isZh ? "免费账号立即可用前 10 个高权重目录与前 3 条买家线索。" : "Free plan includes Top 10 directories & 3 buyer threads."}
+            </p>
+            <Button onClick={onCreateProject}>
+              <IconFolderPlus className="size-4" />
+              {isZh ? "输入官网一键创建项目" : "Create Project from URL"}
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
   const needsBrandKit = ledger.brandKit.score < 100;
   const wave2Count = ledger.dirCounts.wave2PendingIds.length;
   const needsWaveApproval = wave2Count > 0 && !waveApprovedNotice;
@@ -228,7 +290,7 @@ export default function TodayCommandView({
                 : `${ledger.leadCounts.all} total · ${ledger.leadCounts.replied} replied`}
             </div>
             <div className="text-muted-foreground text-xs">
-              {isZh ? "Hacker News · GitHub · DEV.to 实时监测" : "Live across HN, GitHub & DEV.to"}
+              {isZh ? "Reddit · Hacker News · GitHub · DEV.to 实时监测" : "Live across Reddit, HN, GitHub & DEV.to"}
             </div>
           </CardFooter>
         </Card>
@@ -252,7 +314,7 @@ export default function TodayCommandView({
           </CardHeader>
           <CardContent className="px-2 pt-2 sm:px-6">
             <ChartContainer config={areaChartConfig} className="aspect-auto h-[250px] w-full">
-              <AreaChart accessibilityLayer data={areaData} margin={{ left: 0, right: 12, top: 8 }}>
+              <AreaChart accessibilityLayer data={areaData} margin={{ left: 0, right: 18, top: 8 }}>
                 <defs>
                   <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--color-revenueUsd)" stopOpacity={0.32} />

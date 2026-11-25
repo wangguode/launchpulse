@@ -30,6 +30,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
@@ -128,9 +135,11 @@ export default function DirectoriesChannelsView({
     });
   }, [ledger.directories, waveFilter, statusFilter, query]);
 
+  // 按 DR 降序取前 N 个解锁，与表格默认 DR 降序展示完全一致，消除交错锁定错乱
   const unlockedIdSet = useMemo(() => {
     const limit = isSample ? ledger.directories.length : entitlement.maxDirectories;
-    return new Set(ledger.directories.slice(0, limit).map((d) => d.id));
+    const sortedByDr = [...ledger.directories].sort((a, b) => b.dr - a.dr);
+    return new Set(sortedByDr.slice(0, limit).map((d) => d.id));
   }, [isSample, ledger.directories, entitlement.maxDirectories]);
 
   const activeDir: ReconciledDirectoryRow | null = useMemo(() => {
@@ -445,18 +454,28 @@ export default function DirectoriesChannelsView({
             </Tabs>
 
             <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                aria-label={isZh ? "按验活状态筛选" : "Filter status"}
-                className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none"
-              >
-                <option value="all">{isZh ? "全部状态" : "All statuses"}</option>
-                <option value="live">{isZh ? `已验活 (${ledger.dirCounts.live})` : `Verified (${ledger.dirCounts.live})`}</option>
-                <option value="submitted">{isZh ? `审核中 (${ledger.dirCounts.submitted})` : `In review (${ledger.dirCounts.submitted})`}</option>
-                <option value="queued">{isZh ? `待提交 (${ledger.dirCounts.queued})` : `Queued (${ledger.dirCounts.queued})`}</option>
-                <option value="skipped">{isZh ? `已跳过 (${ledger.dirCounts.skipped})` : `Skipped (${ledger.dirCounts.skipped})`}</option>
-              </select>
+              <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(String(v))}>
+                <SelectTrigger size="default" className="w-[148px] text-xs" aria-label={isZh ? "按验活状态筛选" : "Filter status"}>
+                  <SelectValue>
+                    {statusFilter === "all"
+                      ? isZh ? "全部状态" : "All statuses"
+                      : statusFilter === "live"
+                        ? isZh ? `已验活 (${ledger.dirCounts.live})` : `Verified (${ledger.dirCounts.live})`
+                        : statusFilter === "submitted"
+                          ? isZh ? `审核中 (${ledger.dirCounts.submitted})` : `In review (${ledger.dirCounts.submitted})`
+                          : statusFilter === "queued"
+                            ? isZh ? `待提交 (${ledger.dirCounts.queued})` : `Queued (${ledger.dirCounts.queued})`
+                            : isZh ? `已跳过 (${ledger.dirCounts.skipped})` : `Skipped (${ledger.dirCounts.skipped})`}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{isZh ? "全部状态" : "All statuses"}</SelectItem>
+                  <SelectItem value="live">{isZh ? `已验活 (${ledger.dirCounts.live})` : `Verified (${ledger.dirCounts.live})`}</SelectItem>
+                  <SelectItem value="submitted">{isZh ? `审核中 (${ledger.dirCounts.submitted})` : `In review (${ledger.dirCounts.submitted})`}</SelectItem>
+                  <SelectItem value="queued">{isZh ? `待提交 (${ledger.dirCounts.queued})` : `Queued (${ledger.dirCounts.queued})`}</SelectItem>
+                  <SelectItem value="skipped">{isZh ? `已跳过 (${ledger.dirCounts.skipped})` : `Skipped (${ledger.dirCounts.skipped})`}</SelectItem>
+                </SelectContent>
+              </Select>
 
               <div className="relative w-full sm:w-[220px]">
                 <IconSearch className="size-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -573,16 +592,17 @@ export default function DirectoriesChannelsView({
             </CardHeader>
             <CardContent className="space-y-4">
               <form onSubmit={handleCreateLink} className="flex flex-col sm:flex-row gap-2">
-                <select
-                  value={newChannel}
-                  onChange={(e) => setNewChannel(e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background px-2.5 text-sm outline-none"
-                >
-                  <option value="directory">{isZh ? "目录外链" : "Directory"}</option>
-                  <option value="community">{isZh ? "社区回复" : "Community"}</option>
-                  <option value="seo">{isZh ? "竞品对比页" : "Comparison"}</option>
-                  <option value="social">{isZh ? "社媒简介" : "Social"}</option>
-                </select>
+                <Select value={newChannel} onValueChange={(v) => v && setNewChannel(String(v))}>
+                  <SelectTrigger className="sm:w-[136px] h-9">
+                    <SelectValue>{formatChannelLabel(newChannel, isZh)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="directory">{isZh ? "目录外链" : "Directory"}</SelectItem>
+                    <SelectItem value="community">{isZh ? "社区回复" : "Community"}</SelectItem>
+                    <SelectItem value="seo">{isZh ? "竞品对比页" : "Comparison"}</SelectItem>
+                    <SelectItem value="social">{isZh ? "社媒简介" : "Social"}</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Input
                   value={newLabel}
                   onChange={(e) => setNewLabel(e.target.value)}

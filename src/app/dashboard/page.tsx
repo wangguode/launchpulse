@@ -35,6 +35,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   SidebarMenu,
   SidebarMenuBadge,
   SidebarMenuButton,
@@ -584,30 +591,57 @@ export default function DashboardPage() {
               </Button>
             </div>
           ) : (
-            <Button variant="outline" size="sm" className="h-8" onClick={handleLogout}>
-              <IconLogout className="size-3.5" />
-              <span className="hidden sm:inline">{isZh ? "退出" : "Log out"}</span>
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant={entitlement.plan === "free" ? "secondary" : "outline"}
+                size="sm"
+                className="h-8 text-xs hidden sm:inline-flex"
+                onClick={() => setBillingDrawerOpen(true)}
+              >
+                {entitlement.plan === "free"
+                  ? isZh ? "免费版 · 10 站" : "Free · 10 dirs"
+                  : entitlement.plan === "blitz"
+                    ? isZh ? "启动包 · 30 站" : "Starter · 30 dirs"
+                    : entitlement.plan === "dfy"
+                      ? isZh ? "代投旗舰" : "DFY Pro"
+                      : isZh ? "增长指挥台 Pro" : "Growth Pro"}
+              </Button>
+              <Button variant="outline" size="sm" className="h-8" onClick={handleLogout}>
+                <IconLogout className="size-3.5" />
+                <span className="hidden sm:inline">{isZh ? "退出" : "Log out"}</span>
+              </Button>
+            </div>
           )
         }
         sidebarTopSlot={
           <div className="flex items-center gap-1.5">
-            <select
-              aria-label={isZh ? "切换当前项目" : "Switch project"}
-              value={activeCampaign?.id || 0}
-              onChange={(e) => handleSwitchProject(Number(e.target.value))}
-              className="flex-1 min-w-0 h-8 rounded-md border border-sidebar-border bg-background px-2 text-xs font-medium text-foreground outline-none"
+            <Select
+              value={String(activeCampaign?.id || 0)}
+              onValueChange={(v) => {
+                const n = Number(v || 0);
+                if (n > 0) void handleSwitchProject(n);
+              }}
             >
-              {data.campaigns.length === 0 ? (
-                <option value={0}>{isZh ? "尚未创建项目" : "No projects"}</option>
-              ) : (
-                data.campaigns.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.product_name}
-                  </option>
-                ))
-              )}
-            </select>
+              <SelectTrigger
+                aria-label={isZh ? "切换当前项目" : "Switch project"}
+                className="flex-1 min-w-0 h-8 bg-background text-xs font-medium"
+              >
+                <SelectValue>
+                  {activeCampaign?.product_name || (isZh ? "尚未创建项目" : "No projects")}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {data.campaigns.length === 0 ? (
+                  <SelectItem value="0">{isZh ? "尚未创建项目" : "No projects"}</SelectItem>
+                ) : (
+                  data.campaigns.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.product_name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
             <Button
               variant="outline"
               size="icon-sm"

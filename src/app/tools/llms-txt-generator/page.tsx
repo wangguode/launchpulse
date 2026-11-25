@@ -223,7 +223,7 @@ export default function LlmsTxtGeneratorPage() {
           </Card>
 
           <Card className="lg:col-span-7">
-            <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 border-b pb-4">
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 border-b pb-4">
               <CardTitle className="font-mono text-sm">
                 {isCustomOutput && domain ? `${domain}/llms.txt` : `llms.txt (${isZh ? "标准模板预览" : "Template"})`}
               </CardTitle>
