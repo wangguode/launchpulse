@@ -72,6 +72,31 @@ interface AdminPayload {
     buyer_clicks: number;
     last_event_at: string;
   }>;
+  brandKits?: Array<{
+    campaign_id: number;
+    user_email: string;
+    logo_url: string;
+    screenshots_json: string;
+    short_tagline: string;
+    medium_pitch: string;
+    long_description: string;
+    pricing_model: string;
+    categories_json: string;
+    competitors_json: string;
+    founder_name: string;
+    founder_x: string;
+    completeness_score: number;
+  }>;
+  directoryHealth?: Array<{
+    customer_email: string;
+    directory_id: string;
+    moderation_state: "approved" | "skipped" | "priority";
+    scheduled_wave: number;
+    proof_screenshot_url: string;
+    last_http_status: number;
+    is_dofollow_verified: number;
+    last_checked_at: string;
+  }>;
 }
 
 type AdminTab = "overview" | "directories" | "orders";
@@ -94,7 +119,10 @@ export default function AdminConsolePage() {
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<AdminTab>("overview");
   const [copiedCmd, setCopiedCmd] = useState(false);
+  const [copiedKit, setCopiedKit] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState("");
 
   const fetchAdminData = useCallback(async () => {
     setLoading(true);
@@ -157,23 +185,46 @@ export default function AdminConsolePage() {
   };
 
   const selectedDirMap = useMemo(() => {
-    const map = new Map<string, LiveDirState>();
+    const map: Record<string, LiveDirState> = {};
     if (!data || !selectedEmail) return map;
+    const em = selectedEmail.toLowerCase();
+    for (const h of data.directoryHealth || []) {
+      if (h.customer_email.toLowerCase() === em) {
+        map[h.directory_id] = {
+          status: "queued",
+          moderationState: h.moderation_state,
+          scheduledWave: h.scheduled_wave,
+          proofScreenshotUrl: h.proof_screenshot_url,
+          lastHttpStatus: h.last_http_status,
+          isDofollowVerified: Boolean(h.is_dofollow_verified),
+          lastCheckedAt: h.last_checked_at,
+        };
+      }
+    }
     for (const row of data.directories) {
-      if (row.customer_email.toLowerCase() === selectedEmail.toLowerCase()) {
-        map.set(row.directory_id, {
+      if (row.customer_email.toLowerCase() === em) {
+        map[row.directory_id] = {
+          ...(map[row.directory_id] || {}),
           status: row.status,
-          live_backlink_url: row.live_backlink_url,
-        });
+          liveBacklinkUrl: row.live_backlink_url,
+          updatedAt: row.updated_at,
+        };
       }
     }
     return map;
   }, [data, selectedEmail]);
 
+  const selectedBrandKit = useMemo(() => {
+    if (!data || !selectedEmail) return null;
+    return (data.brandKits || []).find((b) => b.user_email.toLowerCase() === selectedEmail.toLowerCase()) || null;
+  }, [data, selectedEmail]);
+
   const handleInlineSave = async (
     dir: DirectoryChannel,
     status: "queued" | "submitted" | "live",
-    liveBacklinkUrl: string
+    liveBacklinkUrl: string,
+    proofScreenshotUrl?: string,
+    scheduledWave?: number
   ) => {
     if (!selectedEmail.trim()) return;
     const camp = data?.campaigns.find((c) => c.user_email === selectedEmail);
@@ -190,10 +241,35 @@ export default function AdminConsolePage() {
         category: dir.category,
         status,
         liveBacklinkUrl,
+        proofScreenshotUrl: proofScreenshotUrl || "",
+        scheduledWave: scheduledWave || dir.wave,
       }),
     });
     if (res.ok) {
       await fetchAdminData();
+    }
+  };
+
+  const handleTriggerVerify = async () => {
+    setVerifying(true);
+    setVerifyMsg("");
+    try {
+      const res = await fetch("/api/admin/verify-backlinks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerEmail: selectedEmail.trim() }),
+      });
+      const json = (await res.json()) as { checked?: number; verifiedLive?: number; dofollowCount?: number };
+      if (res.ok) {
+        setVerifyMsg(
+          isZh
+            ? `✓ HTTP 外链验活完成：检测 ${json.checked || 0} 条，存活 ${json.verifiedLive || 0} 条（dofollow ${json.dofollowCount || 0} 条）。`
+            : `✓ Verified ${json.checked || 0} URLs: ${json.verifiedLive || 0} HTTP 200 live (${json.dofollowCount || 0} dofollow).`
+        );
+        await fetchAdminData();
+      }
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -513,14 +589,60 @@ export default function AdminConsolePage() {
             <pre className="text-[12px] font-mono text-[var(--apple-ink-secondary)] bg-[var(--apple-bg-alt)] border border-[var(--apple-border)] rounded-xl p-3 overflow-x-auto">
               {assistCmd}
             </pre>
+
+            {selectedBrandKit && (
+              <div className="rounded-[14px] border border-[var(--apple-border)] bg-[var(--apple-bg)] p-4 space-y-2 text-[12px]">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-[var(--apple-ink)]">
+                    {isZh ? "客户 Brand Launch Kit 物料包" : "Customer Brand Launch Kit"} ({selectedBrandKit.completeness_score}%)
+                  </span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      const txt = [
+                        `Tagline: ${selectedBrandKit.short_tagline}`,
+                        `Pitch: ${selectedBrandKit.medium_pitch}`,
+                        `Pricing: ${selectedBrandKit.pricing_model}`,
+                        `Categories: ${selectedBrandKit.categories_json}`,
+                        `Logo: ${selectedBrandKit.logo_url}`,
+                        `Screenshots: ${selectedBrandKit.screenshots_json}`,
+                        selectedBrandKit.long_description,
+                      ].join("\n");
+                      navigator.clipboard.writeText(txt).catch(() => {});
+                      setCopiedKit(true);
+                      setTimeout(() => setCopiedKit(false), 1600);
+                    }}
+                  >
+                    {copiedKit ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedKit ? (isZh ? "已复制物料" : "Copied Kit") : isZh ? "一键复制提交物料" : "Copy Brand Kit"}
+                  </Button>
+                </div>
+                <p className="text-[var(--apple-ink-secondary)]">
+                  <strong className="text-[var(--apple-ink)]">Tagline:</strong> {selectedBrandKit.short_tagline || "—"}
+                </p>
+                <p className="text-[var(--apple-ink-secondary)] line-clamp-2">
+                  <strong className="text-[var(--apple-ink)]">Pitch:</strong> {selectedBrandKit.medium_pitch || "—"}
+                </p>
+              </div>
+            )}
+
+            {verifyMsg && (
+              <div className="rounded-[10px] bg-[var(--apple-green-soft)] text-[var(--apple-green)] px-3.5 py-2 text-[12px] font-medium">
+                {verifyMsg}
+              </div>
+            )}
           </div>
 
-          {/* 50 目录行内快速编辑数据表 */}
+          {/* 100 目录行内快速编辑数据表（支持截图回执 + 一键 HTTP 验活） */}
           <DirectoryTable
             liveMap={selectedDirMap}
             locale={locale}
             editable
             onSaveRow={handleInlineSave}
+            onTriggerVerify={handleTriggerVerify}
+            verifyingBacklinks={verifying}
           />
         </div>
       )}

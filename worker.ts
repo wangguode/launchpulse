@@ -9,6 +9,20 @@
  * 7. GET  /api/admin/overview  — 受 ADMIN_API_KEY 保护的内部指挥台同步接口（对接开源 PocketBase）
  */
 
+import {
+  handleDeepLiveScan,
+  handleGetPublicReport,
+  handleRunRadarScan,
+  handleSaveBrandKit,
+  handleSaveDirectoryPref,
+  handleSaveRadarMonitor,
+  handleTestRadarWebhook,
+  handleUpdateRadarLead,
+  handleUpsertPublicReport,
+  handleV4DashboardOverview,
+  runBacklinkHealthCheck,
+} from "./worker-v4";
+
 interface D1PreparedStatement {
   bind: (...values: unknown[]) => D1PreparedStatement;
   first: <T = Record<string, unknown>>() => Promise<T | null>;
@@ -1577,21 +1591,24 @@ async function handleAdminDashboard(request: Request, env: Env): Promise<Respons
   }
   if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
 
-  const [usersRes, campaignsRes, ordersRes, linksRes, dirsRes, outreachRes] = await Promise.all([
-    env.DB.prepare(`SELECT id, email, name, role, created_at FROM users ORDER BY id DESC LIMIT 100`).all(),
-    env.DB.prepare(`SELECT * FROM campaigns ORDER BY updated_at DESC LIMIT 100`).all(),
-    env.DB.prepare(`SELECT * FROM customers_orders ORDER BY created_at DESC LIMIT 100`).all<{
-      plan: string;
-      amount_usd: number;
-      status: string;
-    }>(),
-    env.DB.prepare(`SELECT * FROM tracking_links ORDER BY clicks_count DESC LIMIT 200`).all<{
-      clicks_count: number;
-      conversions_count: number;
-    }>(),
-    env.DB.prepare(`SELECT * FROM directory_submissions ORDER BY updated_at DESC LIMIT 200`).all(),
-    env.DB.prepare(`SELECT * FROM outreach_logs ORDER BY last_event_at DESC LIMIT 100`).all(),
-  ]);
+  const [usersRes, campaignsRes, ordersRes, linksRes, dirsRes, outreachRes, brandKitsRes, dirHealthRes] =
+    await Promise.all([
+      env.DB.prepare(`SELECT id, email, name, role, created_at FROM users ORDER BY id DESC LIMIT 100`).all(),
+      env.DB.prepare(`SELECT * FROM campaigns ORDER BY updated_at DESC LIMIT 100`).all(),
+      env.DB.prepare(`SELECT * FROM customers_orders ORDER BY created_at DESC LIMIT 100`).all<{
+        plan: string;
+        amount_usd: number;
+        status: string;
+      }>(),
+      env.DB.prepare(`SELECT * FROM tracking_links ORDER BY clicks_count DESC LIMIT 200`).all<{
+        clicks_count: number;
+        conversions_count: number;
+      }>(),
+      env.DB.prepare(`SELECT * FROM directory_submissions ORDER BY updated_at DESC LIMIT 200`).all(),
+      env.DB.prepare(`SELECT * FROM outreach_logs ORDER BY last_event_at DESC LIMIT 100`).all(),
+      env.DB.prepare(`SELECT * FROM brand_kits ORDER BY updated_at DESC LIMIT 100`).all(),
+      env.DB.prepare(`SELECT * FROM directory_health_checks ORDER BY updated_at DESC LIMIT 300`).all(),
+    ]);
 
   const orders = ordersRes.results || [];
   const links = linksRes.results || [];
@@ -1623,6 +1640,8 @@ async function handleAdminDashboard(request: Request, env: Env): Promise<Respons
     links,
     directories: dirsRes.results || [],
     outreach: outreachRes.results || [],
+    brandKits: brandKitsRes.results || [],
+    directoryHealth: dirHealthRes.results || [],
   });
 }
 
@@ -1695,15 +1714,68 @@ export default {
       return handleAdminLogout();
     }
 
-    // V2 客户控制台聚合与推广项目管理接口
+    // V4 客户控制台多项目聚合、Brand Kit、选站审批、买家雷达 Pro 与公开战报接口
     if (url.pathname === "/api/dashboard/overview" && request.method === "GET") {
-      return handleDashboardOverview(request, env);
+      const user = await getSessionUser(request, env);
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+      return handleV4DashboardOverview(request, env, user);
     }
     if (url.pathname === "/api/dashboard/campaign" && request.method === "POST") {
       return handleDashboardSaveCampaign(request, env);
     }
     if (url.pathname === "/api/dashboard/links" && request.method === "POST") {
       return handleDashboardCreateLink(request, env);
+    }
+    if (url.pathname === "/api/dashboard/brand-kit" && request.method === "POST") {
+      const user = await getSessionUser(request, env);
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+      return handleSaveBrandKit(request, env, user);
+    }
+    if (url.pathname === "/api/dashboard/directory-pref" && request.method === "POST") {
+      const user = await getSessionUser(request, env);
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+      return handleSaveDirectoryPref(request, env, user);
+    }
+    if (url.pathname === "/api/dashboard/radar/monitor" && request.method === "POST") {
+      const user = await getSessionUser(request, env);
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+      return handleSaveRadarMonitor(request, env, user);
+    }
+    if (url.pathname === "/api/dashboard/radar/scan" && request.method === "POST") {
+      if (!checkRateLimit(request, 12)) return jsonResponse({ error: "Too many scans. Wait 60s." }, 429);
+      const user = await getSessionUser(request, env);
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+      return handleRunRadarScan(request, env, user);
+    }
+    if (url.pathname === "/api/dashboard/radar/lead" && request.method === "POST") {
+      const user = await getSessionUser(request, env);
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+      return handleUpdateRadarLead(request, env, user);
+    }
+    if (url.pathname === "/api/dashboard/radar/test-webhook" && request.method === "POST") {
+      const user = await getSessionUser(request, env);
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+      return handleTestRadarWebhook(request);
+    }
+    if (url.pathname === "/api/dashboard/public-report" && request.method === "POST") {
+      const user = await getSessionUser(request, env);
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+      return handleUpsertPublicReport(request, env, user);
+    }
+    if (url.pathname.startsWith("/api/public-report/") && request.method === "GET") {
+      const shareId = url.pathname.replace("/api/public-report/", "").split("/")[0];
+      return handleGetPublicReport(shareId, env);
+    }
+
+    // V4 管理员一键触发外链 HTTP/dofollow 验活巡检
+    if (url.pathname === "/api/admin/verify-backlinks" && request.method === "POST") {
+      if (!(await isAdminAuthorized(request, env))) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      const body = (await request.json().catch(() => ({}))) as { customerEmail?: string };
+      const summary = await runBacklinkHealthCheck(env, body.customerEmail || "", 20);
+      await logAdminAudit(env, request, "verify_backlinks", body.customerEmail || "all");
+      return jsonResponse({ ok: true, ...summary });
     }
 
     // V2 在线可视化管理台聚合接口
@@ -1714,7 +1786,7 @@ export default {
 
     if (url.pathname === "/api/scan" && request.method === "POST") {
       if (!checkRateLimit(request, 20)) return jsonResponse({ error: "Rate limit exceeded. Try again in 60s." }, 429);
-      return handleLiveScan(request);
+      return handleDeepLiveScan(request);
     }
     if (url.pathname === "/api/track" && request.method === "POST") {
       if (!checkRateLimit(request, 60)) return jsonResponse({ ok: true, throttled: true }, 429);
@@ -1879,6 +1951,8 @@ export default {
           category?: string;
           status?: "queued" | "submitted" | "live";
           liveBacklinkUrl?: string;
+          proofScreenshotUrl?: string;
+          scheduledWave?: number;
         };
         const email = (body.customerEmail || "").trim().toLowerCase();
         const dirId = (body.directoryId || "").trim();
@@ -1904,6 +1978,17 @@ export default {
             body.liveBacklinkUrl || ""
           )
           .run();
+        if (body.proofScreenshotUrl || body.scheduledWave) {
+          const wave = [1, 2, 3].includes(Number(body.scheduledWave)) ? Number(body.scheduledWave) : 1;
+          await env.DB.prepare(
+            `INSERT INTO directory_health_checks (customer_email, campaign_id, directory_id, scheduled_wave, proof_screenshot_url, updated_at)
+             VALUES (?1, 0, ?2, ?3, ?4, datetime('now'))
+             ON CONFLICT(customer_email, campaign_id, directory_id) DO UPDATE SET
+               scheduled_wave = ?3, proof_screenshot_url = COALESCE(NULLIF(?4, ''), proof_screenshot_url), updated_at = datetime('now')`
+          )
+            .bind(email, dirId, wave, (body.proofScreenshotUrl || "").trim().slice(0, 400))
+            .run();
+        }
         await logAdminAudit(env, request, "directory_update", `${body.slug || email}:${dirId}:${st}`);
         return jsonResponse({ ok: true, directoryId: dirId, status: st });
       } catch {
@@ -1926,6 +2011,21 @@ export default {
       });
     }
 
+    // V4 公开战报洁净短路径（/report/:shareId -> 静态渲染 /report.html）
+    if (/^\/report\/[a-zA-Z0-9-_]+$/.test(url.pathname) && request.method === "GET") {
+      const rewritten = new Request(new URL("/report.html", url.origin).toString(), request);
+      const rptResp = await env.ASSETS.fetch(rewritten);
+      const rptHeaders = new Headers(rptResp.headers);
+      for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
+        if (!rptHeaders.has(k)) rptHeaders.set(k, v);
+      }
+      return new Response(rptResp.body, {
+        status: rptResp.status,
+        statusText: rptResp.statusText,
+        headers: rptHeaders,
+      });
+    }
+
     const assetResp = await env.ASSETS.fetch(request);
     const headers = new Headers(assetResp.headers);
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
@@ -1939,10 +2039,17 @@ export default {
   },
 
   /**
-   * 每日 UTC 13:00 自动为所有 $29/月 Radar Pro 活跃订阅客户抓取最新高意图买家线索并发送日报
+   * 每日 UTC 13:00 自动执行：
+   * 1. 已收录外链 HTTP 200 & dofollow 自动验活巡检
+   * 2. 为所有 $29/月 Radar Pro 活跃订阅客户抓取最新高意图买家线索并发送日报
    */
   async scheduled(_event: unknown, env: Env): Promise<void> {
     if (!env.DB) return;
+    try {
+      await runBacklinkHealthCheck(env, "", 20);
+    } catch {
+      // 单次验活失败不影响买家雷达发送
+    }
     try {
       const subs = await env.DB.prepare(
         `SELECT customer_email, slug, target_url, magic_token FROM customers_orders WHERE plan = 'radar' AND status = 'active' LIMIT 50`

@@ -23,6 +23,30 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     ...auditEntries,
     {
+      url: `${base}/tools/directory-finder`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${base}/tools/llms-txt-generator`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${base}/tools/aeo-checker`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${base}/report/demo-acmeflow`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    {
       url: `${base}/privacy`,
       lastModified: now,
       changeFrequency: "monthly",

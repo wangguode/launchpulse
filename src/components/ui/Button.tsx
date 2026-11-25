@@ -1,10 +1,13 @@
 "use client";
 
 import type { ButtonHTMLAttributes } from "react";
+import { Loader2 } from "lucide-react";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "inverse" | "secondary" | "ghost";
   size?: "sm" | "md" | "lg";
+  loading?: boolean;
+  fullWidth?: boolean;
 }
 
 /**
@@ -13,6 +16,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export default function Button({
   variant = "primary",
   size = "md",
+  loading = false,
+  fullWidth = false,
+  disabled,
   className = "",
   children,
   ...props
@@ -36,8 +42,12 @@ export default function Button({
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-full font-medium transition cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed whitespace-nowrap ${variantCls} ${sizeCls} ${className}`}
+      disabled={disabled || loading}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-full font-medium transition cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed whitespace-nowrap ${variantCls} ${sizeCls} ${
+        fullWidth ? "w-full" : ""
+      } ${className}`}
     >
+      {loading && <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />}
       {children}
     </button>
   );

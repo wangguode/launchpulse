@@ -3,26 +3,40 @@
 import type { Locale } from "@/lib/i18n";
 
 type StatusKind = "live" | "submitted" | "queued" | "active" | "canceled" | "refunded" | "new" | "replied" | "won";
+type ToneKind = "green" | "blue" | "orange" | "red" | "neutral";
 
 export default function StatusBadge({
   status,
   locale = "en",
+  tone,
+  label,
 }: {
-  status: StatusKind | string;
+  status?: StatusKind | string;
   locale?: Locale;
+  tone?: ToneKind;
+  label?: string;
 }) {
-  const s = status.toLowerCase();
+  const s = (status || "").toLowerCase();
   const isZh = locale === "zh";
   const isJa = locale === "ja";
 
-  const dotColor =
-    s === "live" || s === "active" || s === "won"
+  const dotColor = tone
+    ? tone === "green"
+      ? "var(--apple-green-dot)"
+      : tone === "blue"
+        ? "var(--apple-blue)"
+        : tone === "orange"
+          ? "var(--apple-orange-dot)"
+          : tone === "red"
+            ? "var(--apple-red-dot)"
+            : "var(--apple-ink-tertiary)"
+    : s === "live" || s === "active" || s === "won"
       ? "var(--apple-green-dot)"
       : s === "submitted" || s === "replied"
-      ? "var(--apple-orange-dot)"
-      : s === "canceled" || s === "refunded"
-      ? "var(--apple-red-dot)"
-      : "var(--apple-ink-tertiary)";
+        ? "var(--apple-orange-dot)"
+        : s === "canceled" || s === "refunded"
+          ? "var(--apple-red-dot)"
+          : "var(--apple-ink-tertiary)";
 
   const labelsZh: Record<string, string> = {
     live: "已收录",
@@ -58,14 +72,11 @@ export default function StatusBadge({
     won: "Won",
   };
 
-  const text = (isZh ? labelsZh : isJa ? labelsJa : labelsEn)[s] || status;
+  const text = label || (isZh ? labelsZh : isJa ? labelsJa : labelsEn)[s] || status || "";
 
   return (
     <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--apple-ink-secondary)] whitespace-nowrap">
-      <span
-        className="w-1.5 h-1.5 rounded-full shrink-0"
-        style={{ backgroundColor: dotColor }}
-      />
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
       <span>{text}</span>
     </span>
   );

@@ -9,6 +9,7 @@ import LangSwitcher from "@/components/LangSwitcher";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import LiveScannerHero from "@/components/LiveScannerHero";
 import PricingCheckoutButtons from "@/components/PricingCheckoutButtons";
+import { HomeGrowthModules, HomeInteractiveSandbox } from "@/components/HomeInteractiveShowcase";
 import { V2_DICTIONARIES } from "@/lib/v2-i18n";
 
 interface Props {
@@ -45,6 +46,9 @@ export default function HomeClient({ sampleAudits }: Props) {
             <a href="#pricing" className="hover:text-[var(--apple-ink)] transition">
               {t.nav.pricing}
             </a>
+            <Link href="/tools/directory-finder" className="hover:text-[var(--apple-ink)] transition">
+              {isZh ? "免费工具箱" : isJa ? "無料ツール" : "Free Tools"}
+            </Link>
             <Link href="/dashboard?sample=1" className="hover:text-[var(--apple-ink)] transition">
               {v2.nav.dashboard}
             </Link>
@@ -103,118 +107,8 @@ export default function HomeClient({ sampleAudits }: Props) {
             </Link>
           </div>
 
-          {/* Apple 风格 macOS 产品橱窗（让访客 3 秒看清付费后真实交付的控制台与报表） */}
-          <div className="pt-8">
-            <div className="rounded-[24px] border border-[var(--apple-border)] bg-[var(--apple-surface)] shadow-[var(--apple-shadow)] overflow-hidden text-left">
-              <div className="h-10 px-4 border-b border-[var(--apple-border)] bg-[var(--apple-bg-alt)] flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
-                </div>
-                <span className="hidden sm:inline text-[11px] font-mono text-[var(--apple-ink-tertiary)]">
-                  pulse.statementflow.win/dashboard
-                </span>
-                <Link
-                  href="/dashboard?sample=1"
-                  className="text-[11px] text-[var(--apple-blue)] hover:underline font-medium whitespace-nowrap"
-                >
-                  {isZh ? "进入实时体验 ›" : isJa ? "デモを開く ›" : "Open Live Demo ›"}
-                </Link>
-              </div>
-
-              <div className="p-5 sm:p-7 space-y-5">
-                <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-[var(--apple-border)] rounded-[14px] border border-[var(--apple-border)] bg-[var(--apple-bg)] tabular-nums">
-                  {[
-                    {
-                      l: isZh ? "近 30 天导流点击" : isJa ? "30日間クリック" : "30D Referral Clicks",
-                      v: "1,248",
-                    },
-                    {
-                      l: isZh ? "归因注册转化" : isJa ? "登録コンバージョン" : "Verified Signups",
-                      v: "64",
-                    },
-                    {
-                      l: isZh ? "转化率 (CVR)" : "Conversion Rate",
-                      v: "5.1%",
-                      accent: true,
-                    },
-                    {
-                      l: isZh ? "已收录高权重目录" : isJa ? "掲載完了ディレクトリ" : "Live Directories",
-                      v: "38 / 50",
-                    },
-                  ].map((m) => (
-                    <div key={m.l} className="p-4 space-y-1">
-                      <p className="text-[11px] text-[var(--apple-ink-secondary)]">{m.l}</p>
-                      <p
-                        className={`apple-display text-2xl font-semibold ${
-                          m.accent ? "text-[var(--apple-blue)]" : "text-[var(--apple-ink)]"
-                        }`}
-                      >
-                        {m.v}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="md:col-span-2 rounded-[14px] border border-[var(--apple-border)] bg-[var(--apple-bg)] p-4 space-y-2">
-                    <div className="flex items-center justify-between text-[12px]">
-                      <span className="font-semibold text-[var(--apple-ink)]">
-                        {isZh ? "外链与社区引流增长趋势（示例）" : "Distribution Traffic Curve (Sample)"}
-                      </span>
-                      <span className="text-[11px] text-[var(--apple-ink-tertiary)]">30D</span>
-                    </div>
-                    <svg viewBox="0 0 460 95" className="w-full h-24 overflow-visible">
-                      <defs>
-                        <linearGradient id="heroCurveGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--apple-blue)" stopOpacity="0.24" />
-                          <stop offset="100%" stopColor="var(--apple-blue)" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d="M 0,82 L 42,76 L 84,68 L 126,64 L 168,52 L 210,55 L 252,41 L 294,35 L 336,28 L 378,24 L 420,16 L 460,11 L 460,92 L 0,92 Z"
-                        fill="url(#heroCurveGrad)"
-                      />
-                      <path
-                        d="M 0,82 L 42,76 L 84,68 L 126,64 L 168,52 L 210,55 L 252,41 L 294,35 L 336,28 L 378,24 L 420,16 L 460,11"
-                        fill="none"
-                        stroke="var(--apple-blue)"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-
-                  <div className="rounded-[14px] border border-[var(--apple-border)] bg-[var(--apple-bg)] p-4 space-y-2.5 text-[12px]">
-                    <p className="font-semibold text-[var(--apple-ink)]">
-                      {isZh ? "最新收录目录外链" : "Recent Live Backlinks"}
-                    </p>
-                    {[
-                      { name: "AlternativeTo", dr: 82 },
-                      { name: "SaaSHub", dr: 74 },
-                      { name: "Uneed.best", dr: 68 },
-                      { name: "MicroLaunch", dr: 61 },
-                    ].map((d) => (
-                      <div
-                        key={d.name}
-                        className="flex items-center justify-between text-[var(--apple-ink-secondary)]"
-                      >
-                        <span className="inline-flex items-center gap-1.5 text-[var(--apple-ink)]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--apple-green-dot)]" />
-                          {d.name}
-                        </span>
-                        <span className="font-mono text-[11px] text-[var(--apple-ink-tertiary)]">
-                          DR {d.dr}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* V4 4-Tab 交互式真实产品沙盒（零登录可点击体验漏斗 / 100目录验活 / 买家雷达 / AEO 体检） */}
+          <HomeInteractiveSandbox locale={locale} />
         </section>
 
         {/* 2. 真实 80 秒实机拆解样片 */}
@@ -331,6 +225,9 @@ export default function HomeClient({ sampleAudits }: Props) {
             <PricingCheckoutButtons />
           </div>
         </section>
+
+        {/* 5. V4 互动增长引擎（100+ 目录预览墙 + ROI 计算器 + 免费 SEO 工具箱 + FAQ） */}
+        <HomeGrowthModules locale={locale} />
       </main>
 
       <footer className="bg-[var(--apple-bg)] border-t border-[var(--apple-border)] py-8 text-[12px] text-[var(--apple-ink-tertiary)]">
@@ -341,12 +238,18 @@ export default function HomeClient({ sampleAudits }: Props) {
               hello@statementflow.win
             </a>
           </p>
-          <div className="flex flex-wrap items-center gap-6">
+          <div className="flex flex-wrap items-center gap-5">
+            <Link href="/tools/directory-finder" className="hover:text-[var(--apple-ink)] transition">
+              {isZh ? "100+ 目录库" : "100+ Directories"}
+            </Link>
+            <Link href="/tools/llms-txt-generator" className="hover:text-[var(--apple-ink)] transition">
+              llms.txt
+            </Link>
+            <Link href="/tools/aeo-checker" className="hover:text-[var(--apple-ink)] transition">
+              {isZh ? "AEO 体检" : "AEO Check"}
+            </Link>
             <Link href="/dashboard" className="hover:text-[var(--apple-ink)] transition">
               {v2.nav.dashboard}
-            </Link>
-            <Link href="/portal" className="hover:text-[var(--apple-ink)] transition">
-              {t.nav.portal}
             </Link>
             <Link href="/privacy" className="hover:text-[var(--apple-ink)] transition">
               {t.common.privacy}
