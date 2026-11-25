@@ -7,10 +7,6 @@ import WarRoomClient from "@/components/WarRoomClient";
 import { useI18n } from "@/components/I18nProvider";
 import type { StartupAuditReport } from "@/types/audit";
 
-/**
- * 动态战情页入口（/audit/live?s=<slug>）：
- * 直接从 Cloudflare D1 (/api/audit/:slug) 实时拉取报告渲染，新增目标 1 秒上线无需重新 build
- */
 export default function DynamicLiveAuditPage() {
   const { t } = useI18n();
   const [report, setReport] = useState<StartupAuditReport | null>(null);
@@ -44,25 +40,20 @@ export default function DynamicLiveAuditPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#07090d] text-slate-200 flex flex-col items-center justify-center gap-3">
-        <Loader2 className="w-6 h-6 text-emerald-400 animate-spin" />
-        <p className="text-xs font-[family-name:var(--font-mono)] text-slate-400">
-          {t.liveAudit.loadingText}
-        </p>
+      <main className="min-h-screen bg-[var(--apple-bg)] text-[var(--apple-ink-secondary)] flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-5 h-5 text-[var(--apple-blue)] animate-spin" />
+        <p className="text-[13px]">{t.liveAudit.loadingText}</p>
       </main>
     );
   }
 
   if (errorKey || !report) {
     return (
-      <main className="min-h-screen bg-[#07090d] text-slate-200 flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-lg font-semibold text-white">
+      <main className="min-h-screen bg-[var(--apple-bg)] text-[var(--apple-ink)] flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-[17px] font-semibold">
           {errorKey ? t.liveAudit[errorKey] : t.liveAudit.notFound}
         </p>
-        <Link
-          href="/"
-          className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-950 font-semibold text-xs"
-        >
+        <Link href="/" className="px-5 py-2.5 rounded-full lp-btn-primary font-medium text-[13px]">
           {t.common.runFreeScan} →
         </Link>
       </main>

@@ -36,10 +36,19 @@ function loadDirectories() {
   const src = fs.readFileSync(path.join(ROOT, "src/data/directories.ts"), "utf8");
   const rows = [];
   const regex =
-    /\{\s*id:\s*"([^"]+)",\s*name:\s*"([^"]+)",\s*url:\s*"([^"]+)",\s*dr:\s*(\d+),\s*category:\s*"([^"]+)"/g;
+    /\{\s*id:\s*"([^"]+)",\s*name:\s*"([^"]+)",\s*url:\s*"([^"]+)",\s*submitUrl:\s*"([^"]+)",\s*dr:\s*(\d+),\s*category:\s*"([^"]+)",\s*linkType:\s*"([^"]+)",\s*pricing:\s*"([^"]+)"/g;
   let m;
   while ((m = regex.exec(src)) !== null) {
-    rows.push({ id: m[1], name: m[2], url: m[3], dr: Number(m[4]), category: m[5] });
+    rows.push({
+      id: m[1],
+      name: m[2],
+      url: m[3],
+      submitUrl: m[4],
+      dr: Number(m[5]),
+      category: m[6],
+      linkType: m[7],
+      pricing: m[8],
+    });
   }
   return rows;
 }
@@ -109,27 +118,37 @@ async function main() {
   console.log(`   Queue    : ${queue.length} directories (${doneSet.size}/${allDirs.length} already done)\n`);
 
   if (dryRun || queue.length === 0) {
-    for (const d of queue) console.log(`   - [DR ${d.dr}] ${d.name} (${d.url})`);
+    for (const d of queue) {
+      console.log(`   - [DR ${d.dr} | ${d.linkType}/${d.pricing}] ${d.name} -> ${d.submitUrl}`);
+    }
     console.log(dryRun ? "\n✅ Dry-run complete." : "\n✅ All directories already processed!");
     return;
   }
 
   let chromium;
   try {
-    ({ chromium } = await import("playwright"));
+    ({ chromium } = await import("playwright-core"));
   } catch {
-    console.error("❌ Playwright is not installed in this Node path. Install via: npm i -D playwright");
+    console.error("❌ playwright-core is not installed. Run: npm install");
     process.exit(1);
   }
 
-  const browser = await chromium.launch({ headless: false });
+  const chromePath =
+    process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+  const launchOpts = { headless: false };
+  if (fs.existsSync(chromePath)) {
+    launchOpts.executablePath = chromePath;
+  }
+
+  const browser = await chromium.launch(launchOpts);
   const context = await browser.newContext({ viewport: { width: 1360, height: 900 } });
   const page = await context.newPage();
 
   for (const dir of queue) {
-    console.log(`\n🌐 Opening [DR ${dir.dr}] ${dir.name} -> ${dir.url}`);
+    const targetOpenUrl = dir.submitUrl || dir.url;
+    console.log(`\n🌐 Opening [DR ${dir.dr} | ${dir.linkType}] ${dir.name} -> ${targetOpenUrl}`);
     try {
-      await page.goto(dir.url, { waitUntil: "domcontentloaded", timeout: 25000 });
+      await page.goto(targetOpenUrl, { waitUntil: "domcontentloaded", timeout: 25000 });
       // 智能预填常见表单字段（不自动提交，留给运营人工复核并点击）
       await page.evaluate(
         ({ name, url, tagline, email }) => {

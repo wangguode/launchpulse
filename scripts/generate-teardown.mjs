@@ -182,12 +182,14 @@ const PRESET_TARGETS = [
  */
 function decodeHtmlEntities(str = "") {
   return str
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;/g, "'")
-    .replace(/&#39;/g, "'")
+    .replace(/&#x2F;|&#x2f;|&#47;/g, "/")
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&quot;|&#34;/g, '"')
     .replace(/&amp;/g, "&")
     .replace(/&gt;/g, ">")
     .replace(/&lt;/g, "<")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -533,14 +535,29 @@ async function fetchRealBuyerLeads(browser, target) {
   const collected = [];
   const seenUrls = new Set();
 
-  // 1. Hacker News Algolia 按相关性精准检索（强制剔除 Show HN 竞品自推帖 / [dead] / 招聘帖，且严格限定近 45 天内！）
-  const cutoffSec = Math.floor(Date.now() / 1000) - 45 * 86400;
-  const noiseRe = /^show hn:|^\[dead\]|^\[flagged\]|who is hiring|who wants to be hired|freelancer\?/i;
+  // 1. Hacker News Algolia 按相关性精准检索（双条件校验：主题词强命中 + 痛点/工具意图 + 屏蔽噪音贴，严格限定近 60 天内）
+  const cutoffSec = Math.floor(Date.now() / 1000) - 60 * 86400;
+  const noiseRe =
+    /^show hn:|^tell hn:|^\[dead\]|^\[flagged\]|who is hiring|who wants to be hired|what are you working on|freelancer\?/i;
+  const intentRe =
+    /\b(expir\w*|outage|downtime|renew\w*|alert\w*|monitor\w*|looking for|recommend\w*|alternative\w*|wish|tool\w*|script\w*|automat\w*|worktree|parallel|rate limit|multiple accounts|switch accounts|anatomy|3d body|webgl|pain|broken|failed)\b/i;
+
+  // 从目标查询词中提取核心领域关键词，确保每条线索必须实质性命中领域关键词（避免 UltraSMR 等无关帖子混入）
+  const domainTerms = Array.from(
+    new Set(
+      (target.searchQueries.hn || [])
+        .join(" ")
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((w) => w.length >= 3 && !["the", "for", "and", "with", "app", "two"].includes(w))
+    )
+  );
+
   for (const q of target.searchQueries.hn) {
     try {
       const u = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(
         q
-      )}&tags=comment&numericFilters=created_at_i>${cutoffSec}&hitsPerPage=12`;
+      )}&tags=(story,comment)&numericFilters=created_at_i>${cutoffSec}&hitsPerPage=18`;
       const res = await fetch(u);
       if (res.ok) {
         const data = await res.json();
@@ -550,18 +567,18 @@ async function fetchRealBuyerLeads(browser, target) {
           const storyTitle = decodeHtmlEntities(h.story_title || h.title || "");
           if (!storyTitle || noiseRe.test(storyTitle)) continue;
           const cleanText = decodeHtmlEntities(h.comment_text || h.story_text || storyTitle);
-          if (cleanText.length < 40) continue;
-          // 排除目标产品自己的 Show HN 帖子
-          if (storyTitle.toLowerCase().includes(target.productName.toLowerCase())) {
-            continue;
-          }
+          if (cleanText.length < 45) continue;
+          if (storyTitle.toLowerCase().includes(target.productName.toLowerCase())) continue;
+
+          const combinedLower = `${storyTitle} ${cleanText}`.toLowerCase();
+          const matchedDomainCount = domainTerms.filter((t) => combinedLower.includes(t)).length;
+          // 必须命中至少 2 个领域词（或标题命中领域词）且包含真实痛点/工具诉求词
+          const titleHitsDomain = domainTerms.some((t) => storyTitle.toLowerCase().includes(t));
+          if (matchedDomainCount < 2 && !titleHitsDomain) continue;
+          if (!intentRe.test(combinedLower)) continue;
+
           seenUrls.add(itemUrl);
-          const intentBoost =
-            /\b(expired|outage|looking for|wish|tool|alert|monitor|manage|parallel|worktree|diff|hard|pain|alternative)\b/i.test(
-              `${storyTitle} ${cleanText}`
-            )
-              ? 95
-              : 87;
+          const intentBoost = titleHitsDomain && matchedDomainCount >= 2 ? 96 : 91;
           collected.push({
             id: `hn-${h.objectID}`,
             source: "Hacker News",

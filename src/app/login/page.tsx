@@ -3,15 +3,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useI18n } from "@/components/I18nProvider";
 import BrandMark from "@/components/BrandMark";
 import LangSwitcher from "@/components/LangSwitcher";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import Button from "@/components/ui/Button";
 import { V2_DICTIONARIES } from "@/lib/v2-i18n";
 
 export default function LoginPage() {
-  const { locale, t } = useI18n();
+  const { locale } = useI18n();
   const v2 = V2_DICTIONARIES[locale];
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("register");
@@ -67,7 +68,9 @@ export default function LoginPage() {
             <span>LaunchPulse</span>
           </Link>
           <div className="flex items-center gap-2">
-            <ThemeSwitcher />
+            <div className="hidden sm:block">
+              <ThemeSwitcher />
+            </div>
             <LangSwitcher />
           </div>
         </div>
@@ -87,7 +90,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Apple 分段切换器 */}
           <div className="grid grid-cols-2 rounded-lg bg-[var(--apple-bg-alt)] border border-[var(--apple-border)] p-0.5 text-[13px]">
             <button
               type="button"
@@ -130,7 +132,7 @@ export default function LoginPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={v2.auth.namePlaceholder}
-                  className="w-full rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[16px] sm:text-[14px] text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
+                  className="w-full rounded-[10px] border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[16px] sm:text-[14px] text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
                 />
               </div>
             )}
@@ -145,7 +147,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={v2.auth.emailPlaceholder}
-                className="w-full rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[16px] sm:text-[14px] text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
+                className="w-full rounded-[10px] border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[16px] sm:text-[14px] text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
               />
             </div>
 
@@ -160,17 +162,13 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={v2.auth.passwordPlaceholder}
-                className="w-full rounded-xl border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[16px] sm:text-[14px] text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
+                className="w-full rounded-[10px] border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2.5 text-[16px] sm:text-[14px] text-[var(--apple-ink)] focus:border-[var(--apple-blue)] focus:outline-none"
               />
             </div>
 
             {error && <p className="text-[12px] text-[var(--apple-red)]">{error}</p>}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white font-medium text-[14px] transition inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
-            >
+            <Button type="submit" disabled={loading} className="w-full" size="md">
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" /> {v2.auth.submitting}
@@ -180,15 +178,12 @@ export default function LoginPage() {
               ) : (
                 v2.auth.registerBtn
               )}
-            </button>
+            </Button>
           </form>
 
           <div className="pt-4 border-t border-[var(--apple-border)] text-center space-y-1 text-[12px] text-[var(--apple-ink-secondary)]">
             <p>{v2.auth.portalHint}</p>
-            <Link
-              href="/portal"
-              className="inline-flex items-center gap-0.5 text-[var(--apple-blue)] hover:underline"
-            >
+            <Link href="/portal" className="text-[var(--apple-blue)] hover:underline">
               {v2.auth.portalLink}
             </Link>
           </div>

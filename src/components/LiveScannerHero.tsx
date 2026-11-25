@@ -107,7 +107,7 @@ export default function LiveScannerHero() {
         <button
           type="submit"
           disabled={scanning}
-          className="px-6 py-2.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white font-medium text-[14px] transition inline-flex items-center justify-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-60"
+          className="px-6 py-2.5 rounded-full lp-btn-primary font-medium text-[14px] transition inline-flex items-center justify-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-60 min-h-[42px]"
         >
           {scanning ? (
             <>
@@ -246,7 +246,7 @@ export default function LiveScannerHero() {
               <button
                 onClick={() => triggerCheckout("radar", result.origin)}
                 disabled={checkoutLoading !== null}
-                className="px-4 py-2 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white text-[13px] font-medium cursor-pointer transition"
+                className="px-4 py-2 rounded-full lp-btn-primary text-[13px] font-medium cursor-pointer transition"
               >
                 {checkoutLoading === "radar" ? t.common.loading : t.scanner.startRadarBtn}
               </button>

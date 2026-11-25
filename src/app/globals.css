@@ -1,10 +1,11 @@
 @import "tailwindcss";
 
 /* =====================================================================
- * LaunchPulse × Apple Official Design System (Light & Dark & System)
+ * LaunchPulse V3 纯净 Apple Official × Apple HIG 双主题设计系统
  * ---------------------------------------------------------------------
- * Light: #fbfbfd 画布 / #f5f5f7 区块 / #ffffff 卡片 / #1d1d1f 主墨色 / #0071e3 Apple Blue
- * Dark : #000000 画布 / #161617 侧栏 / #1d1d1f 卡片 / #f5f5f7 主文字 / #2997ff Apple Blue
+ * 原则：零强制覆盖补丁，全站 100% 原生消费语义变量
+ * Light: #fbfbfd 画布 / #f5f5f7 侧栏与交替通栏 / #ffffff 卡片 / #1d1d1f 主墨色 / #0071e3 苹果蓝
+ * Dark : #000000 画布 / #161617 侧栏与交替通栏 / #1c1c1e 卡片 / #f5f5f7 主文字 / #2997ff 苹果蓝
  * ===================================================================== */
 :root,
 html[data-theme="light"] {
@@ -12,26 +13,38 @@ html[data-theme="light"] {
   --apple-bg: #fbfbfd;
   --apple-bg-alt: #f5f5f7;
   --apple-surface: #ffffff;
-  --apple-surface-elevated: #ffffff;
-  --apple-glass: rgba(251, 251, 253, 0.78);
-  --apple-border: rgba(0, 0, 0, 0.08);
+  --apple-surface-raised: #ffffff;
+  --apple-glass: rgba(251, 251, 253, 0.82);
+  --apple-border: rgba(0, 0, 0, 0.085);
   --apple-border-strong: rgba(0, 0, 0, 0.16);
   --apple-ink: #1d1d1f;
   --apple-ink-secondary: #6e6e73;
   --apple-ink-tertiary: #86868b;
   --apple-blue: #0071e3;
   --apple-blue-hover: #0077ed;
-  --apple-blue-soft: rgba(0, 113, 227, 0.1);
-  --apple-green: #248a3d;
+  --apple-blue-soft: rgba(0, 113, 227, 0.09);
+  --apple-green: #1e7e34;
   --apple-green-dot: #34c759;
-  --apple-orange: #c93400;
+  --apple-green-soft: rgba(52, 199, 89, 0.12);
+  --apple-orange: #b25000;
   --apple-orange-dot: #ff9500;
-  --apple-red: #d70015;
+  --apple-orange-soft: rgba(255, 149, 0, 0.12);
+  --apple-red: #c41e3a;
+  --apple-red-dot: #ff3b30;
+  --apple-red-soft: rgba(255, 59, 48, 0.1);
   --apple-hover: rgba(0, 0, 0, 0.04);
   --apple-active: rgba(0, 0, 0, 0.075);
-  --apple-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  --apple-shadow: 0 2px 14px rgba(0, 0, 0, 0.045);
 
-  /* 同步映射到控制台语义变量 */
+  /* 显式按钮对比度契约（绝不被文本类污染，WCAG AA >= 4.6:1） */
+  --btn-primary-bg: #0071e3;
+  --btn-primary-hover: #0077ed;
+  --btn-primary-fg: #ffffff;
+  --btn-inverse-bg: #1d1d1f;
+  --btn-inverse-hover: #323236;
+  --btn-inverse-fg: #ffffff;
+
+  /* 兼容 ThemeSwitcher / LangSwitcher 共享变量 */
   --app-canvas: var(--apple-bg);
   --app-sidebar: var(--apple-bg-alt);
   --app-surface: var(--apple-surface);
@@ -50,9 +63,9 @@ html[data-theme="dark"] {
   color-scheme: dark;
   --apple-bg: #000000;
   --apple-bg-alt: #161617;
-  --apple-surface: #1d1d1f;
-  --apple-surface-elevated: #242426;
-  --apple-glass: rgba(22, 22, 23, 0.8);
+  --apple-surface: #1c1c1e;
+  --apple-surface-raised: #242426;
+  --apple-glass: rgba(22, 22, 23, 0.82);
   --apple-border: rgba(255, 255, 255, 0.11);
   --apple-border-strong: rgba(255, 255, 255, 0.2);
   --apple-ink: #f5f5f7;
@@ -60,15 +73,27 @@ html[data-theme="dark"] {
   --apple-ink-tertiary: #86868b;
   --apple-blue: #2997ff;
   --apple-blue-hover: #47a6ff;
-  --apple-blue-soft: rgba(41, 151, 255, 0.15);
+  --apple-blue-soft: rgba(41, 151, 255, 0.16);
   --apple-green: #30d158;
   --apple-green-dot: #30d158;
+  --apple-green-soft: rgba(48, 209, 88, 0.15);
   --apple-orange: #ff9f0a;
   --apple-orange-dot: #ff9f0a;
-  --apple-red: #ff453a;
+  --apple-orange-soft: rgba(255, 159, 10, 0.15);
+  --apple-red: #ff6961;
+  --apple-red-dot: #ff453a;
+  --apple-red-soft: rgba(255, 69, 58, 0.15);
   --apple-hover: rgba(255, 255, 255, 0.06);
   --apple-active: rgba(255, 255, 255, 0.11);
-  --apple-shadow: 0 2px 16px rgba(0, 0, 0, 0.35);
+  --apple-shadow: 0 4px 20px rgba(0, 0, 0, 0.42);
+
+  /* 暗色模式下蓝底按钮同样保持高对比纯白文字 */
+  --btn-primary-bg: #0071e3;
+  --btn-primary-hover: #0077ed;
+  --btn-primary-fg: #ffffff;
+  --btn-inverse-bg: #f5f5f7;
+  --btn-inverse-hover: #e5e5ea;
+  --btn-inverse-fg: #1d1d1f;
 
   --app-canvas: var(--apple-bg);
   --app-sidebar: var(--apple-bg-alt);
@@ -121,6 +146,7 @@ html[lang="ja"] .apple-display {
   font-variant-numeric: tabular-nums;
 }
 
+/* 彻底关闭代码连字，防止 <!-- / --> 渲染为异形箭头 */
 code,
 pre,
 input[class*="font-mono"] {
@@ -128,78 +154,19 @@ input[class*="font-mono"] {
   font-feature-settings: "liga" 0, "calt" 0;
 }
 
-/* 兼容未单独改写的战情页与法律页：干净映射为 Apple 双主题变量 */
-.obsidian-grid {
-  background-color: var(--apple-bg);
-  background-image: none;
+/* 显式高对比度按钮基类 */
+.lp-btn-primary {
+  background-color: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+}
+.lp-btn-primary:hover {
+  background-color: var(--btn-primary-hover);
 }
 
-html[data-theme="light"] .bg-\[\#07090d\],
-html[data-theme="light"] .bg-\[\#07090d\]\/90,
-html[data-theme="light"] .bg-\[\#07090d\]\/85 {
-  background-color: var(--apple-glass) !important;
+.lp-btn-inverse {
+  background-color: var(--btn-inverse-bg);
+  color: var(--btn-inverse-fg);
 }
-
-html[data-theme="light"] .bg-\[\#0c1018\],
-html[data-theme="light"] .bg-\[\#0c111b\],
-html[data-theme="light"] .bg-\[\#0c121c\],
-html[data-theme="light"] .bg-\[\#0c131d\],
-html[data-theme="light"] .bg-\[\#0c141d\],
-html[data-theme="light"] .bg-\[\#0c1520\],
-html[data-theme="light"] .bg-\[\#0b1018\],
-html[data-theme="light"] .bg-\[\#0b1019\],
-html[data-theme="light"] .bg-\[\#0d111a\],
-html[data-theme="light"] .bg-\[\#0d121c\],
-html[data-theme="light"] .bg-\[\#0d1520\],
-html[data-theme="light"] .bg-\[\#0f1521\],
-html[data-theme="light"] .bg-\[\#101622\],
-html[data-theme="light"] .bg-\[\#0f1724\]\/95 {
-  background-color: var(--apple-surface) !important;
-}
-
-html[data-theme="light"] .bg-black\/30,
-html[data-theme="light"] .bg-black\/35,
-html[data-theme="light"] .bg-black\/40,
-html[data-theme="light"] .bg-black\/50,
-html[data-theme="light"] .bg-black\/60,
-html[data-theme="light"] .bg-\[\#080b12\],
-html[data-theme="light"] .bg-\[\#070a10\],
-html[data-theme="light"] .bg-white\/\[0\.03\],
-html[data-theme="light"] .bg-white\/\[0\.04\],
-html[data-theme="light"] .bg-white\/5,
-html[data-theme="light"] .bg-white\/10 {
-  background-color: var(--apple-bg-alt) !important;
-}
-
-html[data-theme="light"] .border-white\/5,
-html[data-theme="light"] .border-white\/10,
-html[data-theme="light"] .border-white\/12,
-html[data-theme="light"] .border-white\/15,
-html[data-theme="light"] .border-white\/20 {
-  border-color: var(--apple-border) !important;
-}
-
-html[data-theme="light"] .text-white,
-html[data-theme="light"] .text-slate-100,
-html[data-theme="light"] .text-slate-200 {
-  color: var(--apple-ink) !important;
-}
-
-html[data-theme="light"] .text-slate-300,
-html[data-theme="light"] .text-slate-400 {
-  color: var(--apple-ink-secondary) !important;
-}
-
-html[data-theme="light"] .text-slate-500 {
-  color: var(--apple-ink-tertiary) !important;
-}
-
-html[data-theme="light"] .text-emerald-300,
-html[data-theme="light"] .text-emerald-400 {
-  color: var(--apple-blue) !important;
-}
-
-html[data-theme="light"] .bg-emerald-500 {
-  background-color: var(--apple-blue) !important;
-  color: #ffffff !important;
+.lp-btn-inverse:hover {
+  background-color: var(--btn-inverse-hover);
 }

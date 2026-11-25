@@ -327,8 +327,14 @@ async function handleLiveScan(request: Request): Promise<Response> {
       const hnRes = await fetch(
         `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(
           queryTerm
-        )}&tags=comment&numericFilters=created_at_i>${since45d}&hitsPerPage=15`
+        )}&tags=comment&numericFilters=created_at_i>${since45d}&hitsPerPage=25`
       );
+      const intentRegex =
+        /\b(looking for|recommend|alternative|monitor|alert|expir|outage|problem|issue|broken|tool|switch|replace|better than|pain|frustrat|help|manage|automat|renew)\b/i;
+      const coreTokens = queryTerm
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length >= 3);
       if (hnRes.ok) {
         const hnData = (await hnRes.json()) as {
           hits?: Array<{
@@ -339,19 +345,32 @@ async function handleLiveScan(request: Request): Promise<Response> {
             comment_text?: string;
           }>;
         };
+        const seenScanTitles = new Set<string>();
         for (const hit of hnData.hits || []) {
           const st = cleanEntities(hit.story_title || "");
-          if (/^show hn:/i.test(st) || /^\[dead\]/i.test(st) || /who is hiring|who wants to be hired/i.test(st)) {
+          if (
+            !st ||
+            /^show hn:/i.test(st) ||
+            /^\[dead\]/i.test(st) ||
+            /who is hiring|who wants to be hired|what are you working on/i.test(st)
+          ) {
             continue;
           }
+          const titleKey = st.toLowerCase();
+          if (seenScanTitles.has(titleKey)) continue;
           const excerpt = cleanEntities(hit.comment_text || "");
-          if (excerpt.length < 40) continue;
+          if (excerpt.length < 45) continue;
+          const combined = `${st} ${excerpt}`.toLowerCase();
+          const hasTopic = coreTokens.length === 0 || coreTokens.some((tok) => combined.includes(tok));
+          const hasIntent = intentRegex.test(combined);
+          if (!hasTopic || !hasIntent) continue;
+          seenScanTitles.add(titleKey);
           leads.push({
             source: "Hacker News",
             author: `@${hit.author || "dev"}`,
             postedAt: (hit.created_at || "").slice(0, 10),
             title: st || "Developer thread",
-            excerpt: excerpt.slice(0, 150) + (excerpt.length > 150 ? "..." : ""),
+            excerpt: excerpt.slice(0, 160) + (excerpt.length > 160 ? "..." : ""),
             url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
             unlocked: leads.length < 3,
           });
@@ -1362,12 +1381,198 @@ async function handlePixelConversion(request: Request, env: Env): Promise<Respon
 }
 
 /**
- * 在线可视化管理台聚合接口（受 ADMIN_API_KEY 保护）
+ * V3 服务端 HttpOnly Admin 会话鉴权（兼容 CLI 的 x-admin-key 与网页端的 HttpOnly lp_admin Cookie）
+ */
+async function signAdminCookieValue(secret: string, expMs: number): Promise<string> {
+  const payload = `admin:${expMs}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
+  return `${expMs}.${bytesToHex(sig)}`;
+}
+
+async function isAdminAuthorized(request: Request, env: Env): Promise<boolean> {
+  const adminKey = env.ADMIN_API_KEY?.trim();
+  if (!adminKey) return false;
+  // 1. CLI / 自动化脚本头鉴权
+  const headerKey = (request.headers.get("x-admin-key") || "").trim();
+  if (headerKey && timingSafeEqualHex(headerKey, adminKey)) return true;
+  // 2. 网页端 HttpOnly 签名 Cookie 鉴权（绝不将密钥明文存前端 storage）
+  const cookies = parseCookies(request);
+  const raw = cookies.lp_admin || "";
+  const dot = raw.indexOf(".");
+  if (dot <= 0) return false;
+  const expMs = Number(raw.slice(0, dot));
+  const sigHex = raw.slice(dot + 1);
+  if (!Number.isFinite(expMs) || expMs < Date.now()) return false;
+  const expected = await signAdminCookieValue(adminKey, expMs);
+  return timingSafeEqualHex(`${expMs}.${sigHex}`, expected);
+}
+
+async function handleAdminLogin(request: Request, env: Env): Promise<Response> {
+  const adminKey = env.ADMIN_API_KEY?.trim();
+  if (!adminKey) return jsonResponse({ error: "Admin auth unavailable" }, 503);
+  try {
+    const body = (await request.json()) as { key?: string };
+    const provided = (body.key || "").trim();
+    if (!provided || !timingSafeEqualHex(provided, adminKey)) {
+      return jsonResponse({ error: "Invalid administrator key." }, 401);
+    }
+    const expMs = Date.now() + 7 * 86400 * 1000;
+    const cookieVal = await signAdminCookieValue(adminKey, expMs);
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Set-Cookie": `lp_admin=${encodeURIComponent(cookieVal)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${7 * 86400}`,
+        ...SECURITY_HEADERS,
+      },
+    });
+  } catch {
+    return jsonResponse({ error: "Invalid login payload" }, 400);
+  }
+}
+
+function handleAdminLogout(): Response {
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Set-Cookie": "lp_admin=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
+      ...SECURITY_HEADERS,
+    },
+  });
+}
+
+/**
+ * V3 免密 Magic Token 无缝换取标准 /dashboard 会话（彻底消灭 /portal 与 /dashboard 双轨割裂）
+ */
+async function handleMagicExchange(request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+  try {
+    const body = (await request.json()) as { token?: string };
+    const token = (body.token || "").trim();
+    if (!token) return jsonResponse({ error: "Missing Magic Token" }, 400);
+
+    const order = await env.DB.prepare(
+      `SELECT order_id, customer_email, slug, target_url, plan, token_expires_at
+       FROM customers_orders WHERE magic_token = ?1 AND status = 'active' LIMIT 1`
+    )
+      .bind(token)
+      .first<{
+        order_id: string;
+        customer_email: string;
+        slug: string;
+        target_url: string;
+        plan: string;
+        token_expires_at?: string;
+      }>();
+
+    const isExpired =
+      Boolean(order?.token_expires_at) && new Date(order!.token_expires_at!).getTime() < Date.now();
+    if (!order || isExpired) {
+      return jsonResponse(
+        { error: "Invalid or expired Magic Link. Enter your checkout email to request a new one." },
+        401
+      );
+    }
+
+    const email = order.customer_email.toLowerCase().trim();
+    let user = await env.DB.prepare(`SELECT id, email, name, role FROM users WHERE email = ?1 LIMIT 1`)
+      .bind(email)
+      .first<{ id: number; email: string; name: string; role: string }>();
+
+    if (!user) {
+      const randPass = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+      const { hash, salt } = await hashPassword(randPass);
+      const displayName = email.split("@")[0];
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO users (email, name, password_hash, password_salt, role) VALUES (?1, ?2, ?3, ?4, 'customer')`
+      )
+        .bind(email, displayName, hash, salt)
+        .run();
+      user = await env.DB.prepare(`SELECT id, email, name, role FROM users WHERE email = ?1 LIMIT 1`)
+        .bind(email)
+        .first<{ id: number; email: string; name: string; role: string }>();
+    }
+    if (!user) return jsonResponse({ error: "Unable to initialize workspace account." }, 500);
+
+    // 若订单自带 target_url / slug 且用户尚未建项目，自动建档并生成 3 条追踪短链
+    if (order.target_url) {
+      const parsed = parseSafePublicHttpsUrl(order.target_url);
+      if (parsed) {
+        const slug =
+          (order.slug || parsed.hostname.replace(/^www\./, "").split(".")[0])
+            .toLowerCase()
+            .replace(/[^a-z0-9-]/g, "") || "project";
+        const productName = parsed.hostname.replace(/^www\./, "");
+        await env.DB.prepare(
+          `INSERT OR IGNORE INTO campaigns (user_email, slug, product_name, target_url, status)
+           VALUES (?1, ?2, ?3, ?4, 'active')`
+        )
+          .bind(email, slug, productName, parsed.origin)
+          .run();
+        const camp = await env.DB.prepare(
+          `SELECT id, target_url FROM campaigns WHERE user_email = ?1 AND slug = ?2 LIMIT 1`
+        )
+          .bind(email, slug)
+          .first<{ id: number; target_url: string }>();
+        if (camp) {
+          const cntRow = await env.DB.prepare(
+            `SELECT COUNT(*) as cnt FROM tracking_links WHERE campaign_id = ?1`
+          )
+            .bind(camp.id)
+            .first<{ cnt: number }>();
+          if (!cntRow || Number(cntRow.cnt) === 0) {
+            for (const d of [
+              { channel: "directory", label: "50+ Directory Distribution" },
+              { channel: "community", label: "HN / Reddit Buyer Replies" },
+              { channel: "seo", label: "Competitor /vs/ & /llms.txt" },
+            ]) {
+              const code = randomShortCode(`${slug.slice(0, 4)}${d.channel[0]}`);
+              await env.DB.prepare(
+                `INSERT OR IGNORE INTO tracking_links (code, campaign_id, user_email, channel, label, destination_url)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+              )
+                .bind(code, camp.id, email, d.channel, d.label, camp.target_url)
+                .run();
+            }
+          }
+        }
+      }
+    }
+
+    const sessionToken = bytesToHex(crypto.getRandomValues(new Uint8Array(24)));
+    const expiresAt = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
+    await env.DB.prepare(
+      `INSERT INTO sessions (token, user_id, email, expires_at) VALUES (?1, ?2, ?3, ?4)`
+    )
+      .bind(sessionToken, user.id, user.email, expiresAt)
+      .run();
+
+    return new Response(JSON.stringify({ ok: true, user, redirectTo: "/dashboard" }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Set-Cookie": makeSessionCookie(sessionToken),
+        ...SECURITY_HEADERS,
+      },
+    });
+  } catch {
+    return jsonResponse({ error: "Invalid magic link exchange" }, 400);
+  }
+}
+
+/**
+ * 在线可视化管理台聚合接口（支持 HttpOnly Admin Cookie 或 x-admin-key）
  */
 async function handleAdminDashboard(request: Request, env: Env): Promise<Response> {
-  const adminKey = env.ADMIN_API_KEY?.trim();
-  const provided = request.headers.get("x-admin-key") || "";
-  if (!adminKey || !provided || !timingSafeEqualHex(provided, adminKey)) {
+  if (!(await isAdminAuthorized(request, env))) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
   if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
@@ -1462,7 +1667,7 @@ export default {
       return handlePixelConversion(request, env);
     }
 
-    // V2 注册登录认证接口
+    // V2 注册登录认证接口（含 V3 Magic Link 无缝换取 Session + Admin HttpOnly 登录）
     if (url.pathname === "/api/auth/register" && request.method === "POST") {
       if (!checkRateLimit(request, 10)) return jsonResponse({ error: "Too many attempts." }, 429);
       return handleAuthRegister(request, env);
@@ -1471,12 +1676,23 @@ export default {
       if (!checkRateLimit(request, 15)) return jsonResponse({ error: "Too many login attempts." }, 429);
       return handleAuthLogin(request, env);
     }
+    if (url.pathname === "/api/auth/magic-exchange" && request.method === "POST") {
+      if (!checkRateLimit(request, 15)) return jsonResponse({ error: "Too many attempts." }, 429);
+      return handleMagicExchange(request, env);
+    }
     if (url.pathname === "/api/auth/logout" && request.method === "POST") {
       return handleAuthLogout(request, env);
     }
     if (url.pathname === "/api/auth/me" && request.method === "GET") {
       const user = await getSessionUser(request, env);
       return jsonResponse({ authenticated: Boolean(user), user });
+    }
+    if (url.pathname === "/api/admin/login" && request.method === "POST") {
+      if (!checkRateLimit(request, 10)) return jsonResponse({ error: "Too many attempts." }, 429);
+      return handleAdminLogin(request, env);
+    }
+    if (url.pathname === "/api/admin/logout" && request.method === "POST") {
+      return handleAdminLogout();
     }
 
     // V2 客户控制台聚合与推广项目管理接口
@@ -1646,11 +1862,9 @@ export default {
       }
     }
 
-    // 管理员回填客户真实目录外链收录结果接口（受 ADMIN_API_KEY 保护）
+    // 管理员回填客户真实目录外链收录结果接口（支持 HttpOnly Admin Cookie 或 x-admin-key）
     if (url.pathname === "/api/admin/directory-update" && request.method === "POST") {
-      const adminKey = env.ADMIN_API_KEY?.trim();
-      const provided = request.headers.get("x-admin-key") || "";
-      if (!adminKey || !provided || !timingSafeEqualHex(provided, adminKey)) {
+      if (!(await isAdminAuthorized(request, env))) {
         return jsonResponse({ error: "Unauthorized" }, 401);
       }
       if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);

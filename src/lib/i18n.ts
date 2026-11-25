@@ -356,7 +356,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       fixDesc:
         "Our growth specialists hand-submit your SaaS to 50+ vetted high-DR directories — zero spam bots, real backlinks & referral traffic.",
       fixF1: "Submissions to 50+ AI & SaaS directories (DR 45–91)",
-      fixF2: "Live backlink proof tracker & CSV report in /portal",
+      fixF2: "Live backlink proof tracker & CSV report in /dashboard",
       fixF3: "Saves 15+ hours of tedious directory form-filling",
       fixF4Prefix: "Free Bonus:",
       fixF4Text: "Custom /llms.txt + SEO & Cursor fix prompts",
@@ -627,7 +627,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       fixPeriod: "一次性买断",
       fixDesc: "由增长专员人工逐站将你的 SaaS 精选提交至 50+ 海外高权重目录，拒绝垃圾群发，稳拿真实外链与精准推荐流量。",
       fixF1: "提交至 50+ 海外高权重 AI/SaaS 目录（DR 45–91）",
-      fixF2: "/portal 工作台实时外链进度追踪 + CSV 回执导出",
+      fixF2: "控制台实时外链收录进度追踪 + CSV 回执导出",
       fixF3: "替你省下 15+ 小时枯燥重复的目录填表时间",
       fixF4Prefix: "免费附赠：",
       fixF4Text: "专属 /llms.txt 清单 + 全套 SEO 与 Cursor 修复指令",
@@ -894,7 +894,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       fixDesc:
         "専任スタッフが50以上の厳選高DR海外ディレクトリへ1件ずつ丁寧に手動掲載申請。スパム一切なしで確かな被リンクと流入を獲得します。",
       fixF1: "50+ の海外有力 AI / SaaS ディレクトリへ掲載（DR 45–91）",
-      fixF2: "/portal でリアルタイム被リンク進捗確認＆CSV出力",
+      fixF2: "ダッシュボードで被リンク進捗確認＆CSV出力",
       fixF3: "15時間以上の煩雑なディレクトリ入力作業を削減",
       fixF4Prefix: "無料特典：",
       fixF4Text: "専用 /llms.txt ＋ SEO・Cursor 改善プロンプト一式",

@@ -124,7 +124,7 @@ export default function PricingCheckoutButtons() {
           <button
             onClick={() => startCheckout("blitz")}
             disabled={loading !== null}
-            className="mt-8 w-full py-2.5 rounded-full bg-[var(--apple-ink)] hover:opacity-90 text-[var(--apple-bg)] font-medium text-[14px] transition cursor-pointer disabled:opacity-60"
+            className="mt-8 w-full py-2.5 rounded-full lp-btn-inverse font-medium text-[14px] transition cursor-pointer disabled:opacity-60 min-h-[42px]"
           >
             {loading === "blitz" ? t.pricing.loadingCheckout : t.pricing.fixBtn}
           </button>
@@ -132,7 +132,7 @@ export default function PricingCheckoutButtons() {
 
         {/* Tier 3: $29/mo Buyer Radar Pro */}
         <div className="rounded-[24px] border-2 border-[var(--apple-blue)] bg-[var(--apple-surface)] p-8 flex flex-col justify-between relative shadow-[var(--apple-shadow)]">
-          <span className="absolute -top-3 right-7 px-3 py-0.5 rounded-full bg-[var(--apple-blue)] text-white text-[11px] font-medium">
+          <span className="absolute -top-3 right-7 px-3 py-0.5 rounded-full lp-btn-primary text-[11px] font-medium">
             {t.pricing.radarBadge}
           </span>
 
@@ -168,7 +168,7 @@ export default function PricingCheckoutButtons() {
           <button
             onClick={() => startCheckout("radar")}
             disabled={loading !== null}
-            className="mt-8 w-full py-2.5 rounded-full bg-[var(--apple-blue)] hover:bg-[var(--apple-blue-hover)] text-white font-medium text-[14px] transition cursor-pointer disabled:opacity-60"
+            className="mt-8 w-full py-2.5 rounded-full lp-btn-primary font-medium text-[14px] transition cursor-pointer disabled:opacity-60 min-h-[42px]"
           >
             {loading === "radar" ? t.pricing.loadingCheckout : t.pricing.radarBtn}
           </button>

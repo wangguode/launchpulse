@@ -3,21 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle,
   ArrowUpRight,
+  Check,
   CheckCircle2,
   Copy,
-  Check,
   Lock,
   Play,
-  Radar,
-  ShieldAlert,
-  Sparkles,
-  Terminal,
   Unlock,
 } from "lucide-react";
 import type { StartupAuditReport } from "@/types/audit";
 import { useI18n } from "@/components/I18nProvider";
+import BrandMark from "@/components/BrandMark";
 import LangSwitcher from "@/components/LangSwitcher";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { V2_DICTIONARIES } from "@/lib/v2-i18n";
@@ -34,6 +30,9 @@ interface Props {
   report: StartupAuditReport;
 }
 
+/**
+ * V3 纯净 Apple 双主题专属战情页（0 处旧暗黑硬编码，亮暗双模式高对比度原生适配）
+ */
 export default function WarRoomClient({ report }: Props) {
   const { locale, t } = useI18n();
   const v2 = V2_DICTIONARIES[locale];
@@ -66,11 +65,9 @@ export default function WarRoomClient({ report }: Props) {
       const params = new URLSearchParams(window.location.search);
       const token = params.get("token")?.trim();
       if (params.get("unlocked") === "1" && !token) {
-        // 真实付费回跳引导：绝不无条件放行，引导客户用付款邮箱收取 Magic Link 秒开
         setPostCheckoutPrompt(true);
       }
       if (token) {
-        // 严格走服务端 D1 订单验真，彻底堵死手动拼 ?unlocked=1 白嫖漏洞
         fetch("/api/portal/verify-unlock", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -85,7 +82,6 @@ export default function WarRoomClient({ report }: Props) {
           })
           .catch(() => {});
       }
-      // 上报专属战情页打开事件到 Cloudflare D1
       trackEvent("view");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,11 +102,7 @@ export default function WarRoomClient({ report }: Props) {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan,
-          slug: report.slug,
-          targetUrl: report.targetUrl,
-        }),
+        body: JSON.stringify({ plan, slug: report.slug, targetUrl: report.targetUrl }),
       });
       const data = (await res.json()) as { checkoutUrl?: string; error?: string };
       if (res.ok && data.checkoutUrl) {
@@ -129,7 +121,7 @@ export default function WarRoomClient({ report }: Props) {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
+      setTimeout(() => setCopiedId(null), 1800);
     } catch {
       // ignore
     }
@@ -139,51 +131,52 @@ export default function WarRoomClient({ report }: Props) {
   const lockedLeads = isUnlocked ? [] : report.buyerLeads.filter((l) => !l.unlockedByDefault);
 
   return (
-    <div className="min-h-screen bg-[#07090d] text-slate-100 obsidian-grid overflow-x-hidden">
-      {/* 顶部专属战情导航条 */}
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07090d]/90 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
+    <div className="min-h-screen bg-[var(--apple-bg)] text-[var(--apple-ink)] overflow-x-hidden">
+      {/* 48px Apple 毛玻璃顶部导航 */}
+      <header className="sticky top-0 z-40 apple-glass border-b border-[var(--apple-border)]">
+        <div className="max-w-[1120px] mx-auto px-4 sm:px-6 h-12 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
             <Link
               href="/"
-              className="flex items-center gap-2 font-[family-name:var(--font-display)] font-bold text-white tracking-tight shrink-0"
+              className="flex items-center gap-2 font-semibold text-[15px] tracking-tight text-[var(--apple-ink)] shrink-0"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#10b981]" />
-              <span>LaunchPulse</span>
+              <BrandMark className="w-5 h-5" />
+              <span className="hidden sm:inline">LaunchPulse</span>
             </Link>
-            <span className="text-slate-600 hidden sm:inline">/</span>
-            <span className="hidden sm:inline-block text-xs font-[family-name:var(--font-mono)] text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded truncate">
-              {t.warRoom.privateWarRoom} · {report.domain}
+            <span className="text-[var(--apple-ink-tertiary)] hidden sm:inline">/</span>
+            <span className="hidden sm:inline-block text-[12px] text-[var(--apple-ink-secondary)] truncate">
+              {report.domain}
             </span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <ThemeSwitcher />
+            <div className="hidden sm:block">
+              <ThemeSwitcher />
+            </div>
             <LangSwitcher />
             <Link
               href="/login"
-              className="hidden sm:inline-flex items-center px-3 py-1.5 rounded-lg border border-white/15 hover:border-emerald-400/50 text-xs text-slate-200 hover:text-white transition"
+              className="hidden md:inline-flex text-[12px] text-[var(--apple-ink-secondary)] hover:text-[var(--apple-ink)] px-2"
             >
               {v2.nav.login}
             </Link>
-            <a
-              href={report.targetUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden md:inline-flex items-center gap-1 text-xs text-slate-400 hover:text-white transition"
-            >
-              {report.domain} <ArrowUpRight className="w-3.5 h-3.5" />
-            </a>
             {!isUnlocked ? (
               <button
-                onClick={() => handleCheckout("radar")}
+                onClick={() => handleCheckout("blitz")}
                 disabled={loadingPlan !== null}
-                className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition cursor-pointer disabled:opacity-60"
+                className="px-3 sm:px-3.5 py-1.5 rounded-full lp-btn-primary text-[12px] font-medium transition cursor-pointer disabled:opacity-60 whitespace-nowrap"
               >
-                {loadingPlan === "radar" ? t.pricing.loadingCheckout : t.warRoom.unlockAll}
+                {loadingPlan === "blitz" ? (
+                  t.pricing.loadingCheckout
+                ) : (
+                  <>
+                    <span className="sm:hidden">{locale === "zh" ? "50+ 外链 $39" : "50+ Blitz ($39)"}</span>
+                    <span className="hidden sm:inline">{t.warRoom.buyFixPack}</span>
+                  </>
+                )}
               </button>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-semibold">
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[var(--apple-green-soft)] text-[var(--apple-green)] text-[12px] font-medium">
                 <Unlock className="w-3.5 h-3.5" /> {t.warRoom.fullPackUnlocked} ({unlockedPlan})
               </span>
             )}
@@ -191,10 +184,12 @@ export default function WarRoomClient({ report }: Props) {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-10">
+      <main className="max-w-[1120px] mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8">
         {postCheckoutPrompt && !isUnlocked && (
-          <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-5 space-y-3">
-            <p className="text-sm text-emerald-100 font-semibold">{t.warRoom.postCheckoutTitle}</p>
+          <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-5 space-y-3">
+            <p className="text-[14px] font-semibold text-[var(--apple-ink)]">
+              {t.warRoom.postCheckoutTitle}
+            </p>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -214,114 +209,117 @@ export default function WarRoomClient({ report }: Props) {
                 value={claimEmail}
                 onChange={(e) => setClaimEmail(e.target.value)}
                 placeholder={t.warRoom.claimEmailPlaceholder}
-                className="flex-1 rounded-lg border border-white/15 bg-black/50 px-3 py-2 text-xs font-[family-name:var(--font-mono)] text-white"
+                className="flex-1 rounded-[10px] border border-[var(--apple-border-strong)] bg-[var(--apple-bg)] px-3.5 py-2 text-[16px] sm:text-[13px] text-[var(--apple-ink)]"
               />
               <button
                 type="submit"
-                className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs cursor-pointer"
+                className="px-4 py-2 rounded-full lp-btn-primary text-[13px] font-medium cursor-pointer"
               >
                 {t.warRoom.sendMagicLinkBtn}
               </button>
             </form>
-            {claimFeedback && <p className="text-xs text-emerald-300">{claimFeedback}</p>}
+            {claimFeedback && (
+              <p className="text-[12px] text-[var(--apple-green)]">{claimFeedback}</p>
+            )}
           </div>
         )}
 
         {isUnlocked && (
-          <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-              <p className="text-sm text-emerald-100">
-                <strong>{t.warRoom.paymentVerifiedStrong}</strong>{" "}
-                {t.warRoom.paymentVerifiedBodyPrefix} <code>/llms.txt</code>{" "}
-                {t.warRoom.paymentVerifiedBodyMid} {report.buyerLeads.length}{" "}
-                {t.warRoom.paymentVerifiedBodySuffix}
-              </p>
-            </div>
+          <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-4 flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-[var(--apple-green)] shrink-0" />
+            <p className="text-[13px] text-[var(--apple-ink-secondary)]">
+              <strong className="text-[var(--apple-ink)]">{t.warRoom.paymentVerifiedStrong}</strong>{" "}
+              {t.warRoom.paymentVerifiedBodyPrefix} <code>/llms.txt</code>{" "}
+              {t.warRoom.paymentVerifiedBodyMid} {report.buyerLeads.length}{" "}
+              {t.warRoom.paymentVerifiedBodySuffix}
+            </p>
           </div>
         )}
 
-        {/* 1. 专属定制抬头 + 四维就绪度仪表盘 */}
-        <section className="grid lg:grid-cols-12 gap-6 items-stretch">
-          <div className="lg:col-span-8 rounded-2xl border border-white/10 bg-[#0c1018] p-6 sm:p-8 flex flex-col justify-between">
+        {/* 1. 顶部专属诊断摘要 + 四维评分 */}
+        <section className="grid lg:grid-cols-12 gap-5 items-stretch">
+          <div className="lg:col-span-8 rounded-[22px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-6 sm:p-8 flex flex-col justify-between space-y-6">
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-[family-name:var(--font-mono)]">
-                <span className="px-2.5 py-1 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                  {t.warRoom.exclusivePrefix} {report.productName.toUpperCase()}
+              <div className="flex flex-wrap items-center gap-2 text-[12px]">
+                <span className="font-semibold text-[var(--apple-blue)]">
+                  {t.warRoom.exclusivePrefix} {report.productName}
                 </span>
-                <span className="text-slate-400">
-                  {t.warRoom.passiveScan} · {new Date(report.scannedAt).toISOString().slice(0, 10)}
+                <span className="text-[var(--apple-ink-tertiary)]">
+                  · {t.warRoom.passiveScan} · {new Date(report.scannedAt).toISOString().slice(0, 10)}
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-4xl font-[family-name:var(--font-display)] font-bold text-white tracking-tight leading-tight">
+              <h1 className="apple-display text-2xl sm:text-4xl font-semibold text-[var(--apple-ink)] leading-tight">
                 {report.productName} {t.warRoom.teardownHeadingSuffix}
               </h1>
-              <p className="text-slate-300 text-sm sm:text-base leading-relaxed max-w-3xl">
+              <p className="text-[14px] sm:text-[15px] text-[var(--apple-ink-secondary)] leading-relaxed max-w-3xl">
                 {t.warRoom.introPrefix}{" "}
-                <span className="text-white font-medium">{report.domain}</span> {t.warRoom.introMid1}
-                <code className="text-emerald-300">/llms.txt</code> {t.warRoom.introMid2}{" "}
-                <strong className="text-emerald-400">
+                <span className="text-[var(--apple-ink)] font-medium">{report.domain}</span>{" "}
+                {t.warRoom.introMid1}
+                <code className="text-[var(--apple-blue)]">/llms.txt</code> {t.warRoom.introMid2}{" "}
+                <strong className="text-[var(--apple-ink)]">
                   {report.buyerLeads.length} {t.warRoom.introThreadsUnit}
                 </strong>{" "}
                 {t.warRoom.introSuffix}
               </p>
             </div>
 
-            <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap gap-2">
+            <div className="pt-5 border-t border-[var(--apple-border)] flex flex-wrap gap-2">
               {report.passedChecks.map((check) => (
                 <span
                   key={check}
-                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/10 text-slate-300"
+                  className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full bg-[var(--apple-bg-alt)] border border-[var(--apple-border)] text-[var(--apple-ink-secondary)]"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[var(--apple-green-dot)]" />
                   {localizePassedCheck(check, locale)}
                 </span>
               ))}
             </div>
           </div>
 
-          <div className="lg:col-span-4 rounded-2xl border border-white/10 bg-[#0c1018] p-6 flex flex-col justify-between">
+          <div className="lg:col-span-4 rounded-[22px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-6 flex flex-col justify-between">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-[family-name:var(--font-mono)] uppercase tracking-wider text-slate-400">
+                <p className="text-[12px] text-[var(--apple-ink-secondary)]">
                   {t.warRoom.readiness}
                 </p>
-                <div className="mt-1 flex items-baseline gap-1.5 tabular-nums">
-                  <span className="text-5xl font-[family-name:var(--font-display)] font-bold text-amber-400">
+                <div className="mt-1 flex items-baseline gap-1 tabular-nums">
+                  <span className="apple-display text-5xl font-semibold text-[var(--apple-ink)]">
                     {report.overallScore}
                   </span>
-                  <span className="text-lg text-slate-500">/ 100</span>
+                  <span className="text-[15px] text-[var(--apple-ink-tertiary)]">/ 100</span>
                 </div>
               </div>
-              <span className="px-2.5 py-1 rounded text-xs font-semibold bg-red-500/15 text-red-300 border border-red-500/30 tabular-nums">
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[var(--apple-red-soft)] text-[var(--apple-red)] tabular-nums">
                 {report.leaks.length} {t.warRoom.leaksFound}
               </span>
             </div>
 
-            <div className="mt-5 space-y-2.5 text-xs tabular-nums">
+            <div className="mt-5 space-y-3 text-[12px] tabular-nums">
               {[
                 { label: t.warRoom.subScoreAi, val: report.subScores.aiSearchVisibility },
                 { label: t.warRoom.subScoreSeo, val: report.subScores.seoAndSchema },
                 { label: t.warRoom.subScoreUx, val: report.subScores.conversionAndUx },
                 { label: t.warRoom.subScoreSec, val: report.subScores.securityBaseline },
               ].map((row) => (
-                <div key={row.label} className="space-y-1">
-                  <div className="flex justify-between text-slate-300">
+                <div key={row.label} className="space-y-1.5">
+                  <div className="flex justify-between text-[var(--apple-ink-secondary)]">
                     <span>{row.label}</span>
-                    <span className="font-[family-name:var(--font-mono)] font-semibold">
+                    <span className="font-mono font-medium text-[var(--apple-ink)]">
                       {row.val}/100
                     </span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-1.5 rounded-full bg-[var(--apple-bg-alt)] overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${
-                        row.val < 55
-                          ? "bg-red-500"
-                          : row.val < 80
-                          ? "bg-amber-400"
-                          : "bg-emerald-400"
-                      }`}
-                      style={{ width: `${row.val}%` }}
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${row.val}%`,
+                        backgroundColor:
+                          row.val < 55
+                            ? "var(--apple-red-dot)"
+                            : row.val < 80
+                            ? "var(--apple-orange-dot)"
+                            : "var(--apple-green-dot)",
+                      }}
                     />
                   </div>
                 </div>
@@ -330,45 +328,35 @@ export default function WarRoomClient({ report }: Props) {
           </div>
         </section>
 
-        {/* 2. 核心 80+ 秒专属实机拆解视频播放器 */}
-        <section className="rounded-2xl border border-emerald-500/30 bg-[#0b1018] overflow-hidden shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
-          <div className="px-5 py-3.5 border-b border-white/10 bg-[#0f1521] flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <Play className="w-4 h-4 text-emerald-400 fill-emerald-400" />
-              <span className="text-sm font-semibold text-white">
+        {/* 2. 80 秒实机拆解视频播放器（无悬浮浮窗遮挡） */}
+        <section className="rounded-[24px] border border-[var(--apple-border)] bg-[var(--apple-surface)] overflow-hidden shadow-[var(--apple-shadow)]">
+          <div className="px-5 py-3.5 border-b border-[var(--apple-border)] flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Play className="w-4 h-4 text-[var(--apple-blue)] fill-[var(--apple-blue)]" />
+              <span className="text-[14px] font-semibold text-[var(--apple-ink)]">
                 {report.videoDurationSeconds}
                 {t.warRoom.videoTitleMid} {report.productName}
               </span>
-              <span className="text-xs font-[family-name:var(--font-mono)] text-slate-400 hidden sm:inline">
+              <span className="text-[12px] text-[var(--apple-ink-tertiary)] hidden sm:inline">
                 {t.warRoom.videoSpecs}
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 text-xs font-[family-name:var(--font-mono)]">
-              <button
-                onClick={() => jumpToChapter(0)}
-                className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 transition cursor-pointer"
-              >
-                {t.warRoom.ch1}
-              </button>
-              <button
-                onClick={() => jumpToChapter(0.22)}
-                className="px-2.5 py-1 rounded bg-red-500/15 hover:bg-red-500/25 text-red-300 transition cursor-pointer"
-              >
-                02 · {report.leaks.length} {t.warRoom.ch2Suffix}
-              </button>
-              <button
-                onClick={() => jumpToChapter(0.58)}
-                className="px-2.5 py-1 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 transition cursor-pointer"
-              >
-                {t.warRoom.ch3}
-              </button>
-              <button
-                onClick={() => jumpToChapter(0.84)}
-                className="px-2.5 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 transition cursor-pointer"
-              >
-                {t.warRoom.ch4}
-              </button>
+            <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
+              {[
+                { label: t.warRoom.ch1, ratio: 0 },
+                { label: `02 · ${report.leaks.length} ${t.warRoom.ch2Suffix}`, ratio: 0.22 },
+                { label: t.warRoom.ch3, ratio: 0.58 },
+                { label: t.warRoom.ch4, ratio: 0.84 },
+              ].map((ch) => (
+                <button
+                  key={ch.label}
+                  onClick={() => jumpToChapter(ch.ratio)}
+                  className="px-2.5 py-1 rounded-full bg-[var(--apple-bg-alt)] hover:bg-[var(--apple-active)] border border-[var(--apple-border)] text-[var(--apple-ink-secondary)] hover:text-[var(--apple-ink)] transition cursor-pointer"
+                >
+                  {ch.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -401,37 +389,33 @@ export default function WarRoomClient({ report }: Props) {
         </section>
 
         {checkoutError && (
-          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <div className="rounded-2xl bg-[var(--apple-red-soft)] px-4 py-3 text-[13px] text-[var(--apple-red)]">
             {checkoutError}
           </div>
         )}
 
-        {/* 3. 左右双栏成交主战场：左栏流量缺口与随赠修复包 + 右栏真实等待买家 */}
-        <section className="grid lg:grid-cols-12 gap-8 items-start">
-          {/* 左栏：Leak & SEO Report */}
-          <div className="lg:col-span-6 space-y-6">
+        {/* 3. 左右双栏主内容 */}
+        <section className="grid lg:grid-cols-12 gap-7 items-start">
+          {/* 左栏：诊断与随赠修复 */}
+          <div className="lg:col-span-6 space-y-5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <ShieldAlert className="w-5 h-5 text-red-400" />
-                <h2 className="text-xl font-[family-name:var(--font-display)] font-bold text-white">
-                  {t.warRoom.leaksSection}
-                </h2>
-              </div>
-              <span className="text-xs font-[family-name:var(--font-mono)] text-slate-400">
+              <h2 className="apple-display text-[20px] font-semibold text-[var(--apple-ink)]">
+                {t.warRoom.leaksSection}
+              </h2>
+              <span className="text-[12px] text-[var(--apple-ink-tertiary)]">
                 {t.warRoom.passiveBadge}
               </span>
             </div>
 
-            {/* 实机桌面与移动端快照凭证 */}
-            <div className="grid grid-cols-3 gap-3 rounded-xl border border-white/10 bg-[#0c1018] p-3">
-              <div className="col-span-2 rounded-lg overflow-hidden border border-white/10 bg-black">
+            <div className="grid grid-cols-3 gap-3 rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-3">
+              <div className="col-span-2 rounded-xl overflow-hidden border border-[var(--apple-border)] bg-[var(--apple-bg-alt)]">
                 <img
                   src={report.heroScreenshotUrl}
                   alt={`${report.productName} desktop capture`}
                   className="w-full h-36 object-cover object-top"
                 />
               </div>
-              <div className="col-span-1 rounded-lg overflow-hidden border border-white/10 bg-black">
+              <div className="col-span-1 rounded-xl overflow-hidden border border-[var(--apple-border)] bg-[var(--apple-bg-alt)]">
                 <img
                   src={report.mobileScreenshotUrl}
                   alt={`${report.productName} mobile capture`}
@@ -444,49 +428,50 @@ export default function WarRoomClient({ report }: Props) {
               {report.leaks.map((leak, idx) => (
                 <div
                   key={leak.id}
-                  className="rounded-xl border border-white/10 bg-[#0c1018] p-5 space-y-3"
+                  className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-5 space-y-3"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={`text-[11px] font-[family-name:var(--font-mono)] uppercase font-semibold px-2 py-0.5 rounded ${
-                        leak.severity === "critical"
-                          ? "bg-red-500/20 text-red-300 border border-red-500/30"
-                          : "bg-amber-500/15 text-amber-300 border border-amber-500/30"
-                      }`}
-                    >
+                  <div className="flex items-center justify-between gap-2 text-[11px]">
+                    <span className="inline-flex items-center gap-1.5 font-medium text-[var(--apple-ink-secondary)]">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{
+                          backgroundColor:
+                            leak.severity === "critical"
+                              ? "var(--apple-red-dot)"
+                              : "var(--apple-orange-dot)",
+                        }}
+                      />
                       {localizeSeverity(leak.severity, locale)} ·{" "}
                       {localizeCategory(leak.category, locale)}
                     </span>
-                    <span className="text-xs font-[family-name:var(--font-mono)] text-slate-500">
+                    <span className="font-mono text-[var(--apple-ink-tertiary)]">
                       {t.warRoom.leakTagPrefix}
                       {idx + 1}
                     </span>
                   </div>
 
-                  <h3 className="text-base font-semibold text-white leading-snug">
+                  <h3 className="text-[15px] font-semibold text-[var(--apple-ink)] leading-snug">
                     {localizeLeakTitle(leak.title, locale)}
                   </h3>
-                  <p className="text-xs font-[family-name:var(--font-mono)] text-slate-300 bg-black/40 border border-white/5 rounded-lg p-3 leading-relaxed break-words overflow-x-auto">
+                  <p className="text-[12px] font-mono text-[var(--apple-ink-secondary)] bg-[var(--apple-bg-alt)] border border-[var(--apple-border)] rounded-xl p-3 leading-relaxed break-words">
                     {leak.evidence}
                   </p>
-                  <p className="text-xs text-amber-300/90 flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                    <span>
-                      {t.warRoom.impactPrefix} {localizeLeakImpact(leak.impactEstimate, locale)}
-                    </span>
+                  <p className="text-[12px] text-[var(--apple-ink-secondary)]">
+                    <strong className="text-[var(--apple-ink)]">{t.warRoom.impactPrefix}</strong>{" "}
+                    {localizeLeakImpact(leak.impactEstimate, locale)}
                   </p>
 
-                  {/* Cursor / Claude Code 一键修复 Prompt（随 $39 分发包或 $29/mo 雷达附赠解锁） */}
-                  <div className="pt-2 border-t border-white/10">
+                  {/* 随赠修复指令区（干净半透明磨砂，亮暗双模式高对比可读） */}
+                  <div className="pt-2 border-t border-[var(--apple-border)]">
                     {isUnlocked ? (
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs text-emerald-300 font-[family-name:var(--font-mono)]">
-                          <span className="inline-flex items-center gap-1">
-                            <Terminal className="w-3.5 h-3.5" /> {t.warRoom.readyPromptLabel}
+                        <div className="flex items-center justify-between text-[12px]">
+                          <span className="font-medium text-[var(--apple-blue)]">
+                            {t.warRoom.readyPromptLabel}
                           </span>
                           <button
                             onClick={() => copyText(leak.id, leak.cursorFixPrompt)}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-500/15 hover:bg-emerald-500/25 transition cursor-pointer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[var(--apple-border-strong)] hover:bg-[var(--apple-hover)] text-[var(--apple-ink)] cursor-pointer"
                           >
                             {copiedId === leak.id ? (
                               <>
@@ -499,28 +484,23 @@ export default function WarRoomClient({ report }: Props) {
                             )}
                           </button>
                         </div>
-                        <pre className="text-xs font-[family-name:var(--font-mono)] text-slate-200 bg-[#070a10] border border-emerald-500/25 rounded-lg p-3 whitespace-pre-wrap">
+                        <pre className="text-[12px] font-mono text-[var(--apple-ink)] bg-[var(--apple-bg-alt)] border border-[var(--apple-border)] rounded-xl p-3 whitespace-pre-wrap">
                           {leak.cursorFixPrompt}
                         </pre>
                       </div>
                     ) : (
-                      <div className="relative rounded-lg bg-[#080b12] border border-white/10 p-3 overflow-hidden">
-                        <p className="text-xs font-[family-name:var(--font-mono)] text-slate-500 select-none blur-[4px]">
-                          {leak.cursorFixPrompt}
-                        </p>
-                        <div className="absolute inset-0 bg-[#080b12]/65 backdrop-blur-[1px] flex items-center justify-between px-3.5 gap-2">
-                          <span className="text-xs text-slate-300 inline-flex items-center gap-1.5 truncate">
-                            <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                            <span className="truncate">{t.warRoom.lockedPromptLabel}</span>
-                          </span>
-                          <button
-                            onClick={() => handleCheckout("blitz")}
-                            disabled={loadingPlan !== null}
-                            className="text-xs font-semibold text-emerald-300 hover:text-emerald-200 underline cursor-pointer shrink-0"
-                          >
-                            {t.warRoom.unlockBlitzShort}
-                          </button>
-                        </div>
+                      <div className="rounded-xl bg-[var(--apple-bg-alt)] border border-[var(--apple-border)] px-3.5 py-2.5 flex items-center justify-between gap-2">
+                        <span className="text-[12px] text-[var(--apple-ink-secondary)] inline-flex items-center gap-1.5 truncate">
+                          <Lock className="w-3.5 h-3.5 text-[var(--apple-ink-tertiary)] shrink-0" />
+                          <span className="truncate">{t.warRoom.lockedPromptLabel}</span>
+                        </span>
+                        <button
+                          onClick={() => handleCheckout("blitz")}
+                          disabled={loadingPlan !== null}
+                          className="text-[12px] font-medium text-[var(--apple-blue)] hover:underline cursor-pointer shrink-0"
+                        >
+                          {t.warRoom.unlockBlitzShort}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -528,39 +508,38 @@ export default function WarRoomClient({ report }: Props) {
               ))}
             </div>
 
-            {/* 自动生成的专属 llms.txt 预览卡片 */}
-            <div className="rounded-xl border border-white/10 bg-[#0c1018] p-5 space-y-3">
+            <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-400 uppercase font-semibold">
+                <span className="text-[12px] font-semibold text-[var(--apple-ink)]">
                   {t.warRoom.generatedLlmsTitle} {report.domain}
                 </span>
                 {isUnlocked && (
                   <button
                     onClick={() => copyText("llms-txt", report.generatedLlmsTxtPreview)}
-                    className="text-xs text-emerald-300 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                    className="text-[12px] text-[var(--apple-blue)] hover:underline cursor-pointer"
                   >
                     {copiedId === "llms-txt" ? t.common.copiedBang : t.common.copyFile}
                   </button>
                 )}
               </div>
-              <div className="relative">
+              <div className="relative rounded-xl overflow-hidden border border-[var(--apple-border)] bg-[var(--apple-bg-alt)]">
                 <pre
-                  className={`text-xs font-[family-name:var(--font-mono)] text-slate-300 bg-black/50 border border-white/10 rounded-lg p-3.5 whitespace-pre-wrap ${
+                  className={`text-[12px] font-mono text-[var(--apple-ink-secondary)] p-3.5 whitespace-pre-wrap ${
                     !isUnlocked ? "blur-[4px] select-none" : ""
                   }`}
                 >
                   {report.generatedLlmsTxtPreview}
                 </pre>
                 {!isUnlocked && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#07090d]/65 rounded-lg p-4 text-center gap-2">
-                    <p className="text-xs text-slate-200 font-medium">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center apple-glass p-4 text-center gap-2.5">
+                    <p className="text-[12px] text-[var(--apple-ink)] font-medium">
                       {t.warRoom.llmsOverlayDescPrefix} <code>public/llms.txt</code>{" "}
                       {t.warRoom.llmsOverlayDescSuffix}
                     </p>
                     <button
                       onClick={() => handleCheckout("blitz")}
                       disabled={loadingPlan !== null}
-                      className="px-4 py-2 rounded-lg bg-amber-400 text-slate-950 hover:bg-amber-300 font-bold text-xs transition cursor-pointer"
+                      className="px-4 py-2 rounded-full lp-btn-primary text-[12px] font-medium transition cursor-pointer"
                     >
                       {loadingPlan === "blitz"
                         ? t.pricing.loadingCheckout
@@ -572,54 +551,51 @@ export default function WarRoomClient({ report }: Props) {
             </div>
           </div>
 
-          {/* 右栏：Live Buyers Waiting for You（前 3 条 100% 免费可点击验真！） */}
-          <div className="lg:col-span-6 space-y-6">
+          {/* 右栏：真实活跃买家原帖 */}
+          <div className="lg:col-span-6 space-y-5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Radar className="w-5 h-5 text-emerald-400" />
-                <h2 className="text-xl font-[family-name:var(--font-display)] font-bold text-white">
-                  {t.warRoom.buyersSection} ({report.buyerLeads.length})
-                </h2>
-              </div>
-              <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 rounded">
+              <h2 className="apple-display text-[20px] font-semibold text-[var(--apple-ink)]">
+                {t.warRoom.buyersSection} ({report.buyerLeads.length})
+              </h2>
+              <span className="text-[12px] font-medium text-[var(--apple-blue)]">
                 {t.warRoom.first3Free}
               </span>
             </div>
 
-            {/* 前 3 条完全公开、带真实外链 */}
             <div className="space-y-3.5">
               {unlockedLeads.map((lead, idx) => (
                 <div
                   key={lead.id}
-                  className="rounded-xl border border-emerald-500/30 bg-[#0c131d] p-5 space-y-2.5 hover:border-emerald-400/60 transition"
+                  className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-5 space-y-2.5"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-[family-name:var(--font-mono)]">
-                    <span className="text-emerald-300 font-semibold">
-                      #{idx + 1} {t.warRoom.unlockedTag} · {lead.source} ({lead.community})
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <span className="inline-flex items-center gap-1.5 font-medium text-[var(--apple-blue)]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--apple-green-dot)]" />#
+                      {idx + 1} {t.warRoom.unlockedTag} · {lead.source}
                     </span>
-                    <span className="text-slate-400 tabular-nums">
+                    <span className="text-[var(--apple-ink-tertiary)] tabular-nums">
                       {t.warRoom.intentLabel} {lead.intentScore}% · {lead.postedAt}
                     </span>
                   </div>
 
-                  <h3 className="text-base font-semibold text-white leading-snug">
+                  <h3 className="text-[15px] font-semibold text-[var(--apple-ink)] leading-snug">
                     {decodeHtmlEntities(lead.title)}
                   </h3>
-                  <p className="text-xs text-slate-300 leading-relaxed">
+                  <p className="text-[13px] text-[var(--apple-ink-secondary)] leading-relaxed">
                     {decodeHtmlEntities(lead.excerpt)}
                   </p>
 
-                  <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-white/10">
-                    <span className="text-[11px] text-slate-400">
+                  <div className="pt-2.5 flex items-center justify-between gap-3 border-t border-[var(--apple-border)]">
+                    <span className="text-[12px] text-[var(--apple-ink-tertiary)]">
                       {t.warRoom.authorLabel}{" "}
-                      <strong className="text-slate-200">{lead.author}</strong>
+                      <strong className="text-[var(--apple-ink)] font-medium">{lead.author}</strong>
                     </span>
                     <a
                       href={lead.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => trackEvent("buyer_click")}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/35 text-emerald-300 text-xs font-semibold transition"
+                      className="inline-flex items-center gap-1 text-[13px] font-medium text-[var(--apple-blue)] hover:underline"
                     >
                       {t.warRoom.openThread} <ArrowUpRight className="w-3.5 h-3.5" />
                     </a>
@@ -628,57 +604,56 @@ export default function WarRoomClient({ report }: Props) {
               ))}
             </div>
 
-            {/* 第 4–10 条半透明模糊锁定 + 转化收银卡片 */}
             {lockedLeads.length > 0 && (
-              <div className="rounded-2xl border border-amber-500/35 bg-[#0d111a] p-5 sm:p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-[family-name:var(--font-mono)] uppercase tracking-wider text-amber-300 font-semibold">
+              <div className="rounded-[22px] border border-[var(--apple-border)] bg-[var(--apple-surface)] p-6 space-y-5 shadow-[var(--apple-shadow)]">
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="font-semibold text-[var(--apple-ink)]">
                     {t.warRoom.moreQueuedPrefix} {lockedLeads.length} {t.warRoom.moreQueuedSuffix}
                   </span>
-                  <span className="text-xs text-slate-400">{t.warRoom.updatedDaily}</span>
+                  <span className="text-[var(--apple-ink-tertiary)]">{t.warRoom.updatedDaily}</span>
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {lockedLeads.slice(0, 4).map((lead) => (
                     <div
                       key={lead.id}
-                      className="rounded-lg border border-white/10 bg-black/35 p-3.5 flex items-center justify-between gap-3"
+                      className="rounded-xl border border-[var(--apple-border)] bg-[var(--apple-bg-alt)] p-3 flex items-center justify-between gap-3"
                     >
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex items-center gap-2 text-[11px] font-[family-name:var(--font-mono)] text-amber-300/90">
-                          <span>
-                            {lead.source} · {lead.community}
-                          </span>
-                          <span>· {lead.postedAt}</span>
-                          <span>
-                            · {t.warRoom.intentLabel} {lead.intentScore}%
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-300 truncate blur-[4.5px] select-none">
-                          {decodeHtmlEntities(lead.title)} — {decodeHtmlEntities(lead.excerpt)}
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="text-[11px] text-[var(--apple-ink-tertiary)]">
+                          {lead.source} · {lead.postedAt} · {t.warRoom.intentLabel}{" "}
+                          {lead.intentScore}%
+                        </p>
+                        <p className="text-[12px] text-[var(--apple-ink-secondary)] truncate blur-[4px] select-none">
+                          {decodeHtmlEntities(lead.title)}
                         </p>
                       </div>
-                      <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                      <Lock className="w-3.5 h-3.5 text-[var(--apple-ink-tertiary)] shrink-0" />
                     </div>
                   ))}
                 </div>
 
-                {/* 双档位直连 Creem.io 变现区（统一 $39 目录分发 + $29/月 买家雷达） */}
-                <div className="pt-3 border-t border-white/10 space-y-3">
-                  <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-4 space-y-3">
+                <div className="pt-4 border-t border-[var(--apple-border)] space-y-3">
+                  <div className="rounded-[18px] border-2 border-[var(--apple-blue)] bg-[var(--apple-bg)] p-5 space-y-3">
                     <div className="flex items-baseline justify-between">
                       <div>
-                        <span className="text-xs font-[family-name:var(--font-mono)] text-emerald-300 font-semibold uppercase">
+                        <span className="text-[11px] font-semibold text-[var(--apple-blue)]">
                           {t.warRoom.mostPopular}
                         </span>
-                        <h4 className="text-lg font-bold text-white">{t.warRoom.radarTitle}</h4>
+                        <h4 className="apple-display text-[18px] font-semibold text-[var(--apple-ink)]">
+                          {t.warRoom.radarTitle}
+                        </h4>
                       </div>
                       <div className="text-right tabular-nums">
-                        <span className="text-2xl font-bold text-white">$29</span>
-                        <span className="text-xs text-slate-400">{t.warRoom.perMonth}</span>
+                        <span className="apple-display text-2xl font-semibold text-[var(--apple-ink)]">
+                          $29
+                        </span>
+                        <span className="text-[12px] text-[var(--apple-ink-tertiary)]">
+                          {t.warRoom.perMonth}
+                        </span>
                       </div>
                     </div>
-                    <ul className="text-xs text-slate-200 space-y-1.5">
+                    <ul className="text-[13px] text-[var(--apple-ink-secondary)] space-y-1.5">
                       <li>
                         {t.warRoom.radarBullet1Prefix} {report.buyerLeads.length}{" "}
                         {t.warRoom.radarBullet1Suffix}
@@ -693,22 +668,25 @@ export default function WarRoomClient({ report }: Props) {
                     <button
                       onClick={() => handleCheckout("radar")}
                       disabled={loadingPlan !== null}
-                      className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                      className="w-full py-2.5 rounded-full lp-btn-primary font-medium text-[14px] transition cursor-pointer disabled:opacity-60 min-h-[42px]"
                     >
-                      <Sparkles className="w-4 h-4" />
                       {loadingPlan === "radar" ? t.pricing.loadingCheckout : t.warRoom.unlockAll}
                     </button>
                   </div>
 
-                  <div className="rounded-xl border border-amber-500/35 bg-amber-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="rounded-[18px] border border-[var(--apple-border)] bg-[var(--apple-bg-alt)] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-white">{t.pricing.fixLabel}</p>
-                      <p className="text-xs text-slate-300">{t.warRoom.blitzCardDesc}</p>
+                      <p className="text-[14px] font-semibold text-[var(--apple-ink)]">
+                        {t.pricing.fixLabel}
+                      </p>
+                      <p className="text-[12px] text-[var(--apple-ink-secondary)]">
+                        {t.warRoom.blitzCardDesc}
+                      </p>
                     </div>
                     <button
                       onClick={() => handleCheckout("blitz")}
                       disabled={loadingPlan !== null}
-                      className="shrink-0 px-4 py-2.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition cursor-pointer disabled:opacity-60"
+                      className="shrink-0 px-4 py-2 rounded-full lp-btn-inverse font-medium text-[13px] transition cursor-pointer disabled:opacity-60"
                     >
                       {loadingPlan === "blitz" ? t.pricing.loadingCheckout : t.warRoom.buyFixPack}
                     </button>
@@ -720,32 +698,27 @@ export default function WarRoomClient({ report }: Props) {
         </section>
       </main>
 
-      {/* V39：右下角极简即时提问浮窗，降低付费前最后一秒顾虑 */}
-      <a
-        href={`mailto:hello@statementflow.win?subject=${encodeURIComponent(
-          `Question about ${report.productName} LaunchPulse teardown`
-        )}`}
-        className="fixed bottom-5 right-5 z-40 px-3.5 py-2 rounded-full bg-[#0f1724]/95 border border-emerald-500/40 hover:border-emerald-400 text-xs font-[family-name:var(--font-mono)] text-emerald-300 shadow-xl backdrop-blur-md transition"
-      >
-        {t.common.questionsEmailFounder}
-      </a>
-
-      <footer className="border-t border-white/10 py-8 mt-12 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <footer className="border-t border-[var(--apple-border)] py-8 mt-12 text-[12px] text-[var(--apple-ink-tertiary)]">
+        <div className="max-w-[1120px] mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p>
             {t.common.passiveFooterNote} · {t.common.questionsPrefix}{" "}
-            <a href="mailto:hello@statementflow.win" className="text-slate-300 hover:underline">
+            <a
+              href={`mailto:hello@statementflow.win?subject=${encodeURIComponent(
+                `Question about ${report.productName} LaunchPulse teardown`
+              )}`}
+              className="text-[var(--apple-blue)] hover:underline"
+            >
               hello@statementflow.win
             </a>
           </p>
           <div className="flex items-center gap-5">
-            <Link href="/" className="hover:text-slate-300">
+            <Link href="/" className="hover:text-[var(--apple-ink)]">
               {t.common.runFreeScan}
             </Link>
-            <Link href="/privacy" className="hover:text-slate-300">
+            <Link href="/privacy" className="hover:text-[var(--apple-ink)]">
               {t.common.privacy}
             </Link>
-            <Link href="/terms" className="hover:text-slate-300">
+            <Link href="/terms" className="hover:text-[var(--apple-ink)]">
               {t.common.terms}
             </Link>
           </div>
