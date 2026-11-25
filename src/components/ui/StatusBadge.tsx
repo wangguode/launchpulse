@@ -1,83 +1,51 @@
 "use client";
 
-import type { Locale } from "@/lib/i18n";
+type Tone = "neutral" | "success" | "info" | "warning" | "danger" | "green" | "blue" | "orange" | "red";
 
-type StatusKind = "live" | "submitted" | "queued" | "active" | "canceled" | "refunded" | "new" | "replied" | "won";
-type ToneKind = "green" | "blue" | "orange" | "red" | "neutral";
+const DOT_CLASSES: Record<Tone, string> = {
+  neutral: "bg-[var(--ink-muted)]",
+  success: "bg-[var(--status-live)]",
+  green: "bg-[var(--status-live)]",
+  info: "bg-[var(--accent-primary)]",
+  blue: "bg-[var(--accent-primary)]",
+  warning: "bg-[var(--status-warn)]",
+  orange: "bg-[var(--status-warn)]",
+  danger: "bg-[var(--status-danger)]",
+  red: "bg-[var(--status-danger)]",
+};
 
+const TEXT_CLASSES: Record<Tone, string> = {
+  neutral: "text-[var(--ink-secondary)]",
+  success: "text-[var(--ink-primary)]",
+  green: "text-[var(--ink-primary)]",
+  info: "text-[var(--ink-primary)]",
+  blue: "text-[var(--ink-primary)]",
+  warning: "text-[var(--ink-primary)]",
+  orange: "text-[var(--ink-primary)]",
+  danger: "text-[var(--status-danger)]",
+  red: "text-[var(--status-danger)]",
+};
+
+/**
+ * V5 克制状态指示器（6px 实心圆点 + 中性文字，彻底告别廉价彩色药丸刷屏）
+ */
 export default function StatusBadge({
-  status,
-  locale = "en",
-  tone,
+  tone = "neutral",
   label,
+  dot = true,
+  className = "",
 }: {
-  status?: StatusKind | string;
-  locale?: Locale;
-  tone?: ToneKind;
-  label?: string;
+  tone?: Tone;
+  label: string;
+  dot?: boolean;
+  className?: string;
 }) {
-  const s = (status || "").toLowerCase();
-  const isZh = locale === "zh";
-  const isJa = locale === "ja";
-
-  const dotColor = tone
-    ? tone === "green"
-      ? "var(--apple-green-dot)"
-      : tone === "blue"
-        ? "var(--apple-blue)"
-        : tone === "orange"
-          ? "var(--apple-orange-dot)"
-          : tone === "red"
-            ? "var(--apple-red-dot)"
-            : "var(--apple-ink-tertiary)"
-    : s === "live" || s === "active" || s === "won"
-      ? "var(--apple-green-dot)"
-      : s === "submitted" || s === "replied"
-        ? "var(--apple-orange-dot)"
-        : s === "canceled" || s === "refunded"
-          ? "var(--apple-red-dot)"
-          : "var(--apple-ink-tertiary)";
-
-  const labelsZh: Record<string, string> = {
-    live: "已收录",
-    submitted: "已提交",
-    queued: "排队中",
-    active: "生效中",
-    canceled: "已取消",
-    refunded: "已退款",
-    new: "待联系",
-    replied: "已回复",
-    won: "已成交",
-  };
-  const labelsJa: Record<string, string> = {
-    live: "掲載済み",
-    submitted: "申請済み",
-    queued: "待機中",
-    active: "有効",
-    canceled: "解約済み",
-    refunded: "返金済み",
-    new: "未対応",
-    replied: "返信済み",
-    won: "獲得済み",
-  };
-  const labelsEn: Record<string, string> = {
-    live: "Live",
-    submitted: "Submitted",
-    queued: "Queued",
-    active: "Active",
-    canceled: "Canceled",
-    refunded: "Refunded",
-    new: "New",
-    replied: "Replied",
-    won: "Won",
-  };
-
-  const text = label || (isZh ? labelsZh : isJa ? labelsJa : labelsEn)[s] || status || "";
-
   return (
-    <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--apple-ink-secondary)] whitespace-nowrap">
-      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
-      <span>{text}</span>
+    <span
+      className={`inline-flex items-center gap-1.5 text-[12.5px] font-medium whitespace-nowrap ${TEXT_CLASSES[tone]} ${className}`}
+    >
+      {dot && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOT_CLASSES[tone]}`} aria-hidden="true" />}
+      <span>{label}</span>
     </span>
   );
 }

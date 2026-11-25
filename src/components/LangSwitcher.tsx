@@ -1,36 +1,55 @@
 "use client";
 
 import { useI18n } from "@/components/I18nProvider";
-import { LOCALE_LABELS, type Locale } from "@/lib/i18n";
 
-const LOCALES: Locale[] = ["en", "zh", "ja"];
-
-export default function LangSwitcher() {
+/**
+ * V5 极简中英切换器（母语中文优先，一键切换纯正英文）
+ */
+export default function LangSwitcher({ surface = "auto" }: { surface?: "auto" | "dark" }) {
   const { locale, setLocale } = useI18n();
+  const isZh = locale === "zh";
+
+  const containerCls =
+    surface === "dark"
+      ? "border-white/15 bg-white/[0.04] text-white/60"
+      : "border-[var(--border-hairline)] bg-[var(--bg-surface)] text-[var(--ink-muted)]";
 
   return (
     <div
-      className="inline-flex items-center rounded-md border border-[var(--app-border)] bg-[var(--app-subtle)] p-0.5 text-[11px] font-medium"
+      className={`inline-flex items-center rounded-full border p-0.5 text-[11px] font-medium ${containerCls}`}
       role="group"
-      aria-label="Language switcher"
+      aria-label="切换中英文语言"
     >
-      {LOCALES.map((loc) => {
-        const active = locale === loc;
-        return (
-          <button
-            key={loc}
-            type="button"
-            onClick={() => setLocale(loc)}
-            className={`px-2 py-1 rounded transition cursor-pointer ${
-              active
-                ? "bg-[var(--app-surface)] text-[var(--app-ink)] font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
-                : "text-[var(--app-ink-muted)] hover:text-[var(--app-ink)]"
-            }`}
-          >
-            {LOCALE_LABELS[loc]}
-          </button>
-        );
-      })}
+      <button
+        type="button"
+        onClick={() => setLocale("zh")}
+        className={`px-2 py-0.5 rounded-full lp-ease cursor-pointer ${
+          isZh
+            ? surface === "dark"
+              ? "bg-white/15 text-white font-semibold"
+              : "bg-[var(--bg-sheet)] text-[var(--ink-primary)] font-semibold border border-[var(--border-hairline)]"
+            : surface === "dark"
+              ? "hover:text-white"
+              : "hover:text-[var(--ink-primary)]"
+        }`}
+      >
+        中文
+      </button>
+      <button
+        type="button"
+        onClick={() => setLocale("en")}
+        className={`px-2 py-0.5 rounded-full lp-ease cursor-pointer ${
+          !isZh
+            ? surface === "dark"
+              ? "bg-white/15 text-white font-semibold"
+              : "bg-[var(--bg-sheet)] text-[var(--ink-primary)] font-semibold border border-[var(--border-hairline)]"
+            : surface === "dark"
+              ? "hover:text-white"
+              : "hover:text-[var(--ink-primary)]"
+        }`}
+      >
+        EN
+      </button>
     </div>
   );
 }

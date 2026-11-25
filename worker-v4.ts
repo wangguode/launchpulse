@@ -939,27 +939,40 @@ export async function handleSaveDirectoryPref(
     const body = (await request.json()) as {
       campaignId?: number;
       directoryId?: string;
+      directoryIds?: string[];
       moderationState?: "approved" | "skipped" | "priority";
       scheduledWave?: number;
     };
-    const directoryId = (body.directoryId || "").trim().slice(0, 32);
-    if (!directoryId) return jsonRes({ error: "Missing directoryId" }, 400);
+    const rawIds =
+      Array.isArray(body.directoryIds) && body.directoryIds.length > 0
+        ? body.directoryIds.map((id) => String(id || "").trim().slice(0, 32)).filter(Boolean).slice(0, 50)
+        : body.directoryId
+          ? [String(body.directoryId).trim().slice(0, 32)]
+          : [];
+    if (rawIds.length === 0) return jsonRes({ error: "Missing directoryId" }, 400);
     const campaignId = Number(body.campaignId || 0);
     const mod = ["approved", "skipped", "priority"].includes(body.moderationState || "")
       ? String(body.moderationState)
       : "approved";
     const wave = [1, 2, 3].includes(Number(body.scheduledWave)) ? Number(body.scheduledWave) : 1;
 
-    await env.DB.prepare(
+    const stmt = env.DB.prepare(
       `INSERT INTO directory_health_checks (customer_email, campaign_id, directory_id, moderation_state, scheduled_wave, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))
        ON CONFLICT(customer_email, campaign_id, directory_id) DO UPDATE SET
          moderation_state = ?4, scheduled_wave = ?5, updated_at = datetime('now')`
-    )
-      .bind(user.email, campaignId, directoryId, mod, wave)
-      .run();
+    );
+    for (const dirId of rawIds) {
+      await stmt.bind(user.email, campaignId, dirId, mod, wave).run();
+    }
 
-    return jsonRes({ ok: true, directoryId, moderationState: mod, scheduledWave: wave });
+    return jsonRes({
+      ok: true,
+      directoryId: rawIds[0],
+      updatedCount: rawIds.length,
+      moderationState: mod,
+      scheduledWave: wave,
+    });
   } catch {
     return jsonRes({ error: "Invalid directory preference." }, 400);
   }

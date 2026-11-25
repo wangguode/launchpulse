@@ -1,182 +1,200 @@
 "use client";
 
-import { useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import { Search } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
-import ThemeSwitcher from "@/components/ThemeSwitcher";
 import LangSwitcher from "@/components/LangSwitcher";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 
 export interface ShellNavItem {
   key: string;
   label: string;
-  icon: React.ReactNode;
+  mobileLabel?: string;
+  icon: ReactNode;
   badge?: string | number;
 }
 
 interface AppShellProps {
-  scopeBadge?: string;
   navItems: ShellNavItem[];
   activeKey: string;
   onSelect: (key: string) => void;
-  title: string;
-  subtitle?: string;
-  headerActions?: React.ReactNode;
-  sidebarFooter?: React.ReactNode;
-  children: React.ReactNode;
+  breadcrumbRoot: string;
+  breadcrumbCurrent: string;
+  sidebarTopSlot?: ReactNode;
+  sidebarFooter?: ReactNode;
+  headerActions?: ReactNode;
+  onOpenCommand?: () => void;
+  commandLabel?: string;
+  sheetPadding?: "default" | "none";
+  children: ReactNode;
 }
 
 /**
- * 生产级统一 macOS / Apple HIG 控制台外框（/dashboard 与 /admin 100% 共用）
+ * LaunchPulse V5 Framed-Sheet / True-Dark Obsidian 精密应用外壳
+ * ---------------------------------------------------------------
+ * - 220px L 型外框边栏（--bg-frame）+ 48px 顶栏面包屑
+ * - 8px 圆角内嵌工作纸（--bg-sheet + 1px --border-hairline，零投影）
+ * - 移动端 (<1024px) 自动收敛为底部 56px 3-Tab 导航栏
  */
 export default function AppShell({
-  scopeBadge,
   navItems,
   activeKey,
   onSelect,
-  title,
-  subtitle,
-  headerActions,
+  breadcrumbRoot,
+  breadcrumbCurrent,
+  sidebarTopSlot,
   sidebarFooter,
+  headerActions,
+  onOpenCommand,
+  commandLabel = "快速跳转",
+  sheetPadding = "default",
   children,
 }: AppShellProps) {
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  const renderNav = (closeOnPick = false) => (
-    <nav className="space-y-1">
-      {navItems.map((item) => {
-        const active = item.key === activeKey;
-        return (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => {
-              onSelect(item.key);
-              if (closeOnPick) setMobileOpen(false);
-            }}
-            className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-[10px] text-[13px] transition cursor-pointer text-left min-h-[38px] ${
-              active
-                ? "bg-[var(--apple-active)] text-[var(--apple-ink)] font-semibold"
-                : "text-[var(--apple-ink-secondary)] hover:bg-[var(--apple-hover)] hover:text-[var(--apple-ink)]"
-            }`}
-          >
-            <span className="flex items-center gap-2.5 min-w-0">
-              <span className={active ? "text-[var(--apple-blue)]" : "opacity-75"}>
-                {item.icon}
-              </span>
-              <span className="truncate">{item.label}</span>
-            </span>
-            {item.badge !== undefined && (
-              <span className="text-[11px] font-medium text-[var(--apple-ink-tertiary)] tabular-nums">
-                {item.badge}
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </nav>
-  );
-
   return (
-    <div className="min-h-screen bg-[var(--apple-bg)] text-[var(--apple-ink)] flex flex-col lg:flex-row">
-      {/* 桌面端左侧 240px macOS 边栏 */}
-      <aside className="hidden lg:flex lg:w-60 border-r border-[var(--apple-border)] bg-[var(--apple-bg-alt)] flex-col justify-between shrink-0 sticky top-0 h-screen">
-        <div className="p-4 space-y-5 overflow-y-auto">
-          <div className="flex items-center justify-between px-2 pt-1">
-            <Link
-              href="/"
-              className="flex items-center gap-2 font-semibold text-[15px] tracking-tight text-[var(--apple-ink)]"
-            >
-              <BrandMark className="w-5 h-5" />
-              <span>LaunchPulse</span>
-            </Link>
-            {scopeBadge && (
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--apple-ink-tertiary)]">
-                {scopeBadge}
-              </span>
-            )}
-          </div>
-          {renderNav(false)}
+    <div className="min-h-screen bg-[var(--bg-frame)] text-[var(--ink-primary)] flex">
+      {/* 桌面端 220px 左侧导航栏 */}
+      <aside className="hidden lg:flex lg:flex-col w-[224px] shrink-0 bg-[var(--bg-frame)] select-none">
+        {/* 顶部品牌区（与右侧 48px 顶栏严格齐平） */}
+        <div className="h-12 px-4 flex items-center justify-between gap-2">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 font-semibold text-[14.5px] tracking-tight text-[var(--ink-primary)]"
+          >
+            <BrandMark className="w-5 h-5" />
+            <span>LaunchPulse</span>
+          </Link>
         </div>
 
+        {/* 项目切换器 + ⌘K 命令面板入口 */}
+        <div className="px-3 pt-1 pb-2 space-y-2">
+          {sidebarTopSlot}
+          {onOpenCommand && (
+            <button
+              type="button"
+              onClick={onOpenCommand}
+              className="w-full h-8 px-2.5 rounded-[7px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] hover:border-[var(--border-strong)] text-[12.5px] text-[var(--ink-muted)] flex items-center justify-between lp-ease cursor-pointer"
+            >
+              <span className="inline-flex items-center gap-2 truncate">
+                <Search className="w-3.5 h-3.5 shrink-0" strokeWidth={1.7} />
+                <span className="truncate">{commandLabel}</span>
+              </span>
+              <kbd className="lp-kbd">⌘K</kbd>
+            </button>
+          )}
+        </div>
+
+        {/* 3 大高频核心导航区 */}
+        <nav className="flex-1 px-2.5 py-2 space-y-0.5 overflow-y-auto" aria-label="主导航">
+          {navItems.map((item) => {
+            const active = item.key === activeKey;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onSelect(item.key)}
+                className={`w-full h-9 px-2.5 rounded-[7px] text-[13px] flex items-center justify-between gap-2 lp-ease cursor-pointer ${
+                  active
+                    ? "bg-[var(--bg-hover)] text-[var(--ink-primary)] font-semibold"
+                    : "text-[var(--ink-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)] font-medium"
+                }`}
+              >
+                <span className="inline-flex items-center gap-2.5 min-w-0">
+                  <span className={active ? "text-[var(--ink-primary)]" : "text-[var(--ink-muted)]"}>
+                    {item.icon}
+                  </span>
+                  <span className="truncate">{item.label}</span>
+                </span>
+                {item.badge !== undefined && item.badge !== "" && (
+                  <span
+                    className={`px-1.5 py-0.5 rounded-[5px] text-[11px] font-mono tabular-nums ${
+                      active
+                        ? "bg-[var(--bg-sheet)] text-[var(--ink-primary)] border border-[var(--border-hairline)]"
+                        : "bg-[var(--bg-surface)] text-[var(--ink-muted)]"
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* 静音底栏收纳区 */}
         {sidebarFooter && (
-          <div className="p-4 border-t border-[var(--apple-border)]">{sidebarFooter}</div>
+          <div className="px-3 py-3 border-t border-[var(--border-hairline)]">{sidebarFooter}</div>
         )}
       </aside>
 
-      {/* 移动端抽屉菜单 */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex">
-          <div
-            className="fixed inset-0 bg-black/40"
-            onClick={() => setMobileOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="relative z-10 w-64 max-w-[82vw] bg-[var(--apple-bg-alt)] border-r border-[var(--apple-border)] h-full flex flex-col justify-between p-4">
-            <div className="space-y-5">
-              <div className="flex items-center justify-between px-2">
-                <Link
-                  href="/"
-                  className="flex items-center gap-2 font-semibold text-[15px] text-[var(--apple-ink)]"
-                >
-                  <BrandMark className="w-5 h-5" />
-                  <span>LaunchPulse</span>
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setMobileOpen(false)}
-                  className="p-1.5 rounded-lg text-[var(--apple-ink-secondary)] hover:bg-[var(--apple-hover)]"
-                  aria-label="Close menu"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              {renderNav(true)}
-            </div>
-            <div className="pt-4 border-t border-[var(--apple-border)] space-y-3">
-              <div className="flex items-center justify-between">
-                <ThemeSwitcher />
-                <LangSwitcher />
-              </div>
-              {sidebarFooter}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 右侧工作画布 */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-30 h-14 apple-glass border-b border-[var(--apple-border)] px-4 sm:px-7 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <button
-              type="button"
-              onClick={() => setMobileOpen(true)}
-              className="lg:hidden p-2 -ml-1 rounded-lg text-[var(--apple-ink)] hover:bg-[var(--apple-hover)]"
-              aria-label="Open menu"
-            >
-              <Menu className="w-4 h-4" />
-            </button>
-            <h1 className="text-[15px] font-semibold text-[var(--apple-ink)] truncate">{title}</h1>
-            {subtitle && (
-              <span className="hidden sm:inline-block text-[12px] text-[var(--apple-ink-tertiary)] truncate">
-                / {subtitle}
-              </span>
-            )}
+      {/* 右侧主区域：48px 面包屑顶栏 + 内嵌 1px 工作纸 */}
+      <div className="flex-1 min-w-0 flex flex-col min-h-screen pb-16 lg:pb-0">
+        <header className="h-12 px-3 sm:px-5 lg:pl-2 lg:pr-4 flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0 text-[13px]">
+            <Link href="/" className="lg:hidden inline-flex items-center shrink-0">
+              <BrandMark className="w-5 h-5" />
+            </Link>
+            <span className="hidden sm:inline text-[var(--ink-muted)] truncate max-w-[160px]">
+              {breadcrumbRoot}
+            </span>
+            <span className="hidden sm:inline text-[var(--border-strong)]">/</span>
+            <span className="font-medium text-[var(--ink-primary)] truncate">{breadcrumbCurrent}</span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <div className="hidden sm:flex items-center gap-2">
+            {onOpenCommand && (
+              <button
+                type="button"
+                onClick={onOpenCommand}
+                aria-label="打开命令面板"
+                className="lg:hidden h-7 px-2 rounded-[6px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] text-[var(--ink-muted)] inline-flex items-center gap-1 text-[11px] cursor-pointer"
+              >
+                <Search className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <LangSwitcher />
+            <div className="sm:block lg:hidden hidden">
               <ThemeSwitcher />
-              <LangSwitcher />
             </div>
             {headerActions}
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-7 max-w-[1120px] w-full mx-auto space-y-6">
-          {children}
+        {/* Framed Sheet 内嵌主画布：仅 1px hairline，零 shadow */}
+        <main className="flex-1 min-w-0 px-2 sm:px-3 lg:pl-0 lg:pr-3 pb-3 flex flex-col">
+          <div
+            className={`flex-1 rounded-[10px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] overflow-hidden flex flex-col ${
+              sheetPadding === "default" ? "" : ""
+            }`}
+          >
+            {children}
+          </div>
         </main>
       </div>
+
+      {/* 移动端 (<1024px) 底部 56px 精密 3-Tab 导航 */}
+      <nav
+        className="lg:hidden fixed bottom-0 inset-x-0 z-30 h-14 bg-[var(--bg-sheet)] border-t border-[var(--border-hairline)] grid"
+        style={{ gridTemplateColumns: `repeat(${Math.max(1, navItems.length)}, minmax(0, 1fr))` }}
+        aria-label="移动端主导航"
+      >
+        {navItems.map((item) => {
+          const active = item.key === activeKey;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onSelect(item.key)}
+              className={`flex flex-col items-center justify-center gap-0.5 text-[11px] lp-ease cursor-pointer ${
+                active ? "text-[var(--accent-primary)] font-semibold" : "text-[var(--ink-muted)]"
+              }`}
+            >
+              <span>{item.icon}</span>
+              <span className="truncate max-w-[92px]">{item.mobileLabel || item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }

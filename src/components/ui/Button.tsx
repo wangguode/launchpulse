@@ -1,53 +1,54 @@
 "use client";
 
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "inverse";
+type Size = "xs" | "sm" | "md";
+
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "inverse" | "secondary" | "ghost";
-  size?: "sm" | "md" | "lg";
+  variant?: Variant;
+  size?: Size;
   loading?: boolean;
-  fullWidth?: boolean;
+  children: ReactNode;
 }
 
+const VARIANT_CLASSES: Record<Variant, string> = {
+  primary: "lp-btn-primary border border-transparent",
+  inverse: "lp-btn-inverse border border-transparent",
+  secondary:
+    "bg-[var(--bg-sheet)] hover:bg-[var(--bg-hover)] text-[var(--ink-primary)] border border-[var(--border-strong)]",
+  ghost:
+    "bg-transparent hover:bg-[var(--bg-hover)] text-[var(--ink-secondary)] hover:text-[var(--ink-primary)] border border-transparent",
+  danger:
+    "bg-[var(--status-danger-soft)] hover:opacity-90 text-[var(--status-danger)] border border-transparent",
+};
+
+const SIZE_CLASSES: Record<Size, string> = {
+  xs: "h-7 px-2.5 text-[12px] rounded-[6px] gap-1.5",
+  sm: "h-8 px-3 text-[12.5px] rounded-[7px] gap-1.5",
+  md: "h-9 px-3.5 text-[13px] rounded-[8px] gap-2",
+};
+
 /**
- * 统一高对比度 Apple 风格药丸按钮原语（杜绝亮色模式蓝底黑字）
+ * V5 精密按钮原语：1px 清晰边框、零夸张阴影、140ms 精准手感
  */
 export default function Button({
   variant = "primary",
-  size = "md",
+  size = "sm",
   loading = false,
-  fullWidth = false,
   disabled,
   className = "",
   children,
-  ...props
+  ...rest
 }: ButtonProps) {
-  const variantCls =
-    variant === "primary"
-      ? "lp-btn-primary"
-      : variant === "inverse"
-      ? "lp-btn-inverse"
-      : variant === "secondary"
-      ? "border border-[var(--apple-border-strong)] bg-transparent text-[var(--apple-ink)] hover:bg-[var(--apple-hover)]"
-      : "bg-transparent text-[var(--apple-ink-secondary)] hover:bg-[var(--apple-hover)] hover:text-[var(--apple-ink)]";
-
-  const sizeCls =
-    size === "sm"
-      ? "px-3.5 py-1.5 text-[12px] min-h-[32px]"
-      : size === "lg"
-      ? "px-6 py-3 text-[15px] min-h-[44px]"
-      : "px-4 py-2 text-[13px] min-h-[38px]";
-
   return (
     <button
-      {...props}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-full font-medium transition cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed whitespace-nowrap ${variantCls} ${sizeCls} ${
-        fullWidth ? "w-full" : ""
-      } ${className}`}
+      className={`inline-flex items-center justify-center font-medium lp-ease whitespace-nowrap cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${className}`}
+      {...rest}
     >
-      {loading && <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />}
+      {loading && <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" strokeWidth={1.8} />}
       {children}
     </button>
   );

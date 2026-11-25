@@ -1,159 +1,274 @@
 @import "tailwindcss";
 
 /* =====================================================================
- * LaunchPulse V3 纯净 Apple Official × Apple HIG 双主题设计系统
+ * LaunchPulse V5 精密工程双主题设计系统 (Linear × Vercel × Raycast)
  * ---------------------------------------------------------------------
- * 原则：零强制覆盖补丁，全站 100% 原生消费语义变量
- * Light: #fbfbfd 画布 / #f5f5f7 侧栏与交替通栏 / #ffffff 卡片 / #1d1d1f 主墨色 / #0071e3 苹果蓝
- * Dark : #000000 画布 / #161617 侧栏与交替通栏 / #1c1c1e 卡片 / #f5f5f7 主文字 / #2997ff 苹果蓝
+ * 浅色模式 Framed Sheet : #f4f5f7 L型画框 / #ffffff 1px内嵌工作纸 / #0f172a 深墨 / #2563eb 核心钴蓝
+ * 深色模式 True Obsidian: #0b0c0e L型画框 / #111317 1px内嵌工作纸 / #f3f4f6 柔白 / #4f8cff 精密蓝
+ * 硬性法则：主界面零 box-shadow（仅浮层命令面板/弹窗有阴影）；≥94% 中性墨色；全站 tabular-nums
  * ===================================================================== */
+
 :root,
 html[data-theme="light"] {
   color-scheme: light;
-  --apple-bg: #fbfbfd;
-  --apple-bg-alt: #f5f5f7;
-  --apple-surface: #ffffff;
-  --apple-surface-raised: #ffffff;
-  --apple-surface-subtle: #efeff4;
-  --apple-glass: rgba(251, 251, 253, 0.82);
-  --apple-border: rgba(0, 0, 0, 0.085);
-  --apple-border-strong: rgba(0, 0, 0, 0.16);
-  --apple-ink: #1d1d1f;
-  --apple-ink-secondary: #6e6e73;
-  --apple-ink-tertiary: #86868b;
-  --apple-blue: #0071e3;
-  --apple-blue-hover: #0077ed;
-  --apple-blue-soft: rgba(0, 113, 227, 0.09);
-  --apple-green: #1e7e34;
-  --apple-green-dot: #34c759;
-  --apple-green-soft: rgba(52, 199, 89, 0.12);
-  --apple-orange: #b25000;
-  --apple-orange-dot: #ff9500;
-  --apple-orange-soft: rgba(255, 149, 0, 0.12);
-  --apple-red: #c41e3a;
-  --apple-red-dot: #ff3b30;
-  --apple-red-soft: rgba(255, 59, 48, 0.1);
-  --apple-hover: rgba(0, 0, 0, 0.04);
-  --apple-active: rgba(0, 0, 0, 0.075);
-  --apple-shadow: 0 2px 14px rgba(0, 0, 0, 0.045);
 
-  /* 显式按钮对比度契约（绝不被文本类污染，WCAG AA >= 4.6:1） */
-  --btn-primary-bg: #0071e3;
-  --btn-primary-hover: #0077ed;
+  /* V5 精密核心令牌 */
+  --bg-frame: #f4f5f7;
+  --bg-sheet: #ffffff;
+  --bg-surface: #f8f9fb;
+  --bg-hover: #f1f3f6;
+  --bg-active-tint: rgba(37, 99, 235, 0.08);
+  --bg-glass: rgba(244, 245, 247, 0.86);
+
+  --border-hairline: #e6e8ec;
+  --border-strong: #d0d5dd;
+
+  --ink-primary: #0f172a;
+  --ink-secondary: #475569;
+  --ink-muted: #64748b;
+
+  --accent-primary: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-soft: rgba(37, 99, 235, 0.09);
+
+  --status-live: #059669;
+  --status-live-soft: rgba(5, 150, 105, 0.1);
+  --status-warn: #d97706;
+  --status-warn-soft: rgba(217, 119, 6, 0.1);
+  --status-danger: #dc2626;
+  --status-danger-soft: rgba(220, 38, 38, 0.1);
+
+  --overlay-shadow: 0 20px 48px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(15, 23, 42, 0.06);
+
+  /* 高对比度按钮契约 (WCAG AA >= 4.6:1) */
+  --btn-primary-bg: #2563eb;
+  --btn-primary-hover: #1d4ed8;
   --btn-primary-fg: #ffffff;
-  --btn-inverse-bg: #1d1d1f;
-  --btn-inverse-hover: #323236;
+  --btn-inverse-bg: #0f172a;
+  --btn-inverse-hover: #1e293b;
   --btn-inverse-fg: #ffffff;
 
-  /* 兼容 ThemeSwitcher / LangSwitcher 共享变量 */
-  --app-canvas: var(--apple-bg);
-  --app-sidebar: var(--apple-bg-alt);
-  --app-surface: var(--apple-surface);
-  --app-subtle: var(--apple-bg-alt);
-  --app-hover: var(--apple-hover);
-  --app-active: var(--apple-active);
-  --app-border: var(--apple-border);
-  --app-border-strong: var(--apple-border-strong);
-  --app-ink: var(--apple-ink);
-  --app-ink-secondary: var(--apple-ink-secondary);
-  --app-ink-muted: var(--apple-ink-tertiary);
-  --app-accent: var(--apple-blue);
+  /* 兼容映射旧版语义变量，确保全站子路由零断层 */
+  --apple-bg: var(--bg-frame);
+  --apple-bg-alt: var(--bg-surface);
+  --apple-surface: var(--bg-sheet);
+  --apple-surface-raised: var(--bg-sheet);
+  --apple-surface-subtle: var(--bg-hover);
+  --apple-glass: var(--bg-glass);
+  --apple-border: var(--border-hairline);
+  --apple-border-strong: var(--border-strong);
+  --apple-ink: var(--ink-primary);
+  --apple-ink-secondary: var(--ink-secondary);
+  --apple-ink-tertiary: var(--ink-muted);
+  --apple-blue: var(--accent-primary);
+  --apple-blue-hover: var(--accent-hover);
+  --apple-blue-soft: var(--accent-soft);
+  --apple-green: var(--status-live);
+  --apple-green-dot: var(--status-live);
+  --apple-green-soft: var(--status-live-soft);
+  --apple-orange: var(--status-warn);
+  --apple-orange-dot: var(--status-warn);
+  --apple-orange-soft: var(--status-warn-soft);
+  --apple-red: var(--status-danger);
+  --apple-red-dot: var(--status-danger);
+  --apple-red-soft: var(--status-danger-soft);
+  --apple-hover: var(--bg-hover);
+  --apple-active: rgba(15, 23, 42, 0.06);
+  --apple-shadow: none;
+
+  --app-canvas: var(--bg-frame);
+  --app-sidebar: var(--bg-frame);
+  --app-surface: var(--bg-sheet);
+  --app-subtle: var(--bg-surface);
+  --app-hover: var(--bg-hover);
+  --app-active: var(--bg-active-tint);
+  --app-border: var(--border-hairline);
+  --app-border-strong: var(--border-strong);
+  --app-ink: var(--ink-primary);
+  --app-ink-secondary: var(--ink-secondary);
+  --app-ink-muted: var(--ink-muted);
+  --app-accent: var(--accent-primary);
 }
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --apple-bg: #000000;
-  --apple-bg-alt: #161617;
-  --apple-surface: #1c1c1e;
-  --apple-surface-raised: #242426;
-  --apple-surface-subtle: #2c2c2e;
-  --apple-glass: rgba(22, 22, 23, 0.82);
-  --apple-border: rgba(255, 255, 255, 0.11);
-  --apple-border-strong: rgba(255, 255, 255, 0.2);
-  --apple-ink: #f5f5f7;
-  --apple-ink-secondary: #a1a1a6;
-  --apple-ink-tertiary: #86868b;
-  --apple-blue: #2997ff;
-  --apple-blue-hover: #47a6ff;
-  --apple-blue-soft: rgba(41, 151, 255, 0.16);
-  --apple-green: #30d158;
-  --apple-green-dot: #30d158;
-  --apple-green-soft: rgba(48, 209, 88, 0.15);
-  --apple-orange: #ff9f0a;
-  --apple-orange-dot: #ff9f0a;
-  --apple-orange-soft: rgba(255, 159, 10, 0.15);
-  --apple-red: #ff6961;
-  --apple-red-dot: #ff453a;
-  --apple-red-soft: rgba(255, 69, 58, 0.15);
-  --apple-hover: rgba(255, 255, 255, 0.06);
-  --apple-active: rgba(255, 255, 255, 0.11);
-  --apple-shadow: 0 4px 20px rgba(0, 0, 0, 0.42);
 
-  /* 暗色模式下蓝底按钮同样保持高对比纯白文字 */
-  --btn-primary-bg: #0071e3;
-  --btn-primary-hover: #0077ed;
+  --bg-frame: #0b0c0e;
+  --bg-sheet: #111317;
+  --bg-surface: #16181e;
+  --bg-hover: #1c1f27;
+  --bg-active-tint: rgba(79, 140, 255, 0.12);
+  --bg-glass: rgba(11, 12, 14, 0.86);
+
+  --border-hairline: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --ink-primary: #f3f4f6;
+  --ink-secondary: #9ca3af;
+  --ink-muted: #6b7280;
+
+  --accent-primary: #4f8cff;
+  --accent-hover: #6aa0ff;
+  --accent-soft: rgba(79, 140, 255, 0.14);
+
+  --status-live: #34d399;
+  --status-live-soft: rgba(52, 211, 153, 0.13);
+  --status-warn: #fbbf24;
+  --status-warn-soft: rgba(251, 191, 36, 0.13);
+  --status-danger: #f87171;
+  --status-danger-soft: rgba(248, 113, 113, 0.13);
+
+  --overlay-shadow: 0 24px 64px rgba(0, 0, 0, 0.68), 0 0 0 1px rgba(255, 255, 255, 0.1);
+
+  --btn-primary-bg: #2563eb;
+  --btn-primary-hover: #3b82f6;
   --btn-primary-fg: #ffffff;
-  --btn-inverse-bg: #f5f5f7;
-  --btn-inverse-hover: #e5e5ea;
-  --btn-inverse-fg: #1d1d1f;
+  --btn-inverse-bg: #f3f4f6;
+  --btn-inverse-hover: #e5e7eb;
+  --btn-inverse-fg: #0b0c0e;
 
-  --app-canvas: var(--apple-bg);
-  --app-sidebar: var(--apple-bg-alt);
-  --app-surface: var(--apple-surface);
-  --app-subtle: var(--apple-bg-alt);
-  --app-hover: var(--apple-hover);
-  --app-active: var(--apple-active);
-  --app-border: var(--apple-border);
-  --app-border-strong: var(--apple-border-strong);
-  --app-ink: var(--apple-ink);
-  --app-ink-secondary: var(--apple-ink-secondary);
-  --app-ink-muted: var(--apple-ink-tertiary);
-  --app-accent: var(--apple-blue);
+  --apple-bg: var(--bg-frame);
+  --apple-bg-alt: var(--bg-surface);
+  --apple-surface: var(--bg-sheet);
+  --apple-surface-raised: var(--bg-surface);
+  --apple-surface-subtle: var(--bg-hover);
+  --apple-glass: var(--bg-glass);
+  --apple-border: var(--border-hairline);
+  --apple-border-strong: var(--border-strong);
+  --apple-ink: var(--ink-primary);
+  --apple-ink-secondary: var(--ink-secondary);
+  --apple-ink-tertiary: var(--ink-muted);
+  --apple-blue: var(--accent-primary);
+  --apple-blue-hover: var(--accent-hover);
+  --apple-blue-soft: var(--accent-soft);
+  --apple-green: var(--status-live);
+  --apple-green-dot: var(--status-live);
+  --apple-green-soft: var(--status-live-soft);
+  --apple-orange: var(--status-warn);
+  --apple-orange-dot: var(--status-warn);
+  --apple-orange-soft: var(--status-warn-soft);
+  --apple-red: var(--status-danger);
+  --apple-red-dot: var(--status-danger);
+  --apple-red-soft: var(--status-danger-soft);
+  --apple-hover: var(--bg-hover);
+  --apple-active: var(--bg-active-tint);
+  --apple-shadow: none;
+
+  --app-canvas: var(--bg-frame);
+  --app-sidebar: var(--bg-frame);
+  --app-surface: var(--bg-sheet);
+  --app-subtle: var(--bg-surface);
+  --app-hover: var(--bg-hover);
+  --app-active: var(--bg-active-tint);
+  --app-border: var(--border-hairline);
+  --app-border-strong: var(--border-strong);
+  --app-ink: var(--ink-primary);
+  --app-ink-secondary: var(--ink-secondary);
+  --app-ink-muted: var(--ink-muted);
+  --app-accent: var(--accent-primary);
 }
 
+/* =====================================================================
+ * 基础排版与浏览器原生表面精修（Craft Floor）
+ * ===================================================================== */
 html {
   scroll-behavior: smooth;
-  background-color: var(--apple-bg);
-  color: var(--apple-ink);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC",
-    "Hiragino Sans GB", "Noto Sans SC", "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-frame);
+  color: var(--ink-primary);
+  font-family: var(--font-sans), "Inter", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
+    -apple-system, BlinkMacSystemFont, sans-serif;
+  caret-color: var(--accent-primary);
 }
 
 body {
-  background-color: var(--apple-bg);
-  color: var(--apple-ink);
+  background-color: var(--bg-frame);
+  color: var(--ink-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
+::selection {
+  background-color: var(--accent-soft);
+  color: var(--ink-primary);
+}
+
+a {
+  text-underline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* 精密细滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: 9999px;
+}
+
+/* 中英文精密标题律与防孤字 */
+.lp-display,
 .apple-display {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC",
-    "Helvetica Neue", sans-serif;
+  font-family: var(--font-sans), "Inter", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
   letter-spacing: -0.025em;
+  text-wrap: balance;
 }
 
-html[lang="zh"] .apple-display,
-html[lang="ja"] .apple-display {
-  letter-spacing: -0.01em;
+html[lang="zh"] .lp-display,
+html[lang="zh"] .apple-display {
+  letter-spacing: -0.015em;
 }
 
+.lp-balance {
+  text-wrap: balance;
+}
+
+.lp-glass,
 .apple-glass {
-  background-color: var(--apple-glass);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background-color: var(--bg-glass);
+  backdrop-filter: saturate(150%) blur(14px);
+  -webkit-backdrop-filter: saturate(150%) blur(14px);
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
 
-/* 彻底关闭代码连字，防止 <!-- / --> 渲染为异形箭头 */
+.font-mono {
+  font-family: var(--font-mono), "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+}
+
+/* 彻底关闭代码连字，防止 <!-- / --> 渲染异常 */
 code,
 pre,
-input[class*="font-mono"] {
+input[class*="font-mono"],
+textarea[class*="font-mono"] {
   font-variant-ligatures: none;
   font-feature-settings: "liga" 0, "calt" 0;
+}
+
+/* 精密微动效过渡曲线 (140ms) */
+.lp-ease {
+  transition: background-color 140ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 140ms cubic-bezier(0.2, 0, 0, 1),
+    color 140ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 140ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 /* 显式高对比度按钮基类 */
@@ -171,4 +286,22 @@ input[class*="font-mono"] {
 }
 .lp-btn-inverse:hover {
   background-color: var(--btn-inverse-hover);
+}
+
+/* 精密键帽 */
+.lp-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 5px;
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-surface);
+  color: var(--ink-muted);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
 }

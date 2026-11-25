@@ -1,31 +1,26 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { I18nProvider } from "@/components/I18nProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-display",
-  weight: ["600", "700"],
-});
-
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
-  weight: ["400", "600"],
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://pulse.statementflow.win"),
-  title: "LaunchPulse — 50+ High-DR Directory Distribution & 24/7 Buyer Intent Radar",
+  title: "LaunchPulse — 产品上线后，把海外买家和外链带回来",
   description:
-    "Stop shipping into the void. Distribute your SaaS to 50+ high-DR directories ($39) and unlock fresh (<45d) Hacker News, Reddit & GitHub buyers actively looking for your tool.",
+    "面向中国出海开发者与独立团队的精密增长指挥台：一次录入品牌资料，开启 100+ 精选目录自然节奏投放、全网求购线索监听与美元级营收归因。",
   robots: {
     index: true,
     follow: true,
@@ -34,9 +29,9 @@ export const metadata: Metadata = {
     canonical: "https://pulse.statementflow.win",
   },
   openGraph: {
-    title: "LaunchPulse — 50+ High-DR Directory Backlinks & Live SaaS Buyers",
+    title: "LaunchPulse — 海外精选目录分发、买家求购收件箱与美元级归因",
     description:
-      "50+ high-DR directory submissions ($39), 24/7 fresh community buyer intent radar ($29/mo), plus free bonus SEO & /llms.txt audits.",
+      "100+ 精选海外高权重目录分发、24/7 求购线索监听与原生回复精编、以及每条外链的美元级营收归因闭环。",
     url: "https://pulse.statementflow.win",
     siteName: "LaunchPulse",
     images: [
@@ -44,16 +39,16 @@ export const metadata: Metadata = {
         url: "/teardowns/certnudge-poster.png",
         width: 1280,
         height: 720,
-        alt: "LaunchPulse 50+ Directory Distribution & Buyer Intent Radar",
+        alt: "LaunchPulse 精密增长指挥台",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "LaunchPulse — 50+ Directory Distribution & 24/7 Buyer Intent Radar",
+    title: "LaunchPulse — High-DR Directory Distribution & Buyer Intent Command Center",
     description:
-      "Stop shipping into the void. Get 50+ high-DR directory backlinks and reply to real developers actively asking for a tool like yours.",
+      "Distribute your SaaS across 100+ curated directories, monitor live buying threads, and attribute every dollar back to the exact channel.",
     images: ["/teardowns/certnudge-poster.png"],
   },
 };
@@ -66,32 +61,12 @@ const softwareSchema = {
   operatingSystem: "Web",
   url: "https://pulse.statementflow.win",
   description:
-    "50+ high-DR directory distribution, 24/7 fresh community buyer intent radar, and passive SEO/AEO launch diagnostics for SaaS founders.",
+    "100+ high-DR directory distribution, real-time buyer intent inbox, and dollar-level attribution for indie SaaS teams.",
   offers: [
-    {
-      "@type": "Offer",
-      name: "Free Traffic Snapshot",
-      price: "0",
-      priceCurrency: "USD",
-    },
-    {
-      "@type": "Offer",
-      name: "50+ Directory Distribution Blitz",
-      price: "39",
-      priceCurrency: "USD",
-    },
-    {
-      "@type": "Offer",
-      name: "24/7 Buyer Intent Radar Pro",
-      price: "29",
-      priceCurrency: "USD",
-    },
-    {
-      "@type": "Offer",
-      name: "Done-For-You Growth Sprint",
-      price: "299",
-      priceCurrency: "USD",
-    },
+    { "@type": "Offer", name: "Free Launch Audit", price: "0", priceCurrency: "USD" },
+    { "@type": "Offer", name: "Launch Starter Pack", price: "39", priceCurrency: "USD" },
+    { "@type": "Offer", name: "Growth Command Center", price: "29", priceCurrency: "USD" },
+    { "@type": "Offer", name: "Done-For-You Flagship", price: "299", priceCurrency: "USD" },
   ],
 };
 
@@ -101,14 +76,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}
-    >
+    <html lang="zh" data-theme="light" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var m=localStorage.getItem('lp_theme')||'system';var r=m==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):m;document.documentElement.setAttribute('data-theme',r);var l=localStorage.getItem('lp_locale');if(l==='en'||l==='zh'||l==='ja'){document.documentElement.lang=l;}}catch(e){}})();`,
+            __html: `(function(){try{var m=localStorage.getItem('lp_theme')||'light';var r=m==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):m;document.documentElement.setAttribute('data-theme',r);var l=localStorage.getItem('lp_locale')||'zh';if(l==='en'||l==='zh'||l==='ja'){document.documentElement.lang=l;}}catch(e){}})();`,
           }}
         />
         <script
@@ -116,7 +88,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}
         />
       </head>
-      <body className="bg-[var(--apple-bg)] text-[var(--apple-ink)] selection:bg-[#0071e3]/20">
+      <body className="bg-[var(--bg-frame)] text-[var(--ink-primary)] antialiased">
         <ThemeProvider>
           <I18nProvider>{children}</I18nProvider>
         </ThemeProvider>
