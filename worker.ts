@@ -10,7 +10,9 @@
  */
 
 import {
+  handleAutofillBrandKit,
   handleDeepLiveScan,
+  handleGenerateRadarReply,
   handleGetPublicReport,
   handleRunRadarScan,
   handleSaveBrandKit,
@@ -39,6 +41,9 @@ interface Env {
     fetch: (request: Request) => Promise<Response>;
   };
   DB?: D1Database;
+  AI?: {
+    run: (model: string, input: Record<string, unknown>) => Promise<unknown>;
+  };
   CREEM_API_KEY?: string;
   CREEM_PRODUCT_ID_FIXPACK?: string;
   CREEM_PRODUCT_ID_BLITZ?: string;
@@ -48,6 +53,9 @@ interface Env {
   ADMIN_API_KEY?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM_EMAIL?: string;
+  LLM_API_KEY?: string;
+  LLM_BASE_URL?: string;
+  LLM_MODEL?: string;
 }
 
 const PLAN_CONFIG = {
@@ -493,6 +501,7 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
       slug?: string;
       targetUrl?: string;
       email?: string;
+      customerEmail?: string;
     };
     const plan: keyof typeof PLAN_CONFIG =
       body.plan === "blitz" || body.plan === "fixpack"
@@ -502,9 +511,13 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
         : "radar";
     const meta = PLAN_CONFIG[plan];
     const origin = request.headers.get("origin") || new URL(request.url).origin;
-    const returnPath = body.slug
-      ? `/audit/${encodeURIComponent(body.slug)}?unlocked=1&plan=${plan}`
-      : `/portal?unlocked=1&plan=${plan}`;
+    const sessionUser = await getSessionUser(request, env);
+    const resolvedEmail = (body.email || body.customerEmail || sessionUser?.email || "").trim().toLowerCase();
+    const returnPath = sessionUser
+      ? `/dashboard?unlocked=1&plan=${plan}`
+      : body.slug
+        ? `/audit/${encodeURIComponent(body.slug)}?unlocked=1&plan=${plan}`
+        : `/portal?unlocked=1&plan=${plan}`;
 
     const creemApiKey = env.CREEM_API_KEY?.trim();
     const productId =
@@ -525,8 +538,8 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
           targetUrl: body.targetUrl || "",
         },
       };
-      if (body.email?.trim()) {
-        creemPayload.customer = { email: body.email.trim() };
+      if (resolvedEmail) {
+        creemPayload.customer = { email: resolvedEmail };
       }
 
       const creemRes = await fetch("https://api.creem.io/v1/checkouts", {
@@ -1731,6 +1744,12 @@ export default {
       if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
       return handleSaveBrandKit(request, env, user);
     }
+    if (url.pathname === "/api/dashboard/brand-kit/autofill" && request.method === "POST") {
+      if (!checkRateLimit(request, 15)) return jsonResponse({ error: "Too many autofill requests. Wait 60s." }, 429);
+      const user = await getSessionUser(request, env);
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+      return handleAutofillBrandKit(request);
+    }
     if (url.pathname === "/api/dashboard/directory-pref" && request.method === "POST") {
       const user = await getSessionUser(request, env);
       if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
@@ -1746,6 +1765,12 @@ export default {
       const user = await getSessionUser(request, env);
       if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
       return handleRunRadarScan(request, env, user);
+    }
+    if (url.pathname === "/api/dashboard/radar/generate-reply" && request.method === "POST") {
+      if (!checkRateLimit(request, 20)) return jsonResponse({ error: "Too many AI reply requests. Wait 60s." }, 429);
+      const user = await getSessionUser(request, env);
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+      return handleGenerateRadarReply(request, env, user);
     }
     if (url.pathname === "/api/dashboard/radar/lead" && request.method === "POST") {
       const user = await getSessionUser(request, env);

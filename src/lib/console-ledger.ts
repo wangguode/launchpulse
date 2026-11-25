@@ -72,8 +72,18 @@ export interface CampaignRecord {
   competitors: string;
 }
 
+export interface EntitlementInfo {
+  plan: "free" | "blitz" | "radar" | "dfy";
+  maxDirectories: number;
+  maxLeads: number;
+  canAutoScan: boolean;
+  canAiReply: boolean;
+  canExportReport: boolean;
+}
+
 export interface OverviewPayload {
   user: { id: number; email: string; name: string; role: string };
+  entitlement?: EntitlementInfo;
   orders: Array<{ order_id: string; plan: string; amount_usd: number; status: string; created_at: string }>;
   campaigns: CampaignRecord[];
   activeCampaignId: number;
@@ -329,6 +339,14 @@ export function buildSampleOverview(): OverviewPayload {
 
   return {
     user: { id: 0, email: "alex@acmeflow.dev", name: "Alex Chen", role: "customer" },
+    entitlement: {
+      plan: "radar",
+      maxDirectories: 100,
+      maxLeads: 999,
+      canAutoScan: true,
+      canAiReply: true,
+      canExportReport: true,
+    },
     orders: [{ order_id: "ord_sample_01", plan: "radar", amount_usd: 29, status: "active", created_at: "2026-11-01" }],
     campaigns: [
       {
@@ -408,7 +426,7 @@ export function buildSampleOverview(): OverviewPayload {
       keywords: ["ssl certificate expired", "domain expiry monitor", "tls renewal failed"],
       competitors: ["UptimeRobot", "Better Stack"],
       excludeWords: ["hiring", "freelancer", "what are you working on"],
-      sources: ["hn", "github", "devto", "lobsters"],
+      sources: ["hn", "reddit", "github", "devto", "lobsters"],
       last_scanned_at: "2026-11-25 02:40",
     },
     // 严格对账：3 待跟进(new) + 6 已回复(replied) + 3 已转化(won) = 12 条
@@ -447,13 +465,13 @@ export function buildSampleOverview(): OverviewPayload {
       },
       {
         id: 103,
-        source: "DEV.to",
-        community: "#devops",
-        author: "@indie_kyle",
+        source: "Reddit",
+        community: "r/SaaS",
+        author: "u/indie_kyle",
         title: "How one expired WHOIS renewal took down our checkout API",
         excerpt:
-          "Autorenew failed silently on an expired virtual card and registrar emails went straight to spam. Never trusting registrar emails alone again.",
-        url: "https://dev.to",
+          "Autorenew failed silently on an expired virtual card and registrar emails went straight to spam. Looking for an external watcher that alerts Slack before expiry.",
+        url: "https://www.reddit.com/r/SaaS",
         intent_type: "pain",
         intent_score: 91,
         status: "new",

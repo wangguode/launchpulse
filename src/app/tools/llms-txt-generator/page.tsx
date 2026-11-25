@@ -2,13 +2,24 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Check, Copy, Download, FileCode2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  IconArrowUpRight,
+  IconCheck,
+  IconCopy,
+  IconDownload,
+  IconFileCode,
+} from "@tabler/icons-react";
 import { useI18n } from "@/components/I18nProvider";
 import BrandMark from "@/components/BrandMark";
-import ThemeSwitcher from "@/components/ThemeSwitcher";
 import LangSwitcher from "@/components/LangSwitcher";
-import Button from "@/components/ui/lp-button";
-import StatusBadge from "@/components/ui/StatusBadge";
+import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 
 const SAMPLE_LLMS = `# AcmeFlow
 
@@ -26,7 +37,7 @@ const SAMPLE_LLMS = `# AcmeFlow
 `;
 
 /**
- * V5 50/50 精密分栏工作台：/llms.txt 标准清单生成器（/tools/llms-txt-generator）
+ * 官方 shadcn/ui /llms.txt 标准清单生成器（/tools/llms-txt-generator）
  */
 export default function LlmsTxtGeneratorPage() {
   const { locale } = useI18n();
@@ -59,12 +70,15 @@ export default function LlmsTxtGeneratorPage() {
         diagnostics?: { llmsTxt?: { exists: boolean; generatedPreview: string } };
       };
       if (!res.ok) {
-        setError(data.error || (isZh ? "抓取失败，请确认网址可公网访问。" : "Failed to inspect URL."));
+        const msg = data.error || (isZh ? "抓取失败，请确认网址可公网访问。" : "Failed to inspect URL.");
+        setError(msg);
+        toast.error(msg);
       } else {
         setDomain(data.domain || "");
         setExistsAlready(Boolean(data.diagnostics?.llmsTxt?.exists));
         setOutput(data.diagnostics?.llmsTxt?.generatedPreview || SAMPLE_LLMS);
         setIsCustomOutput(true);
+        toast.success(isZh ? `已生成 ${data.domain || ""} 的 llms.txt 草案` : "Generated llms.txt draft");
       }
     } catch {
       setError(isZh ? "网络异常，请稍后重试。" : "Network error.");
@@ -82,6 +96,7 @@ export default function LlmsTxtGeneratorPage() {
     try {
       await navigator.clipboard.writeText(output);
       setCopied(true);
+      toast.success(isZh ? "llms.txt 内容已复制" : "Copied llms.txt");
       setTimeout(() => setCopied(false), 1600);
     } catch {
       // ignore
@@ -99,147 +114,140 @@ export default function LlmsTxtGeneratorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-frame)] text-[var(--ink-primary)] flex flex-col">
-      <header className="h-12 px-4 sm:px-6 border-b border-[var(--border-hairline)] bg-[var(--bg-frame)] flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[13px] min-w-0">
-          <Link href="/" className="inline-flex items-center gap-2 font-semibold text-[14.5px] text-[var(--ink-primary)] shrink-0">
-            <BrandMark className="w-5 h-5" />
-            <span>LaunchPulse</span>
-          </Link>
-          <span className="text-[var(--border-strong)]">/</span>
-          <span className="text-[var(--ink-secondary)] truncate">/llms.txt {isZh ? "工作台" : "Studio"}</span>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <Link
-            href="/tools/aeo-checker"
-            className="hidden sm:inline-flex items-center gap-1 text-[12px] text-[var(--ink-secondary)] hover:text-[var(--ink-primary)] mr-1"
-          >
-            <span>{isZh ? "AEO 体检" : "AEO Checker"}</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
-          </Link>
-          <LangSwitcher />
-          <div className="hidden sm:block">
-            <ThemeSwitcher />
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <header className="sticky top-0 z-40 h-14 border-b bg-background/95 backdrop-blur">
+        <div className="mx-auto flex h-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+          <div className="flex items-center gap-2 text-sm min-w-0">
+            <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight shrink-0">
+              <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <BrandMark className="size-4" tone="light" />
+              </div>
+              <span>LaunchPulse</span>
+            </Link>
+            <span className="text-muted-foreground">/</span>
+            <span className="text-muted-foreground truncate">/llms.txt {isZh ? "生成器" : "Studio"}</span>
           </div>
-          <Link
-            href="/dashboard?sample=1"
-            className="h-7 px-3 rounded-[6px] lp-btn-primary text-[12px] font-medium inline-flex items-center"
-          >
-            {isZh ? "进入指挥台" : "Console"}
-          </Link>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button variant="ghost" size="sm" className="hidden sm:inline-flex text-xs" render={<Link href="/tools/aeo-checker" />}>
+              {isZh ? "AEO 体检" : "AEO Checker"}
+              <IconArrowUpRight className="size-3.5" />
+            </Button>
+            <LangSwitcher />
+            <ThemeModeToggle />
+            <Button size="sm" render={<Link href="/dashboard?sample=1" />}>
+              {isZh ? "进入指挥台" : "Console"}
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 p-3 sm:p-5 max-w-[1220px] w-full mx-auto flex flex-col">
-        <div className="flex-1 rounded-[10px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] grid lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-[var(--border-hairline)] overflow-hidden">
-          {/* 左半栏：网址提取 + 部署说明 */}
-          <section className="lg:col-span-5 p-5 sm:p-7 space-y-6">
-            <div className="space-y-1.5">
-              <h1 className="lp-display text-[22px] sm:text-[26px] font-semibold text-[var(--ink-primary)]">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
+        <div className="grid lg:grid-cols-12 gap-6 items-start">
+          <Card className="lg:col-span-5">
+            <CardHeader>
+              <CardTitle className="text-xl">
                 {isZh ? "/llms.txt AI 搜索清单生成器" : "/llms.txt Manifest Generator"}
-              </h1>
-              <p className="text-[13.5px] text-[var(--ink-secondary)] leading-relaxed">
+              </CardTitle>
+              <CardDescription>
                 {isZh
-                  ? "输入官网地址，自动提取核心定位与关键页面，生成符合 llmstxt.org 规范的 Markdown 文件，让大模型准确理解并引用你的产品。"
-                  : "Extract your homepage positioning and generate a clean llmstxt.org Markdown index for ChatGPT, Claude & Perplexity."}
-              </p>
-            </div>
+                  ? "输入官网地址，自动提取定位与核心链接，生成符合 llmstxt.org 规范的标准文件。"
+                  : "Extract homepage positioning and generate a clean llmstxt.org Markdown index for ChatGPT, Claude & Perplexity."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    type="text"
+                    required
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://your-saas.com"
+                    className="font-mono text-sm"
+                  />
+                  <Button type="submit" disabled={loading} className="shrink-0">
+                    <IconFileCode className="size-4" />
+                    {loading ? (isZh ? "提取中..." : "Extracting...") : isZh ? "提取生成" : "Generate"}
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{isZh ? "实测示例：" : "Try:"}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 font-mono text-xs"
+                    onClick={() => void runGenerate("https://statementflow.win")}
+                  >
+                    statementflow.win
+                  </Button>
+                </div>
+                {error && <p className="text-xs text-destructive">{error}</p>}
+              </form>
 
-            <form onSubmit={handleSubmit} className="space-y-2.5">
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="text"
-                  required
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://your-saas.com"
-                  className="flex-1 h-9 px-3 rounded-[7px] border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[13.5px] font-mono text-[var(--ink-primary)] outline-none focus:border-[var(--accent-primary)]"
-                />
-                <Button type="submit" variant="primary" size="md" loading={loading}>
-                  <FileCode2 className="w-4 h-4" />
-                  {isZh ? "提取生成" : "Generate"}
-                </Button>
-              </div>
-              <div className="flex items-center gap-2 text-[12px] text-[var(--ink-muted)]">
-                <span>{isZh ? "实测示例：" : "Try:"}</span>
-                <button
-                  type="button"
-                  onClick={() => void runGenerate("https://certnudge.dev")}
-                  className="font-mono text-[11.5px] px-2 py-0.5 rounded-[5px] border border-[var(--border-hairline)] bg-[var(--bg-surface)] hover:text-[var(--ink-primary)] cursor-pointer"
-                >
-                  certnudge.dev
-                </button>
-              </div>
-              {error && <p className="text-[12.5px] text-[var(--status-danger)]">{error}</p>}
-            </form>
-
-            {domain && (
-              <div className="p-3.5 rounded-[8px] border border-[var(--border-hairline)] bg-[var(--bg-surface)] flex items-center justify-between gap-2 text-[12.5px]">
-                <span className="font-mono text-[var(--ink-primary)]">{domain}</span>
-                <StatusBadge
-                  tone={existsAlready ? "success" : "warning"}
-                  label={
-                    existsAlready
+              {domain && (
+                <div className="rounded-lg border bg-muted/40 p-3 flex items-center justify-between gap-2 text-xs">
+                  <span className="font-mono font-medium">{domain}</span>
+                  <Badge variant={existsAlready ? "default" : "secondary"}>
+                    {existsAlready
                       ? isZh
                         ? "已存在 /llms.txt"
                         : "Existing file found"
                       : isZh
                         ? "尚未部署 /llms.txt"
-                        : "Not deployed yet"
-                  }
-                />
+                        : "Not deployed yet"}
+                  </Badge>
+                </div>
+              )}
+
+              <Separator />
+
+              <div className="space-y-2 text-xs text-muted-foreground">
+                <p className="font-semibold text-foreground">{isZh ? "30 秒上线部署步骤" : "Deploy in 30 seconds"}</p>
+                <ol className="space-y-1.5 list-decimal list-inside leading-relaxed">
+                  <li>{isZh ? "在右侧编辑器微调产品卖点与核心文档链接。" : "Review and fine-tune your product links on the right."}</li>
+                  <li>
+                    {isZh
+                      ? "点击下载 llms.txt，放入网站 public/ 目录随下一次构建发布。"
+                      : "Download llms.txt and place it inside your site's public/ folder."}
+                  </li>
+                  <li>
+                    {isZh
+                      ? "确认 https://你的域名/llms.txt 返回纯文本 HTTP 200。"
+                      : "Verify https://yourdomain.com/llms.txt returns HTTP 200."}
+                  </li>
+                </ol>
               </div>
-            )}
+            </CardContent>
+          </Card>
 
-            <div className="space-y-2 pt-3 border-t border-[var(--border-hairline)] text-[12.5px] text-[var(--ink-secondary)]">
-              <p className="font-semibold text-[var(--ink-primary)]">
-                {isZh ? "30 秒上线部署方法" : "Deploy in 30 seconds"}
-              </p>
-              <ol className="space-y-1.5 list-decimal list-inside leading-relaxed">
-                <li>{isZh ? "在右侧编辑器微调你的产品卖点与核心文档链接。" : "Review and fine-tune your product links on the right."}</li>
-                <li>
-                  {isZh
-                    ? "点击下载 llms.txt，放入网站 public/ 目录随下一次构建发布。"
-                    : "Download llms.txt and place it inside your site's public/ folder."}
-                </li>
-                <li>
-                  {isZh
-                    ? "确保 https://你的域名/llms.txt 返回纯文本状态码 200。"
-                    : "Verify https://yourdomain.com/llms.txt returns HTTP 200."}
-                </li>
-              </ol>
-            </div>
-          </section>
-
-          {/* 右半栏：实时可编辑 Markdown 编辑器 */}
-          <section className="lg:col-span-7 flex flex-col bg-[var(--bg-surface)]/45">
-            <div className="px-5 h-12 border-b border-[var(--border-hairline)] flex items-center justify-between gap-2">
-              <span className="font-mono text-[12.5px] font-medium text-[var(--ink-primary)]">
-                {isCustomOutput && domain ? `${domain}/llms.txt` : `llms.txt (${isZh ? "标准模板预览" : "Template Preview"})`}
-              </span>
+          <Card className="lg:col-span-7">
+            <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 border-b pb-4">
+              <CardTitle className="font-mono text-sm">
+                {isCustomOutput && domain ? `${domain}/llms.txt` : `llms.txt (${isZh ? "标准模板预览" : "Template"})`}
+              </CardTitle>
               <div className="flex items-center gap-2">
-                <Button variant="secondary" size="xs" onClick={handleCopy}>
-                  {copied ? <Check className="w-3.5 h-3.5 text-[var(--status-live)]" /> : <Copy className="w-3.5 h-3.5" />}
+                <Button variant="outline" size="sm" onClick={handleCopy}>
+                  {copied ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
                   {copied ? (isZh ? "已复制" : "Copied") : isZh ? "复制内容" : "Copy"}
                 </Button>
-                <Button variant="primary" size="xs" onClick={handleDownload}>
-                  <Download className="w-3.5 h-3.5" />
+                <Button size="sm" onClick={handleDownload}>
+                  <IconDownload className="size-3.5" />
                   {isZh ? "下载 llms.txt" : "Download"}
                 </Button>
               </div>
-            </div>
-
-            <div className="flex-1 p-5 flex flex-col">
-              <textarea
+            </CardHeader>
+            <CardContent className="pt-4">
+              <Textarea
                 value={output}
                 onChange={(e) => setOutput(e.target.value)}
-                rows={16}
+                rows={18}
                 aria-label="llms.txt Markdown 编辑器"
-                className="flex-1 w-full rounded-[8px] border border-[var(--border-strong)] bg-[var(--bg-sheet)] p-4 font-mono text-[12.5px] leading-[1.65] text-[var(--ink-primary)] outline-none focus:border-[var(--accent-primary)] resize-none"
+                className="font-mono text-xs leading-relaxed"
               />
-            </div>
-          </section>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>

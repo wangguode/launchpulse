@@ -5,7 +5,6 @@ import Link from "next/link";
 import { IconSearch } from "@tabler/icons-react";
 import BrandMark from "@/components/BrandMark";
 import LangSwitcher from "@/components/LangSwitcher";
-import { ThemeSelector } from "@/components/themes/theme-selector";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
 import {
   Sidebar,
@@ -167,9 +166,6 @@ export default function AppShell({
             )}
             <LangSwitcher />
             <ThemeModeToggle />
-            <div className="hidden xl:block">
-              <ThemeSelector />
-            </div>
             {headerActions}
           </div>
         </header>

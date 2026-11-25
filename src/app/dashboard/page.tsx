@@ -16,6 +16,7 @@ import {
   IconShare,
   IconSun,
   IconUserCheck,
+  IconWorldDownload,
 } from "@tabler/icons-react";
 import { useI18n } from "@/components/I18nProvider";
 import { useTheme } from "@/components/ThemeProvider";
@@ -85,6 +86,17 @@ export default function DashboardPage() {
   const [projName, setProjName] = useState("");
   const [projUrl, setProjUrl] = useState("");
   const [projTagline, setProjTagline] = useState("");
+  const [crawlingProj, setCrawlingProj] = useState(false);
+  const [crawledKitDraft, setCrawledKitDraft] = useState<{
+    shortTagline?: string;
+    mediumPitch?: string;
+    longDescription?: string;
+    logoUrl?: string;
+    screenshots?: string[];
+    pricingModel?: string;
+    categories?: string[];
+    founderX?: string;
+  } | null>(null);
   const [savingProj, setSavingProj] = useState(false);
   const [projError, setProjError] = useState("");
 
@@ -122,6 +134,13 @@ export default function DashboardPage() {
       const sp = new URLSearchParams(window.location.search);
       const v = sp.get("view");
       if (v === "directories" || v === "inbox" || v === "today") setView(v);
+      if (sp.get("unlocked") === "1") {
+        toast.success(
+          isZh
+            ? "付款回调确认中，方案权益已同步更新！"
+            : "Payment received — refreshing your workspace entitlements!"
+        );
+      }
       if (sp.get("sample") === "1") {
         setIsSampleMode(true);
         setData(buildSampleOverview());
@@ -168,6 +187,57 @@ export default function DashboardPage() {
     if (!isSampleMode) await loadOverview(nextId);
   };
 
+  const handleAutofillNewProject = async () => {
+    const raw = projUrl.trim();
+    if (!raw) {
+      setProjError(isZh ? "请先填写官网地址再执行一键抓取" : "Enter your website URL first");
+      return;
+    }
+    if (isSampleMode) {
+      setProjName("AcmeFlow");
+      setProjTagline("Automated SSL & domain expiry alerts built for lean SaaS teams");
+      toast.info(isZh ? "体验模式已填充示例数据；登录后支持抓取任意真实网站" : "Sample filled; sign in to crawl live URLs");
+      return;
+    }
+    setCrawlingProj(true);
+    setProjError("");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const res = await fetch("/api/dashboard/brand-kit/autofill", {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: raw }),
+      });
+      const json = (await res.json()) as {
+        error?: string;
+        productName?: string;
+        shortTagline?: string;
+        mediumPitch?: string;
+        longDescription?: string;
+        logoUrl?: string;
+        screenshots?: string[];
+        pricingModel?: string;
+        categories?: string[];
+        founderX?: string;
+      };
+      if (!res.ok) {
+        setProjError(json.error || (isZh ? "无法访问该网址，请确认公网可打开" : "Unable to inspect URL"));
+        return;
+      }
+      if (json.productName) setProjName(json.productName);
+      if (json.shortTagline) setProjTagline(json.shortTagline);
+      setCrawledKitDraft(json);
+      toast.success(isZh ? "官网抓取成功，创建后将自动同步整套 Brand Kit！" : "Website crawled — full Brand Kit ready!");
+    } catch {
+      setProjError(isZh ? "抓取超时，请检查网址或手动填写" : "Crawl timed out");
+    } finally {
+      clearTimeout(timer);
+      setCrawlingProj(false);
+    }
+  };
+
   const handleSaveNewProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSampleMode) {
@@ -190,11 +260,40 @@ export default function DashboardPage() {
       if (!res.ok) {
         setProjError(json.error || "Save failed");
       } else {
+        // 若此前执行了 URL 一键抓取，建档后立刻同步持久化整套 Brand Kit，彻底消除空表单冷启动
+        if (json.campaign?.id && crawledKitDraft) {
+          await fetch("/api/dashboard/brand-kit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              campaignId: json.campaign.id,
+              logoUrl: crawledKitDraft.logoUrl || "",
+              screenshots: crawledKitDraft.screenshots || [],
+              shortTagline: projTagline.trim() || crawledKitDraft.shortTagline || "",
+              mediumPitch: crawledKitDraft.mediumPitch || "",
+              longDescription: crawledKitDraft.longDescription || "",
+              pricingModel: crawledKitDraft.pricingModel || "freemium",
+              categories: crawledKitDraft.categories || ["SaaS"],
+              competitors: [],
+              founderName: data?.user.name || "",
+              founderX: crawledKitDraft.founderX || "",
+            }),
+          }).catch(() => {});
+        }
         setProjName("");
         setProjUrl("");
         setProjTagline("");
+        setCrawledKitDraft(null);
         setNewProjectOpen(false);
-        toast.success(isZh ? "新出海项目已创建" : "Project created");
+        toast.success(
+          crawledKitDraft
+            ? isZh
+              ? "新项目已创建，并自动填充整套品牌资料！"
+              : "Project created with auto-filled Brand Kit!"
+            : isZh
+              ? "新出海项目已创建"
+              : "Project created"
+        );
         await loadOverview(json.campaign?.id);
       }
     } finally {
@@ -448,6 +547,15 @@ export default function DashboardPage() {
     },
   ];
 
+  const entitlement = data.entitlement || {
+    plan: isSampleMode ? ("radar" as const) : ("free" as const),
+    maxDirectories: isSampleMode ? 100 : 10,
+    maxLeads: isSampleMode ? 999 : 3,
+    canAutoScan: true,
+    canAiReply: true,
+    canExportReport: isSampleMode,
+  };
+
   const breadcrumbCurrent = navItems.find((n) => n.key === view)?.label || "";
   const communityShortlink = data.links.find((l) => l.channel === "community")
     ? `https://pulse.statementflow.win/r/${data.links.find((l) => l.channel === "community")!.code}`
@@ -568,10 +676,13 @@ export default function DashboardPage() {
             brandKit={data.brandKit}
             ledger={ledger}
             links={data.links}
+            entitlement={entitlement}
             initialDirectoryId={focusDirId}
             isZh={isZh}
             isSample={isSampleMode}
             onModerationChange={handleModerationChange}
+            onCheckout={handleCheckout}
+            checkoutPlan={checkoutPlan}
             onShareReport={handleShareReport}
             sharingReport={sharingReport}
             onRefresh={() => loadOverview(activeCampaign?.id)}
@@ -586,10 +697,13 @@ export default function DashboardPage() {
             communityShortlink={communityShortlink}
             monitor={data.radarMonitor}
             leads={data.radarLeads}
+            entitlement={entitlement}
             initialLeadId={focusLeadId}
             isZh={isZh}
             isSample={isSampleMode}
             onRefresh={() => loadOverview(activeCampaign?.id)}
+            onCheckout={handleCheckout}
+            checkoutPlan={checkoutPlan}
             onLocalLeadStatus={handleLocalLeadStatus}
           />
         )}
@@ -650,19 +764,32 @@ export default function DashboardPage() {
 
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label>{isZh ? "产品名称" : "Product Name"}</Label>
-                <Input required value={projName} onChange={(e) => setProjName(e.target.value)} placeholder="AcmeFlow" />
+                <Label>{isZh ? "官网地址（支持一键自动抓取资料）" : "Website URL (Auto-fill supported)"}</Label>
+                <div className="flex gap-2">
+                  <Input
+                    required
+                    type="url"
+                    value={projUrl}
+                    onChange={(e) => setProjUrl(e.target.value)}
+                    placeholder="https://your-saas.com"
+                    className="font-mono text-xs"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={crawlingProj}
+                    onClick={() => void handleAutofillNewProject()}
+                  >
+                    <IconWorldDownload className="size-3.5" />
+                    {crawlingProj ? (isZh ? "抓取中..." : "Crawling...") : isZh ? "自动抓取" : "Auto-fill"}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-1.5">
-                <Label>{isZh ? "官网地址" : "Website URL"}</Label>
-                <Input
-                  required
-                  type="url"
-                  value={projUrl}
-                  onChange={(e) => setProjUrl(e.target.value)}
-                  placeholder="https://your-saas.com"
-                  className="font-mono text-xs"
-                />
+                <Label>{isZh ? "产品名称" : "Product Name"}</Label>
+                <Input required value={projName} onChange={(e) => setProjName(e.target.value)} placeholder="AcmeFlow" />
               </div>
               <div className="space-y-1.5">
                 <Label>{isZh ? "一句话定位" : "Tagline"}</Label>
@@ -672,6 +799,13 @@ export default function DashboardPage() {
                   placeholder={isZh ? "面向开发者的轻量级 SSL 到期告警工具" : "Lightweight SSL expiry alerts"}
                 />
               </div>
+              {crawledKitDraft && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                  {isZh
+                    ? "✓ 已自动提取 Logo、简介与分类，创建项目后将自动同步至 Brand Kit。"
+                    : "✓ Logo, pitch & categories extracted — will sync to Brand Kit on create."}
+                </p>
+              )}
               {projError && <p className="text-xs text-destructive">{projError}</p>}
             </div>
 

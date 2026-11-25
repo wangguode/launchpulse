@@ -20,7 +20,6 @@ import { useI18n } from "@/components/I18nProvider";
 import BrandMark from "@/components/BrandMark";
 import LangSwitcher from "@/components/LangSwitcher";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
-import { ThemeSelector } from "@/components/themes/theme-selector";
 import {
   Accordion,
   AccordionContent,
@@ -290,9 +289,6 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
           <div className="flex items-center gap-1.5">
             <LangSwitcher />
             <ThemeModeToggle />
-            <div className="hidden lg:block">
-              <ThemeSelector />
-            </div>
             <Button size="sm" render={<Link href="/dashboard?sample=1" />}>
               {isZh ? "进入指挥台" : "Open Console"}
             </Button>

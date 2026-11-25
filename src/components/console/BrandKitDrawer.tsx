@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { IconCheck, IconCopy } from "@tabler/icons-react";
+import { IconCheck, IconCopy, IconSparkles, IconWorldDownload } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,8 +33,23 @@ interface BrandKitDrawerProps {
   onSaved: (updatedKit?: BrandKitRecord) => Promise<void> | void;
 }
 
+interface AutofillResponse {
+  ok?: boolean;
+  error?: string;
+  productName?: string;
+  shortTagline?: string;
+  mediumPitch?: string;
+  longDescription?: string;
+  logoUrl?: string;
+  screenshots?: string[];
+  pricingModel?: string;
+  categories?: string[];
+  founderX?: string;
+}
+
 /**
- * 基于官方 shadcn/ui Sheet + Progress 重构的品牌提交资料库
+ * 基于官方 shadcn/ui Sheet + Progress 的品牌提交资料库
+ * 新增：输入官网 URL 一键自动抓取并智能填充 Brand Kit（支持超时保护与体验模式预览）
  */
 export default function BrandKitDrawer({
   open,
@@ -49,6 +64,9 @@ export default function BrandKitDrawer({
   isSample,
   onSaved,
 }: BrandKitDrawerProps) {
+  const [autofillUrl, setAutofillUrl] = useState("");
+  const [autofilling, setAutofilling] = useState(false);
+
   const [logoUrl, setLogoUrl] = useState("");
   const [screenshotsText, setScreenshotsText] = useState("");
   const [shortTagline, setShortTagline] = useState("");
@@ -63,6 +81,7 @@ export default function BrandKitDrawer({
   const [copiedPack, setCopiedPack] = useState(false);
 
   useEffect(() => {
+    setAutofillUrl(targetUrl || "");
     setLogoUrl(brandKit?.logo_url || "");
     setScreenshotsText((brandKit?.screenshots || []).join("\n"));
     setShortTagline(brandKit?.short_tagline || initialTagline || "");
@@ -77,7 +96,7 @@ export default function BrandKitDrawer({
     );
     setFounderName(brandKit?.founder_name || "");
     setFounderX(brandKit?.founder_x || "");
-  }, [brandKit, campaignId, initialTagline, initialCompetitors, open]);
+  }, [brandKit, campaignId, targetUrl, initialTagline, initialCompetitors, open]);
 
   const screenshots = screenshotsText.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 5);
   const categories = categoriesText.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 6);
@@ -99,6 +118,54 @@ export default function BrandKitDrawer({
 
   const progress = computeBrandKitProgress(liveDraft);
   const missingList = isZh ? progress.missingItemsZh : progress.missingItemsEn;
+
+  const handleAutofillFromUrl = async () => {
+    const raw = autofillUrl.trim();
+    if (!raw) {
+      toast.error(isZh ? "请先输入官网地址" : "Enter a website URL first");
+      return;
+    }
+    if (isSample) {
+      setScreenshotsText((prev) => prev || "https://acmeflow.example/og-dashboard.png");
+      setShortTagline((prev) => prev || "Automated SSL & domain expiry alerts for lean SaaS teams");
+      toast.success(
+        isZh
+          ? "体验模式已补全主图与定位（登录后支持抓取任意真实官网自动填充）"
+          : "Sample metadata applied (sign in to crawl any live website)"
+      );
+      return;
+    }
+    setAutofilling(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const res = await fetch("/api/dashboard/brand-kit/autofill", {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: raw }),
+      });
+      const json = (await res.json()) as AutofillResponse;
+      if (!res.ok) {
+        toast.error(json.error || (isZh ? "抓取失败，请检查网址是否可公网访问" : "Failed to inspect URL"));
+        return;
+      }
+      if (json.shortTagline) setShortTagline(json.shortTagline);
+      if (json.mediumPitch) setMediumPitch(json.mediumPitch);
+      if (json.longDescription) setLongDescription(json.longDescription);
+      if (json.logoUrl) setLogoUrl(json.logoUrl);
+      if (json.screenshots?.length) setScreenshotsText(json.screenshots.join("\n"));
+      if (json.pricingModel) setPricingModel(json.pricingModel);
+      if (json.categories?.length) setCategoriesText(json.categories.join(", "));
+      if (json.founderX) setFounderX(json.founderX);
+      toast.success(isZh ? "已从官网自动抓取并填充资料，核对后点击保存即可" : "Website metadata imported");
+    } catch {
+      toast.error(isZh ? "抓取超时或网络异常，请重试" : "Autofill request timed out");
+    } finally {
+      clearTimeout(timer);
+      setAutofilling(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,8 +234,8 @@ export default function BrandKitDrawer({
             <SheetTitle>{isZh ? "品牌提交资料" : "Brand Kit"}</SheetTitle>
             <SheetDescription>
               {isZh
-                ? "一次填好，自动复用于 100+ 海外目录提交与原生回复草稿"
-                : "Fill once — reused across all 100+ directory submissions"}
+                ? "输入官网一键自动抓取，一次校对复用于 100+ 海外目录与 AI 回复"
+                : "Auto-import from your website URL once — reused across 100+ directories"}
             </SheetDescription>
           </div>
           <div className="space-y-1.5">
@@ -190,6 +257,33 @@ export default function BrandKitDrawer({
 
         <form onSubmit={handleSave} className="flex flex-1 flex-col min-h-0">
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            {/* 一键抓取官网元数据快捷条 */}
+            <div className="rounded-lg border bg-muted/40 p-3.5 space-y-2.5">
+              <div className="flex items-center gap-1.5 text-xs font-medium">
+                <IconSparkles className="size-3.5 text-primary" />
+                <span>{isZh ? "输入官网网址，一键自动抓取并填充资料" : "Auto-fill Brand Kit from Website URL"}</span>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={autofillUrl}
+                  onChange={(e) => setAutofillUrl(e.target.value)}
+                  placeholder="https://your-saas.com"
+                  className="h-8 font-mono text-xs bg-background"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="h-8 shrink-0"
+                  disabled={autofilling}
+                  onClick={() => void handleAutofillFromUrl()}
+                >
+                  <IconWorldDownload className="size-3.5" />
+                  {autofilling ? (isZh ? "抓取中..." : "Crawling...") : isZh ? "一键抓取" : "Auto-fill"}
+                </Button>
+              </div>
+            </div>
+
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -246,6 +340,7 @@ export default function BrandKitDrawer({
                   <option value="freemium">{isZh ? "免费增值 (Freemium)" : "Freemium"}</option>
                   <option value="free">{isZh ? "完全免费 / 开源" : "Free / OSS"}</option>
                   <option value="paid">{isZh ? "付费订阅" : "Paid"}</option>
+                  <option value="open-source">{isZh ? "开源自托管" : "Open Source"}</option>
                 </select>
               </div>
               <div className="space-y-1.5">

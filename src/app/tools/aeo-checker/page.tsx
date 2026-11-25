@@ -2,13 +2,23 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
+import { toast } from "sonner";
+import {
+  IconArrowUpRight,
+  IconCheck,
+  IconShieldCheck,
+  IconX,
+} from "@tabler/icons-react";
 import { useI18n } from "@/components/I18nProvider";
 import BrandMark from "@/components/BrandMark";
-import ThemeSwitcher from "@/components/ThemeSwitcher";
 import LangSwitcher from "@/components/LangSwitcher";
-import Button from "@/components/ui/lp-button";
-import StatusBadge from "@/components/ui/StatusBadge";
+import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 
 interface AeoScanPayload {
   domain: string;
@@ -36,13 +46,13 @@ interface AeoScanPayload {
 
 const DEFAULT_CRAWLERS = [
   { bot: "GPTBot", engine: "ChatGPT / OpenAI", allowed: true },
+  { bot: "OAI-SearchBot", engine: "ChatGPT Search", allowed: true },
   { bot: "ClaudeBot", engine: "Claude / Anthropic", allowed: true },
   { bot: "PerplexityBot", engine: "Perplexity AI", allowed: true },
-  { bot: "Google-Extended", engine: "Gemini / AI Overviews", allowed: true },
 ];
 
 /**
- * V5 50/50 精密分栏工作台：12 项 AI 搜索可见度（AEO）只读体检（/tools/aeo-checker）
+ * 官方 shadcn/ui 12 项 AI 搜索可见度（AEO）只读体检台（/tools/aeo-checker）
  */
 export default function AeoCheckerToolPage() {
   const { locale } = useI18n();
@@ -66,8 +76,14 @@ export default function AeoCheckerToolPage() {
         body: JSON.stringify({ url: cleaned }),
       });
       const json = (await res.json()) as AeoScanPayload & { error?: string };
-      if (!res.ok) setError(json.error || (isZh ? "体检失败，请检查网址是否可访问。" : "Audit failed."));
-      else setResData(json);
+      if (!res.ok) {
+        const msg = json.error || (isZh ? "体检失败，请检查网址是否可公网访问。" : "Audit failed.");
+        setError(msg);
+        toast.error(msg);
+      } else {
+        setResData(json);
+        toast.success(isZh ? `${json.domain} 12 项体检完成：${json.score}/100` : `Audit complete: ${json.score}/100`);
+      }
     } catch {
       setError(isZh ? "网络异常，请稍后重试。" : "Network error.");
     } finally {
@@ -81,253 +97,244 @@ export default function AeoCheckerToolPage() {
   };
 
   const crawlers = resData?.diagnostics?.aiCrawlers || DEFAULT_CRAWLERS;
-  const subScores = resData?.subScores || { seo: 82, aeo: 64, social: 75, security: 88 };
+  const subScores = resData?.subScores || { seo: 0, aeo: 0, social: 0, security: 0 };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-frame)] text-[var(--ink-primary)] flex flex-col">
-      {/* 48px 顶栏 */}
-      <header className="h-12 px-4 sm:px-6 border-b border-[var(--border-hairline)] bg-[var(--bg-frame)] flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[13px] min-w-0">
-          <Link href="/" className="inline-flex items-center gap-2 font-semibold text-[14.5px] text-[var(--ink-primary)] shrink-0">
-            <BrandMark className="w-5 h-5" />
-            <span>LaunchPulse</span>
-          </Link>
-          <span className="text-[var(--border-strong)]">/</span>
-          <span className="text-[var(--ink-secondary)] truncate">{isZh ? "AEO 可见度体检台" : "AEO Checker"}</span>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <Link
-            href="/tools/llms-txt-generator"
-            className="hidden sm:inline-flex items-center gap-1 text-[12px] text-[var(--ink-secondary)] hover:text-[var(--ink-primary)] mr-1"
-          >
-            <span>{isZh ? "llms.txt 生成器" : "llms.txt"}</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
-          </Link>
-          <LangSwitcher />
-          <div className="hidden sm:block">
-            <ThemeSwitcher />
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <header className="sticky top-0 z-40 h-14 border-b bg-background/95 backdrop-blur">
+        <div className="mx-auto flex h-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+          <div className="flex items-center gap-2 text-sm min-w-0">
+            <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight shrink-0">
+              <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <BrandMark className="size-4" tone="light" />
+              </div>
+              <span>LaunchPulse</span>
+            </Link>
+            <span className="text-muted-foreground">/</span>
+            <span className="text-muted-foreground truncate">{isZh ? "AEO 可见度体检" : "AEO Checker"}</span>
           </div>
-          <Link
-            href="/dashboard?sample=1"
-            className="h-7 px-3 rounded-[6px] lp-btn-primary text-[12px] font-medium inline-flex items-center"
-          >
-            {isZh ? "进入指挥台" : "Console"}
-          </Link>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button variant="ghost" size="sm" className="hidden sm:inline-flex text-xs" render={<Link href="/tools/llms-txt-generator" />}>
+              {isZh ? "llms.txt 生成器" : "llms.txt Studio"}
+              <IconArrowUpRight className="size-3.5" />
+            </Button>
+            <LangSwitcher />
+            <ThemeModeToggle />
+            <Button size="sm" render={<Link href="/dashboard?sample=1" />}>
+              {isZh ? "进入指挥台" : "Console"}
+            </Button>
+          </div>
         </div>
       </header>
 
-      {/* 内嵌 Framed Sheet 左右 50/50 精密工作台 */}
-      <main className="flex-1 p-3 sm:p-5 max-w-[1220px] w-full mx-auto flex flex-col">
-        <div className="flex-1 rounded-[10px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] grid lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-[var(--border-hairline)] overflow-hidden">
-          {/* 左半栏：输入、快捷样本与实时漏洞清单 */}
-          <section className="lg:col-span-6 p-5 sm:p-7 space-y-6">
-            <div className="space-y-1.5">
-              <h1 className="lp-display text-[22px] sm:text-[26px] font-semibold text-[var(--ink-primary)]">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
+        <div className="grid lg:grid-cols-12 gap-6 items-start">
+          {/* 左栏：输入与问题列表 */}
+          <Card className="lg:col-span-6">
+            <CardHeader>
+              <CardTitle className="text-xl">
                 {isZh ? "ChatGPT 与 Perplexity 能搜到你的产品吗？" : "Will ChatGPT & Perplexity cite your SaaS?"}
-              </h1>
-              <p className="text-[13.5px] text-[var(--ink-secondary)] leading-relaxed">
+              </CardTitle>
+              <CardDescription>
                 {isZh
-                  ? "100% 只读无害实测：核验 AI 爬虫是否被 robots.txt 误拦、检查 /llms.txt、JSON-LD 结构化数据与安全响应头。"
-                  : "100% passive audit for AI crawler rules, /llms.txt presence, JSON-LD schema, OG preview, and security headers."}
-              </p>
-            </div>
+                  ? "100% 只读无害实测：核验 AI 爬虫放行规则、/llms.txt、JSON-LD 结构化数据与 6 项安全响应头。"
+                  : "100% passive audit for AI crawler rules, /llms.txt presence, JSON-LD schema, OG tags, and security headers."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    type="text"
+                    required
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://your-saas.com"
+                    className="font-mono text-sm"
+                  />
+                  <Button type="submit" disabled={loading} className="shrink-0">
+                    <IconShieldCheck className="size-4" />
+                    {loading ? (isZh ? "检测中..." : "Checking...") : isZh ? "开始 12 项体检" : "Run Audit"}
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                  <span>{isZh ? "快速实测：" : "Try live:"}</span>
+                  {["https://statementflow.win", "https://linear.app"].map((sample) => (
+                    <Button
+                      key={sample}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 font-mono text-xs"
+                      onClick={() => void runCheck(sample)}
+                    >
+                      {sample.replace("https://", "")}
+                    </Button>
+                  ))}
+                </div>
+                {error && <p className="text-xs text-destructive">{error}</p>}
+              </form>
 
-            <form onSubmit={handleSubmit} className="space-y-2.5">
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="text"
-                  required
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://your-saas.com"
-                  className="flex-1 h-9 px-3 rounded-[7px] border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[13.5px] font-mono text-[var(--ink-primary)] outline-none focus:border-[var(--accent-primary)]"
-                />
-                <Button type="submit" variant="primary" size="md" loading={loading}>
-                  <ShieldCheck className="w-4 h-4" />
-                  {isZh ? "开始 12 项体检" : "Run Audit"}
-                </Button>
-              </div>
-              <div className="flex items-center gap-2 text-[12px] text-[var(--ink-muted)] flex-wrap">
-                <span>{isZh ? "快速实测：" : "Try live:"}</span>
-                {["https://certnudge.dev", "https://linear.app"].map((sample) => (
-                  <button
-                    key={sample}
-                    type="button"
-                    onClick={() => void runCheck(sample)}
-                    className="font-mono text-[11.5px] px-2 py-0.5 rounded-[5px] border border-[var(--border-hairline)] bg-[var(--bg-surface)] hover:text-[var(--ink-primary)] cursor-pointer"
-                  >
-                    {sample.replace("https://", "")}
-                  </button>
-                ))}
-              </div>
-              {error && <p className="text-[12.5px] text-[var(--status-danger)]">{error}</p>}
-            </form>
+              <Separator />
 
-            {/* 体检发现与修复项 */}
-            <div className="space-y-2.5 pt-2 border-t border-[var(--border-hairline)]">
-              <div className="flex items-center justify-between text-[13px]">
-                <h2 className="font-semibold text-[var(--ink-primary)]">
-                  {resData
-                    ? isZh
-                      ? `发现 ${resData.leaks.length} 项可优化线索`
-                      : `${resData.leaks.length} actionable findings`
-                    : isZh
-                      ? "12 项自动核查维度"
-                      : "12 automated inspection checks"}
-                </h2>
-                {resData && (
-                  <span className="font-mono text-[12px] text-[var(--ink-muted)]">
-                    {resData.domain} · {resData.diagnostics.ttfbMs}ms
-                  </span>
-                )}
-              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <h2 className="font-semibold">
+                    {resData
+                      ? isZh
+                        ? `发现 ${resData.leaks.length} 项待优化项`
+                        : `${resData.leaks.length} actionable findings`
+                      : isZh
+                        ? "12 项自动核查维度"
+                        : "12 automated inspection checks"}
+                  </h2>
+                  {resData && (
+                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                      {resData.domain} · {resData.diagnostics.ttfbMs}ms
+                    </span>
+                  )}
+                </div>
 
-              {resData ? (
-                <div className="rounded-[8px] border border-[var(--border-hairline)] divide-y divide-[var(--border-hairline)]">
-                  {resData.leaks.length === 0 ? (
-                    <div className="p-4 text-[13px] text-[var(--status-live)] flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                {resData ? (
+                  resData.leaks.length === 0 ? (
+                    <div className="rounded-lg border p-4 text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                      <IconCheck className="size-4 shrink-0" />
                       <span>{isZh ? "未发现明显拦截或元数据缺失，已具备良好收录基础。" : "No blocking issues detected."}</span>
                     </div>
                   ) : (
-                    resData.leaks.map((lk, i) => (
-                      <div key={i} className="p-3.5 space-y-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-[13px] font-medium text-[var(--ink-primary)]">{lk.title}</p>
-                          <StatusBadge
-                            tone={lk.severity === "high" ? "danger" : lk.severity === "medium" ? "warning" : "neutral"}
-                            label={lk.category}
-                          />
+                    <div className="divide-y rounded-lg border">
+                      {resData.leaks.map((lk, i) => (
+                        <div key={i} className="p-3.5 space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium">{lk.title}</p>
+                            <Badge variant={lk.severity === "critical" ? "destructive" : "secondary"} className="text-xs shrink-0">
+                              {lk.category}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground leading-relaxed">{lk.evidence}</p>
                         </div>
-                        <p className="text-[12px] text-[var(--ink-secondary)] leading-relaxed">{lk.evidence}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              ) : (
-                <div className="rounded-[8px] border border-[var(--border-hairline)] divide-y divide-[var(--border-hairline)] text-[13px]">
-                  {[
-                    isZh ? "GPTBot / ClaudeBot / PerplexityBot robots.txt 放行状态" : "GPTBot / ClaudeBot / PerplexityBot robots.txt policy",
-                    isZh ? "/llms.txt 根目录存在性与结构完整度检查" : "/llms.txt presence & Markdown structure",
-                    isZh ? "SoftwareApplication & FAQ JSON-LD 实体标注验证" : "SoftwareApplication & FAQ JSON-LD markup",
-                    isZh ? "OpenGraph 社交卡片与 6 项 HTTPS 安全响应头" : "OpenGraph social card & 6 security headers",
-                  ].map((item, idx) => (
-                    <div key={idx} className="px-3.5 py-2.5 flex items-center gap-2.5 text-[var(--ink-secondary)]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-primary)] shrink-0" />
-                      <span>{item}</span>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* 右半栏：实时评分面板 + AI 爬虫矩阵 */}
-          <aside className="lg:col-span-6 p-5 sm:p-7 bg-[var(--bg-surface)]/45 space-y-6">
-            <div className="flex items-baseline justify-between gap-3 pb-4 border-b border-[var(--border-hairline)] tabular-nums">
-              <div>
-                <p className="text-[12px] text-[var(--ink-muted)]">
-                  {resData
-                    ? isZh
-                      ? `${resData.domain} 综合可见度得分`
-                      : `${resData.domain} Readiness Score`
-                    : isZh
-                      ? "体检报告实时预览（输入网址后更新）"
-                      : "Live scorecard preview"}
-                </p>
-                <div className="text-[36px] font-bold tracking-[-0.03em] text-[var(--ink-primary)] mt-0.5">
-                  {resData ? resData.score : "—"}
-                  <span className="text-[15px] font-normal text-[var(--ink-muted)]"> / 100</span>
-                </div>
+                  )
+                ) : (
+                  <div className="divide-y rounded-lg border text-sm">
+                    {[
+                      isZh ? "GPTBot / OAI-SearchBot / ClaudeBot / PerplexityBot 放行状态" : "GPTBot / OAI-SearchBot / ClaudeBot / PerplexityBot policy",
+                      isZh ? "/llms.txt 根目录存在性与 Markdown 实体结构检查" : "/llms.txt presence & Markdown structure",
+                      isZh ? "SoftwareApplication & FAQ JSON-LD 结构化数据验证" : "SoftwareApplication & FAQ JSON-LD markup",
+                      isZh ? "OpenGraph 社交预览卡片与 6 项 HTTPS 安全响应头" : "OpenGraph social card & 6 security headers",
+                    ].map((item, idx) => (
+                      <div key={idx} className="px-3.5 py-2.5 flex items-center gap-2.5 text-muted-foreground text-xs">
+                        <span className="size-1.5 rounded-full bg-primary shrink-0" />
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              {resData && (
-                <StatusBadge
-                  tone={resData.diagnostics.llmsTxt.exists ? "success" : "warning"}
-                  label={
-                    resData.diagnostics.llmsTxt.exists
+            </CardContent>
+          </Card>
+
+          {/* 右栏：总分与爬虫矩阵 */}
+          <div className="lg:col-span-6 space-y-4">
+            <Card>
+              <CardHeader className="flex-row items-baseline justify-between gap-3">
+                <div>
+                  <CardDescription>
+                    {resData
+                      ? isZh
+                        ? `${resData.domain} 综合可见度得分`
+                        : `${resData.domain} Readiness Score`
+                      : isZh
+                        ? "体检报告实时预览"
+                        : "Live scorecard preview"}
+                  </CardDescription>
+                  <CardTitle className="text-4xl font-bold tabular-nums mt-1">
+                    {resData ? resData.score : "—"}
+                    <span className="text-base font-normal text-muted-foreground"> / 100</span>
+                  </CardTitle>
+                </div>
+                {resData && (
+                  <Badge variant={resData.diagnostics.llmsTxt.exists ? "default" : "secondary"}>
+                    {resData.diagnostics.llmsTxt.exists
                       ? isZh
                         ? "已配置 /llms.txt"
                         : "/llms.txt found"
                       : isZh
                         ? "缺少 /llms.txt"
-                        : "Missing /llms.txt"
-                  }
-                />
-              )}
-            </div>
-
-            {/* 4 维细分子分 */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 tabular-nums">
-              {(
-                [
-                  { k: "seo", label: isZh ? "搜索基础" : "SEO" },
-                  { k: "aeo", label: isZh ? "AI 可见度" : "AEO" },
-                  { k: "social", label: isZh ? "社交分享" : "Social" },
-                  { k: "security", label: isZh ? "安全响应头" : "Security" },
-                ] as const
-              ).map((dim) => (
-                <div
-                  key={dim.k}
-                  className="p-3 rounded-[8px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)]"
-                >
-                  <p className="text-[11.5px] text-[var(--ink-muted)]">{dim.label}</p>
-                  <p className="font-mono text-[18px] font-semibold text-[var(--ink-primary)] mt-0.5">
-                    {resData ? subScores[dim.k] : "—"}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* AI 爬虫放行矩阵 */}
-            <div className="space-y-2.5">
-              <h2 className="text-[13px] font-semibold text-[var(--ink-primary)]">
-                {isZh ? "主流 AI 搜索引擎爬虫放行状态" : "AI Crawler Access Matrix"}
-              </h2>
-              <div className="rounded-[8px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] divide-y divide-[var(--border-hairline)] text-[13px]">
-                {crawlers.map((c) => (
-                  <div key={c.bot} className="px-3.5 py-2.5 flex items-center justify-between gap-2">
-                    <div>
-                      <span className="font-mono font-medium text-[var(--ink-primary)]">{c.bot}</span>
-                      <span className="ml-2 text-[12px] text-[var(--ink-muted)]">{c.engine}</span>
+                        : "Missing /llms.txt"}
+                  </Badge>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {resData && <Progress value={resData.score} />}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 tabular-nums">
+                  {(
+                    [
+                      { k: "seo", label: isZh ? "搜索基础" : "SEO" },
+                      { k: "aeo", label: isZh ? "AI 可见度" : "AEO" },
+                      { k: "social", label: isZh ? "社交分享" : "Social" },
+                      { k: "security", label: isZh ? "安全响应头" : "Security" },
+                    ] as const
+                  ).map((dim) => (
+                    <div key={dim.k} className="rounded-lg border bg-muted/30 p-3">
+                      <p className="text-xs text-muted-foreground">{dim.label}</p>
+                      <p className="font-mono text-xl font-semibold mt-1">{resData ? subScores[dim.k] : "—"}</p>
                     </div>
-                    {resData ? (
-                      c.allowed ? (
-                        <span className="inline-flex items-center gap-1 text-[12px] text-[var(--status-live)] font-medium">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          {isZh ? "允许抓取" : "Allowed"}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[12px] text-[var(--status-danger)] font-medium">
-                          <XCircle className="w-3.5 h-3.5" />
-                          {isZh ? "被拦截" : "Blocked"}
-                        </span>
-                      )
-                    ) : (
-                      <span className="text-[12px] text-[var(--ink-muted)]">{isZh ? "待检测" : "Ready"}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 安全头与后续行动 */}
-            {resData && (
-              <div className="p-4 rounded-[8px] border border-[var(--border-hairline)] bg-[var(--bg-sheet)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="text-[12.5px] text-[var(--ink-secondary)]">
-                  {isZh
-                    ? "修复完 AI 爬虫与元数据后，立即启动 100+ 精选目录分发提升域名权重。"
-                    : "Pair clean AEO metadata with 100+ directory backlinks for faster citations."}
+                  ))}
                 </div>
-                <Link
-                  href="/dashboard?sample=1"
-                  className="h-8 px-3 rounded-[7px] lp-btn-primary text-[12px] font-medium inline-flex items-center shrink-0"
-                >
-                  {isZh ? "打开增长指挥台" : "Open Console"}
-                </Link>
-              </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">{isZh ? "主流 AI 搜索引擎爬虫放行状态" : "AI Crawler Access Matrix"}</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y">
+                  {crawlers.map((c) => (
+                    <div key={c.bot} className="px-6 py-3 flex items-center justify-between gap-2 text-sm">
+                      <div>
+                        <span className="font-mono font-medium">{c.bot}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">{c.engine}</span>
+                      </div>
+                      {resData ? (
+                        c.allowed ? (
+                          <Badge variant="secondary" className="gap-1">
+                            <IconCheck className="size-3 text-emerald-500" />
+                            {isZh ? "允许抓取" : "Allowed"}
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="gap-1">
+                            <IconX className="size-3" />
+                            {isZh ? "被拦截" : "Blocked"}
+                          </Badge>
+                        )
+                      ) : (
+                        <Badge variant="outline">{isZh ? "待检测" : "Ready"}</Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {resData && (
+              <Card>
+                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    {isZh
+                      ? "修复 AI 爬虫与元数据后，进入控制台启动 100+ 精选目录分发提升权威权重。"
+                      : "Pair clean AEO metadata with 100+ directory backlinks for faster citations."}
+                  </p>
+                  <Button size="sm" className="shrink-0" render={<Link href="/dashboard?sample=1" />}>
+                    {isZh ? "打开增长指挥台" : "Open Console"}
+                  </Button>
+                </CardContent>
+              </Card>
             )}
-          </aside>
+          </div>
         </div>
       </main>
     </div>

@@ -20,6 +20,7 @@ import {
   IconCopy,
   IconExternalLink,
   IconLink,
+  IconLock,
   IconPlus,
   IconBroadcast,
   IconSearch,
@@ -51,6 +52,7 @@ import {
   formatChannelLabel,
   formatSlaLabel,
   type BrandKitRecord,
+  type EntitlementInfo,
   type ReconciledDirectoryRow,
   type ReconciledLedger,
   type TrackingLinkRecord,
@@ -63,6 +65,7 @@ interface DirectoriesChannelsViewProps {
   brandKit: BrandKitRecord | null;
   ledger: ReconciledLedger;
   links: TrackingLinkRecord[];
+  entitlement: EntitlementInfo;
   initialDirectoryId?: string | null;
   isZh: boolean;
   isSample: boolean;
@@ -71,6 +74,8 @@ interface DirectoriesChannelsViewProps {
     moderationState: "approved" | "skipped" | "priority",
     scheduledWave: 1 | 2 | 3
   ) => Promise<void> | void;
+  onCheckout: (plan: "blitz" | "radar" | "dfy") => Promise<void> | void;
+  checkoutPlan: string | null;
   onShareReport: () => Promise<void> | void;
   sharingReport: boolean;
   onRefresh: () => Promise<void> | void;
@@ -88,10 +93,13 @@ export default function DirectoriesChannelsView({
   brandKit,
   ledger,
   links,
+  entitlement,
   initialDirectoryId,
   isZh,
   isSample,
   onModerationChange,
+  onCheckout,
+  checkoutPlan,
   onShareReport,
   sharingReport,
   onRefresh,
@@ -120,10 +128,16 @@ export default function DirectoriesChannelsView({
     });
   }, [ledger.directories, waveFilter, statusFilter, query]);
 
+  const unlockedIdSet = useMemo(() => {
+    const limit = isSample ? ledger.directories.length : entitlement.maxDirectories;
+    return new Set(ledger.directories.slice(0, limit).map((d) => d.id));
+  }, [isSample, ledger.directories, entitlement.maxDirectories]);
+
   const activeDir: ReconciledDirectoryRow | null = useMemo(() => {
     if (!selectedDirId) return null;
+    if (!unlockedIdSet.has(selectedDirId)) return null;
     return ledger.directories.find((d) => d.id === selectedDirId) || null;
-  }, [ledger.directories, selectedDirId]);
+  }, [ledger.directories, selectedDirId, unlockedIdSet]);
 
   const copyText = async (id: string, text: string, label?: string) => {
     try {
@@ -217,6 +231,23 @@ export default function DirectoriesChannelsView({
         header: () => <div className="text-right">{isZh ? "操作" : "Action"}</div>,
         cell: ({ row }) => {
           const d = row.original;
+          const locked = !unlockedIdSet.has(d.id);
+          if (locked) {
+            return (
+              <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  disabled={checkoutPlan !== null}
+                  onClick={() => void onCheckout(entitlement.plan === "free" ? "blitz" : "radar")}
+                >
+                  <IconLock className="size-3" />
+                  {isZh ? "升级解锁" : "Upgrade"}
+                </Button>
+              </div>
+            );
+          }
           return (
             <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
               <Button
@@ -256,7 +287,7 @@ export default function DirectoriesChannelsView({
         },
       },
     ],
-    [isZh, onModerationChange]
+    [isZh, onModerationChange, unlockedIdSet, checkoutPlan, onCheckout, entitlement.plan]
   );
 
   const table = useReactTable({
@@ -355,6 +386,45 @@ export default function DirectoriesChannelsView({
 
         {/* 子标签 1：TanStack Table 工业级 100 目录管理 */}
         <TabsContent value="directories" className="space-y-4">
+          {!isSample && entitlement.maxDirectories < ledger.dirCounts.total && (
+            <Card className="border-primary/40 bg-muted/30">
+              <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <IconLock className="size-4 text-primary shrink-0 mt-0.5" />
+                  <div className="text-xs space-y-0.5">
+                    <p className="font-semibold text-foreground">
+                      {isZh
+                        ? `当前方案已开放前 ${entitlement.maxDirectories} 个高权重目录（共 ${ledger.dirCounts.total} 站）`
+                        : `${entitlement.maxDirectories} of ${ledger.dirCounts.total} high-DR directories unlocked on ${entitlement.plan.toUpperCase()}`}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {isZh
+                        ? "升级启动包（$39 一次性）即刻开放 30 站，或订阅增长指挥台（$29/月）解锁全部 100+ 目录与 24/7 买家雷达。"
+                        : "Upgrade to Launch Starter ($39) for 30 directories or Growth Command ($29/mo) for all 100+ listings."}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={checkoutPlan !== null}
+                    onClick={() => void onCheckout("blitz")}
+                  >
+                    {isZh ? "启动包 $39" : "Starter $39"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={checkoutPlan !== null}
+                    onClick={() => void onCheckout("radar")}
+                  >
+                    {isZh ? "解锁全部 100 站 · $29/月" : "Unlock All 100 · $29/mo"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* 过滤控制栏 */}
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <Tabs value={waveFilter} onValueChange={(v) => setWaveFilter(String(v))}>
@@ -425,20 +495,33 @@ export default function DirectoriesChannelsView({
                       </TableCell>
                     </TableRow>
                   ) : (
-                    table.getRowModel().rows.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        data-state={selectedDirId === row.original.id ? "selected" : undefined}
-                        onClick={() => setSelectedDirId(row.original.id)}
-                        className="cursor-pointer"
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
+                    table.getRowModel().rows.map((row) => {
+                      const locked = !unlockedIdSet.has(row.original.id);
+                      return (
+                        <TableRow
+                          key={row.id}
+                          data-state={selectedDirId === row.original.id ? "selected" : undefined}
+                          onClick={() => {
+                            if (locked) {
+                              toast.info(
+                                isZh
+                                  ? `当前方案已开放前 ${entitlement.maxDirectories} 站，升级即可解锁全部 100+ 目录`
+                                  : `Upgrade to unlock all 100+ directories`
+                              );
+                              return;
+                            }
+                            setSelectedDirId(row.original.id);
+                          }}
+                          className={locked ? "opacity-75 cursor-pointer" : "cursor-pointer"}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
