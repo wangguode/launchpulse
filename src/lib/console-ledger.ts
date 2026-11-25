@@ -61,6 +61,7 @@ export interface RadarLeadRecord {
   posted_at: string;
   relative_time_zh?: string;
   relative_time_en?: string;
+  locked?: boolean;
 }
 
 export interface CampaignRecord {
@@ -70,6 +71,7 @@ export interface CampaignRecord {
   target_url: string;
   tagline: string;
   competitors: string;
+  status?: string;
 }
 
 export interface EntitlementInfo {
@@ -119,6 +121,7 @@ export interface OverviewPayload {
     conversionRate: number;
     attributedRevenueUsd: number;
     priorRevenueUsd?: number;
+    current14RevenueUsd?: number;
     rpv: number;
     roiMultiple: number;
     clicksDeltaPct: number;
@@ -185,7 +188,11 @@ export interface ReconciledLedger {
   revenue: {
     totalUsd: number;
     deltaUsd: number;
-    channels: Array<{ key: string; labelZh: string; labelEn: string; clicks: number; revenueUsd: number }>;
+    clicksDeltaPct: number;
+    conversionsDeltaPct: number;
+    conversionRate: number;
+    roiMultiple: number;
+    channels: Array<{ key: string; labelZh: string; labelEn: string; clicks: number; conversions: number; revenueUsd: number }>;
     funnel: { clicks: number; visits: number; signups: number; paid: number };
     dailySeries: Array<{ date: string; clicks: number; conversions: number; revenueUsd: number }>;
   };
@@ -194,7 +201,58 @@ export interface ReconciledLedger {
     missingItemsZh: string[];
     missingItemsEn: string[];
   };
+  hasVerifiedReceipts: boolean;
   recentVerifiedReceipts: ReconciledDirectoryRow[];
+  recommendedStarterDirs: ReconciledDirectoryRow[];
+}
+
+export function getSiteOrigin(): string {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return "https://launchpulse.app";
+}
+
+export function formatPlanName(plan: string, isZh: boolean): string {
+  const key = (plan || "free").toLowerCase();
+  if (key === "dfy") return isZh ? "代投旗舰托管" : "Done-For-You";
+  if (key === "radar") return isZh ? "增长指挥台 Pro" : "Growth Pro";
+  if (key === "blitz" || key === "fixpack") return isZh ? "启动包 · 30 站" : "Launch Starter";
+  return isZh ? "免费体验版" : "Free Tier";
+}
+
+export function formatOrderStatus(status: string, isZh: boolean): string {
+  const key = (status || "").toLowerCase();
+  if (key === "active") return isZh ? "生效中" : "Active";
+  if (key === "canceled") return isZh ? "已取消" : "Canceled";
+  if (key === "refunded") return isZh ? "已退款" : "Refunded";
+  return status || (isZh ? "未知" : "Unknown");
+}
+
+export function formatDateTimeLabel(raw: string | undefined | null, isZh: boolean): string {
+  if (!raw) return isZh ? "刚刚" : "Just now";
+  const normalized = raw.includes("T") ? raw : raw.replace(" ", "T") + (raw.endsWith("Z") ? "" : "Z");
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return raw.slice(0, 16);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export function getSourceToneClasses(source: string): string {
+  const low = (source || "").toLowerCase();
+  if (low.includes("reddit")) {
+    return "border-orange-500/25 bg-orange-500/12 text-orange-700 dark:text-orange-300";
+  }
+  if (low.includes("hacker")) {
+    return "border-amber-500/25 bg-amber-500/12 text-amber-700 dark:text-amber-300";
+  }
+  if (low.includes("github")) {
+    return "border-indigo-500/25 bg-indigo-500/12 text-indigo-700 dark:text-indigo-300";
+  }
+  if (low.includes("dev.to")) {
+    return "border-emerald-500/25 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300";
+  }
+  return "border-rose-500/25 bg-rose-500/12 text-rose-700 dark:text-rose-300";
 }
 
 /**
@@ -369,7 +427,7 @@ export function buildSampleOverview(): OverviewPayload {
     activeCampaignId: 1,
     brandKit: {
       campaign_id: 1,
-      logo_url: "https://acmeflow.example/logo.svg",
+      logo_url: "/icon.svg",
       screenshots: [], // 刻意缺 1 张产品主图 → 90% 完整度，与今日行动流第一条严丝合缝
       short_tagline: "Automated SSL & domain expiry alerts for lean SaaS teams",
       medium_pitch:
@@ -749,45 +807,52 @@ export function deriveConsoleLedger(payload: OverviewPayload, isSample: boolean)
   const won = activeLeads.filter((l) => l.status === "won").length;
   const dismissed = (payload.radarLeads || []).filter((l) => l.status === "dismissed").length;
 
-  // 严格对账渠道营收明细与总营收
-  const rawChannels = (payload.stats.channelBreakdown || []).slice(0, 3).map((ch) => ({
+  // 渠道营收明细与总营收（严禁虚构增长曲线或假环比）
+  const rawChannels = (payload.stats.channelBreakdown || []).slice(0, 4).map((ch) => ({
     key: ch.channel,
     labelZh: formatChannelLabel(ch.channel, true),
     labelEn: formatChannelLabel(ch.channel, false),
     clicks: Math.max(0, Number(ch.clicks || 0)),
+    conversions: Math.max(0, Number(ch.conversions || 0)),
     revenueUsd: Math.max(0, Math.round(Number(ch.revenueUsd || 0))),
   }));
 
   const channelSum = rawChannels.reduce((acc, c) => acc + c.revenueUsd, 0);
   const totalUsd = channelSum > 0 ? channelSum : Math.max(0, Math.round(Number(payload.stats.attributedRevenueUsd || 0)));
-  const priorUsd =
-    typeof payload.stats.priorRevenueUsd === "number"
-      ? payload.stats.priorRevenueUsd
-      : Math.round(totalUsd * 0.764);
-  const deltaUsd = Math.max(0, totalUsd - priorUsd);
+  const priorUsd = typeof payload.stats.priorRevenueUsd === "number" ? payload.stats.priorRevenueUsd : 0;
+  const deltaUsd = isSample
+    ? Math.max(0, totalUsd - priorUsd)
+    : typeof payload.stats.current14RevenueUsd === "number"
+      ? payload.stats.current14RevenueUsd - priorUsd
+      : 0;
 
-  // 保证漏斗绝对单调非增：clicks >= visits >= signups >= paid
+  // 保证漏斗单调非增：clicks >= visits >= signups >= paid
   const fClicks = Math.max(0, payload.stats.funnel?.clicks ?? payload.stats.totalClicks ?? 0);
   const fVisits = Math.min(fClicks, Math.max(0, payload.stats.funnel?.qualifiedVisits ?? Math.round(fClicks * 0.84)));
   const fSignups = Math.min(fVisits, Math.max(0, payload.stats.funnel?.signups ?? payload.stats.totalConversions ?? 0));
-  const fPaid = Math.min(fSignups, Math.max(0, payload.stats.funnel?.purchases ?? Math.round(fSignups * 0.33)));
+  const fPaid = Math.min(fSignups, Math.max(0, payload.stats.funnel?.purchases ?? 0));
 
-  // 保证每日趋势图携带营收或点击完整序列
+  // 严格使用真实每日归因营收，0 元即为 0，绝不按点击数伪造美元曲线
   const dailySeries = (payload.stats.dailySeries || []).map((pt) => ({
     date: pt.date,
     clicks: pt.clicks,
     conversions: pt.conversions,
-    revenueUsd:
-      typeof pt.revenueUsd === "number"
-        ? pt.revenueUsd
-        : Math.round(pt.clicks * Math.max(0.8, payload.stats.rpv || 1.2)),
+    revenueUsd: typeof pt.revenueUsd === "number" ? pt.revenueUsd : 0,
   }));
 
-  // 精选最近 4 条关键验活回执（与效果图 2 左下角呼应：SourceForge / AlternativeTo / SaaSHub / BetaList）
-  const receiptPriority = ["d01", "d04", "d09", "d07"];
-  const recentVerifiedReceipts = receiptPriority
-    .map((id) => directories.find((d) => d.id === id))
-    .filter((d): d is ReconciledDirectoryRow => Boolean(d));
+  // 仅取真实已验活或审核中的目录作为回执；新用户无记录时返回空数组并改用推荐首发清单
+  const activeReceipts = directories
+    .filter((d) => d.effectiveStatus === "live" || d.effectiveStatus === "submitted")
+    .sort((a, b) => {
+      if (a.effectiveStatus !== b.effectiveStatus) return a.effectiveStatus === "live" ? -1 : 1;
+      return b.dr - a.dr;
+    })
+    .slice(0, 4);
+
+  const recommendedStarterDirs = directories
+    .filter((d) => d.pricing === "free" && d.effectiveStatus === "queued")
+    .sort((a, b) => b.dr - a.dr)
+    .slice(0, 4);
 
   const brandKit = computeBrandKitProgress(payload.brandKit);
 
@@ -814,12 +879,18 @@ export function deriveConsoleLedger(payload: OverviewPayload, isSample: boolean)
     revenue: {
       totalUsd,
       deltaUsd,
+      clicksDeltaPct: Number(payload.stats.clicksDeltaPct || 0),
+      conversionsDeltaPct: Number(payload.stats.conversionsDeltaPct || 0),
+      conversionRate: Number(payload.stats.conversionRate || 0),
+      roiMultiple: Number(payload.stats.roiMultiple || 0),
       channels: rawChannels,
       funnel: { clicks: fClicks, visits: fVisits, signups: fSignups, paid: fPaid },
       dailySeries,
     },
     brandKit,
-    recentVerifiedReceipts,
+    hasVerifiedReceipts: activeReceipts.length > 0,
+    recentVerifiedReceipts: activeReceipts,
+    recommendedStarterDirs,
   };
 }
 

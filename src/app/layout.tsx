@@ -18,9 +18,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://pulse.statementflow.win"),
-  title: "LaunchPulse — 海外精选目录分发、高意向买家收件箱与美元归因平台",
+  title: "LaunchPulse — 海外精选目录分发、高意向买家雷达与美元归因平台",
   description:
-    "基于标准 shadcn/ui 工业级架构打造的中国出海增长与投流归因平台：100+ 精选目录节奏投放、全网求购线索监听、边缘短链与美元级营收归因。",
+    "专为出海 SaaS 与独立开发者打造的增长与归因工作台：100+ 海外高权重目录节奏分发、24/7 Reddit/HN/GitHub 买家意图捕手、边缘归因短链与可核验公开战报。",
   robots: { index: true, follow: true },
   alternates: { canonical: "https://pulse.statementflow.win" },
   openGraph: {
@@ -42,14 +42,14 @@ export default function RootLayout({
   return (
     <html
       lang="zh"
-      data-theme="vercel"
+      data-theme="launchpulse"
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable}`}
     >
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var l=localStorage.getItem('lp_locale')||'zh';if(l==='en'||l==='zh'||l==='ja'){document.documentElement.lang=l;}var m=document.cookie.match(/(?:^|; )active_theme=([^;]+)/);if(m&&m[1]){document.documentElement.setAttribute('data-theme',decodeURIComponent(m[1]));}}catch(e){}})();`,
+            __html: `(function(){try{var l=localStorage.getItem('lp_locale')||'zh';if(l==='en'||l==='zh'||l==='ja'){document.documentElement.lang=l;}}catch(e){}})();`,
           }}
         />
       </head>

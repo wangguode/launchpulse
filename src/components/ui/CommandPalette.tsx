@@ -59,7 +59,6 @@ export default function CommandPalette({
             <CommandGroup key={grp} heading={grp}>
               {items
                 .filter((i) => i.group === grp)
-                .slice(0, grp.startsWith("DR") ? 6 : 12)
                 .map((item) => (
                   <CommandItem
                     key={item.id}

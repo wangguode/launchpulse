@@ -8,30 +8,27 @@
 @import "../styles/theme.css";
 
 /* =====================================================================
- * LaunchPulse × Kiranism/next-shadcn-dashboard-starter (MIT) 原装底座样式
- * - 默认加载 Vercel 主题 (data-theme="vercel") + next-themes (.dark)
- * - 同时支持 10 套官方 shadcn/ui 主题实时切换（Vercel / Supabase / Claude / Mono 等）
- * - 完整映射兼容变量，确保全站子路由零断层
+ * LaunchPulse 专属语义令牌与动效基线
  * ===================================================================== */
 
 :root {
-  --bg-frame: var(--sidebar, oklch(0.965 0 0));
+  --bg-frame: var(--sidebar, oklch(0.968 0.007 250));
   --bg-sheet: var(--card, oklch(1 0 0));
-  --bg-surface: var(--muted, oklch(0.97 0 0));
-  --bg-hover: var(--accent, oklch(0.94 0 0));
-  --bg-active-tint: color-mix(in oklch, var(--primary) 8%, transparent);
-  --bg-glass: color-mix(in oklch, var(--background) 85%, transparent);
+  --bg-surface: var(--muted, oklch(0.962 0.006 250));
+  --bg-hover: var(--accent, oklch(0.948 0.014 256));
+  --bg-active-tint: color-mix(in oklch, var(--primary) 10%, transparent);
+  --bg-glass: color-mix(in oklch, var(--background) 86%, transparent);
 
-  --border-hairline: var(--border, oklch(0.92 0 0));
-  --border-strong: var(--input, oklch(0.88 0 0));
+  --border-hairline: var(--border);
+  --border-strong: var(--input);
 
-  --ink-primary: var(--foreground, oklch(0 0 0));
-  --ink-secondary: var(--muted-foreground, oklch(0.44 0 0));
-  --ink-muted: var(--muted-foreground, oklch(0.48 0 0));
+  --ink-primary: var(--foreground);
+  --ink-secondary: var(--muted-foreground);
+  --ink-muted: var(--muted-foreground);
 
-  --accent-primary: var(--chart-2, #2563eb);
-  --accent-hover: #1d4ed8;
-  --accent-soft: color-mix(in oklch, var(--chart-2, #2563eb) 10%, transparent);
+  --accent-primary: var(--primary);
+  --accent-hover: color-mix(in oklch, var(--primary) 88%, black);
+  --accent-soft: color-mix(in oklch, var(--primary) 11%, transparent);
 
   --status-live: #059669;
   --status-live-soft: rgba(5, 150, 105, 0.12);
@@ -39,6 +36,8 @@
   --status-warn-soft: rgba(217, 119, 6, 0.12);
   --status-danger: #dc2626;
   --status-danger-soft: rgba(220, 38, 38, 0.12);
+  --status-info: #2563eb;
+  --status-info-soft: rgba(37, 99, 235, 0.12);
 
   --btn-primary-bg: var(--primary);
   --btn-primary-hover: color-mix(in oklch, var(--primary) 88%, transparent);

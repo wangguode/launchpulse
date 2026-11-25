@@ -2,8 +2,7 @@
 
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 
-import { DEFAULT_THEME } from './theme.config';
-
+const DEFAULT_THEME = 'launchpulse';
 const COOKIE_NAME = 'active_theme';
 
 function setThemeCookie(theme: string) {

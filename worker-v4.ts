@@ -636,19 +636,41 @@ export async function handleV4DashboardOverview(
         live_backlink_url: string;
         updated_at: string;
       }>(),
-    env.DB.prepare(
-      `SELECT directory_id, moderation_state, scheduled_wave, proof_screenshot_url, last_http_status, is_dofollow_verified, last_checked_at FROM directory_health_checks WHERE customer_email = ?1 AND (campaign_id = ?2 OR campaign_id = 0)`
-    )
-      .bind(user.email, activeId)
-      .all<{
-        directory_id: string;
-        moderation_state: string;
-        scheduled_wave: number;
-        proof_screenshot_url: string;
-        last_http_status: number;
-        is_dofollow_verified: number;
-        last_checked_at: string;
-      }>(),
+    activeId
+      ? env.DB.prepare(
+          `SELECT directory_id, campaign_id, moderation_state, scheduled_wave, proof_screenshot_url, last_http_status, is_dofollow_verified, last_checked_at
+           FROM directory_health_checks
+           WHERE customer_email = ?1 AND (campaign_id = ?2 OR campaign_id = 0)
+           ORDER BY campaign_id ASC`
+        )
+          .bind(user.email, activeId)
+          .all<{
+            directory_id: string;
+            campaign_id: number;
+            moderation_state: string;
+            scheduled_wave: number;
+            proof_screenshot_url: string;
+            last_http_status: number;
+            is_dofollow_verified: number;
+            last_checked_at: string;
+          }>()
+      : env.DB.prepare(
+          `SELECT directory_id, campaign_id, moderation_state, scheduled_wave, proof_screenshot_url, last_http_status, is_dofollow_verified, last_checked_at
+           FROM directory_health_checks
+           WHERE customer_email = ?1
+           ORDER BY campaign_id ASC`
+        )
+          .bind(user.email)
+          .all<{
+            directory_id: string;
+            campaign_id: number;
+            moderation_state: string;
+            scheduled_wave: number;
+            proof_screenshot_url: string;
+            last_http_status: number;
+            is_dofollow_verified: number;
+            last_checked_at: string;
+          }>(),
     env.DB.prepare(
       `SELECT lead_id, source, community, title, excerpt, url, reply_draft, lead_status, delivered_at FROM radar_deliveries WHERE customer_email = ?1 ORDER BY id DESC LIMIT 30`
     )
@@ -667,15 +689,15 @@ export async function handleV4DashboardOverview(
           .all<{ day: string; cnt: number }>(),
     activeId
       ? env.DB.prepare(
-          `SELECT substr(created_at, 1, 10) as day, COUNT(*) as cnt FROM conversions WHERE user_email = ?1 AND campaign_id = ?2 AND created_at >= datetime('now', '-30 days') GROUP BY day ORDER BY day ASC`
+          `SELECT substr(created_at, 1, 10) as day, COUNT(*) as cnt, COALESCE(SUM(value_usd), 0) as rev FROM conversions WHERE user_email = ?1 AND campaign_id = ?2 AND created_at >= datetime('now', '-30 days') GROUP BY day ORDER BY day ASC`
         )
           .bind(user.email, activeId)
-          .all<{ day: string; cnt: number }>()
+          .all<{ day: string; cnt: number; rev: number }>()
       : env.DB.prepare(
-          `SELECT substr(created_at, 1, 10) as day, COUNT(*) as cnt FROM conversions WHERE user_email = ?1 AND created_at >= datetime('now', '-30 days') GROUP BY day ORDER BY day ASC`
+          `SELECT substr(created_at, 1, 10) as day, COUNT(*) as cnt, COALESCE(SUM(value_usd), 0) as rev FROM conversions WHERE user_email = ?1 AND created_at >= datetime('now', '-30 days') GROUP BY day ORDER BY day ASC`
         )
           .bind(user.email)
-          .all<{ day: string; cnt: number }>(),
+          .all<{ day: string; cnt: number; rev: number }>(),
     activeId
       ? env.DB.prepare(
           `SELECT country, COUNT(*) as clicks FROM link_clicks WHERE user_email = ?1 AND campaign_id = ?2 GROUP BY country ORDER BY clicks DESC LIMIT 8`
@@ -777,16 +799,28 @@ export async function handleV4DashboardOverview(
     if (row.event_type === "purchase" || row.event_type === "paid") purchasesCount += Number(row.cnt || 0);
     else signupsCount += Number(row.cnt || 0);
   }
+  const ordersList = (ordersRes.results || []) as Array<{ plan?: string; status?: string; amount_usd?: number }>;
+  const entitlement = deriveUserEntitlement(ordersList);
+  const paidSpend = ordersList
+    .filter((o) => (o.status || "").toLowerCase() === "active")
+    .reduce((s, o) => s + Number(o.amount_usd || 0), 0);
   const rpv = totalClicks > 0 ? Number((attributedRevenueUsd / totalClicks).toFixed(2)) : 0;
-  const roiMultiple = attributedRevenueUsd > 0 ? Number((attributedRevenueUsd / 39).toFixed(1)) : 0;
+  const roiBase = paidSpend > 0 ? paidSpend : 39;
+  const roiMultiple = attributedRevenueUsd > 0 ? Number((attributedRevenueUsd / roiBase).toFixed(1)) : 0;
 
-  // 30 天序列 + 近 14 天 vs 前 14 天环比 Delta
+  // 30 天序列（含真实每日归因营收）+ 近 14 天 vs 前 14 天真实环比 Delta
   const clickMap = new Map((clicksDailyRes.results || []).map((r) => [r.day, Number(r.cnt)]));
   const convMap = new Map((convDailyRes.results || []).map((r) => [r.day, Number(r.cnt)]));
-  const dailySeries: Array<{ date: string; clicks: number; conversions: number }> = [];
+  const convRevMap = new Map((convDailyRes.results || []).map((r) => [r.day, Number(r.rev || 0)]));
+  const dailySeries: Array<{ date: string; clicks: number; conversions: number; revenueUsd: number }> = [];
   for (let i = 29; i >= 0; i -= 1) {
     const d = new Date(Date.now() - i * 86400 * 1000).toISOString().slice(0, 10);
-    dailySeries.push({ date: d, clicks: clickMap.get(d) || 0, conversions: convMap.get(d) || 0 });
+    dailySeries.push({
+      date: d,
+      clicks: clickMap.get(d) || 0,
+      conversions: convMap.get(d) || 0,
+      revenueUsd: Math.round(convRevMap.get(d) || 0),
+    });
   }
   const cur14Clicks = dailySeries.slice(16).reduce((s, d) => s + d.clicks, 0);
   const prev14Clicks = dailySeries.slice(2, 16).reduce((s, d) => s + d.clicks, 0);
@@ -797,6 +831,9 @@ export async function handleV4DashboardOverview(
   const prev14Conv = dailySeries.slice(2, 16).reduce((s, d) => s + d.conversions, 0);
   const conversionsDeltaPct =
     prev14Conv > 0 ? Number((((cur14Conv - prev14Conv) / prev14Conv) * 100).toFixed(1)) : cur14Conv > 0 ? 100 : 0;
+
+  const cur14Rev = dailySeries.slice(16).reduce((s, d) => s + d.revenueUsd, 0);
+  const prev14Rev = dailySeries.slice(2, 16).reduce((s, d) => s + d.revenueUsd, 0);
 
   const channelMap = new Map<string, { clicks: number; conversions: number; revenueUsd: number }>();
   for (const l of links) {
@@ -815,8 +852,31 @@ export async function handleV4DashboardOverview(
     rpv: v.clicks > 0 ? Number((v.revenueUsd / v.clicks).toFixed(2)) : 0,
   }));
 
-  // 合并目录提交状态与 V4 审批/排期/自动验活健康状态
-  const healthMap = new Map((dirHealthRes.results || []).map((h) => [h.directory_id, h]));
+  // 合并目录提交状态与 V4 审批/排期/自动验活健康状态（按 campaign_id ASC 合并，保留验活凭证不丢）
+  const healthMap = new Map<
+    string,
+    {
+      directory_id: string;
+      moderation_state: string;
+      scheduled_wave: number;
+      proof_screenshot_url: string;
+      last_http_status: number;
+      is_dofollow_verified: number;
+      last_checked_at: string;
+    }
+  >();
+  for (const h of dirHealthRes.results || []) {
+    const prev = healthMap.get(h.directory_id);
+    healthMap.set(h.directory_id, {
+      directory_id: h.directory_id,
+      moderation_state: h.moderation_state || prev?.moderation_state || "approved",
+      scheduled_wave: h.scheduled_wave || prev?.scheduled_wave || 1,
+      proof_screenshot_url: h.proof_screenshot_url || prev?.proof_screenshot_url || "",
+      last_http_status: h.last_http_status || prev?.last_http_status || 0,
+      is_dofollow_verified: h.is_dofollow_verified || prev?.is_dofollow_verified || 0,
+      last_checked_at: h.last_checked_at || prev?.last_checked_at || "",
+    });
+  }
   const mergedDirs = dirs.map((d) => {
     const h = healthMap.get(d.directory_id);
     return {
@@ -830,10 +890,27 @@ export async function handleV4DashboardOverview(
     };
   });
 
-  // 也把没有提交记录但客户设置了选站审批的目录健康行一并返回
-  const dirHealthList = dirHealthRes.results || [];
-  const ordersList = (ordersRes.results || []) as Array<{ plan?: string; status?: string }>;
-  const entitlement = deriveUserEntitlement(ordersList);
+  const dirHealthList = Array.from(healthMap.values());
+
+  // 服务端强脱敏：超出当前套餐配额的买家原帖在服务端即抹除 URL 与正文，杜绝前端纯 CSS 模糊绕过
+  const rawLeads = (radarLeadsRes.results || []) as Array<Record<string, unknown>>;
+  let activeLeadRank = 0;
+  const safeRadarLeads = rawLeads.map((lead) => {
+    const isDismissed = lead.status === "dismissed";
+    const rank = isDismissed ? -1 : activeLeadRank++;
+    if (!isDismissed && rank >= entitlement.maxLeads) {
+      return {
+        ...lead,
+        title: "High-intent buyer discussion (Upgrade to unlock full thread)",
+        excerpt: "Subscribe to Growth Command to view full thread context, author handle, and direct link.",
+        url: "",
+        author: "@verified_buyer",
+        draft_reply: "",
+        locked: true,
+      };
+    }
+    return { ...lead, locked: false };
+  });
 
   return jsonRes({
     user,
@@ -867,13 +944,15 @@ export async function handleV4DashboardOverview(
           ]),
         }
       : null,
-    radarLeads: radarLeadsRes.results || [],
+    radarLeads: safeRadarLeads,
     publicReport: publicReportRes || null,
     stats: {
       totalClicks,
       totalConversions,
       conversionRate,
       attributedRevenueUsd,
+      priorRevenueUsd: prev14Rev,
+      current14RevenueUsd: cur14Rev,
       rpv,
       roiMultiple,
       clicksDeltaPct,
@@ -1182,6 +1261,115 @@ export async function handleSaveDirectoryPref(
 }
 
 /**
+ * 4.5 客户自助更新目录提交状态、回填收录外链并支持单站实时 HTTP/Dofollow 验活
+ */
+export async function handleSelfSubmitDirectory(
+  request: Request,
+  env: V4Env,
+  user: SessionUser
+): Promise<Response> {
+  if (!env.DB) return jsonRes({ error: "DB not bound" }, 500);
+  try {
+    const body = (await request.json()) as {
+      campaignId?: number;
+      directoryId?: string;
+      directoryName?: string;
+      directoryUrl?: string;
+      dr?: number;
+      category?: string;
+      status?: "queued" | "submitted" | "live";
+      liveBacklinkUrl?: string;
+      verifyNow?: boolean;
+    };
+    const directoryId = String(body.directoryId || "").trim().slice(0, 32);
+    if (!directoryId) return jsonRes({ error: "Missing directoryId" }, 400);
+
+    const campaignId = Number(body.campaignId || 0);
+    const camp = campaignId
+      ? await env.DB.prepare(`SELECT id, slug, target_url FROM campaigns WHERE id = ?1 AND user_email = ?2 LIMIT 1`)
+          .bind(campaignId, user.email)
+          .first<{ id: number; slug: string; target_url: string }>()
+      : await env.DB.prepare(`SELECT id, slug, target_url FROM campaigns WHERE user_email = ?1 ORDER BY id DESC LIMIT 1`)
+          .bind(user.email)
+          .first<{ id: number; slug: string; target_url: string }>();
+
+    const status = ["queued", "submitted", "live"].includes(body.status || "") ? String(body.status) : "submitted";
+    const rawUrl = (body.liveBacklinkUrl || "").trim();
+    let liveBacklinkUrl = "";
+    if (rawUrl) {
+      const safe = parseSafePublicUrl(rawUrl);
+      if (!safe) return jsonRes({ error: "Please enter a valid public HTTPS listing URL." }, 400);
+      liveBacklinkUrl = safe.toString().slice(0, 400);
+    }
+
+    await env.DB.prepare(
+      `INSERT INTO directory_submissions (
+         customer_email, slug, directory_id, directory_name, directory_url, dr, category, status, live_backlink_url, updated_at
+       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, datetime('now'))
+       ON CONFLICT(customer_email, directory_id) DO UPDATE SET
+         slug = COALESCE(NULLIF(?2, ''), slug),
+         status = ?8,
+         live_backlink_url = ?9,
+         updated_at = datetime('now')`
+    )
+      .bind(
+        user.email,
+        camp?.slug || "",
+        directoryId,
+        String(body.directoryName || directoryId).slice(0, 80),
+        String(body.directoryUrl || "").slice(0, 200),
+        Number(body.dr || 50),
+        String(body.category || "SaaS Directory").slice(0, 40),
+        status,
+        liveBacklinkUrl
+      )
+      .run();
+
+    let httpStatus = 0;
+    let isDofollowVerified = false;
+    let lastCheckedAt = "";
+
+    if (body.verifyNow && liveBacklinkUrl) {
+      const probe = await passiveGet(liveBacklinkUrl, 4500);
+      httpStatus = probe.status;
+      const isOk = probe.status >= 200 && probe.status < 400;
+      const targetHost = camp?.target_url
+        ? camp.target_url.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].toLowerCase()
+        : "";
+      if (isOk && targetHost && probe.text.toLowerCase().includes(targetHost)) {
+        const anchorRe = new RegExp(`<a[^>]+href=["'][^"']*${targetHost.replace(/\./g, "\\.")}[^"']*["'][^>]*>`, "i");
+        const anchor = probe.text.match(anchorRe)?.[0] || "";
+        if (anchor && !/rel=["'][^"']*nofollow/i.test(anchor)) {
+          isDofollowVerified = true;
+        }
+      }
+      lastCheckedAt = new Date().toISOString();
+      await env.DB.prepare(
+        `INSERT INTO directory_health_checks (
+           customer_email, campaign_id, directory_id, last_http_status, is_dofollow_verified, last_checked_at, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'), datetime('now'))
+         ON CONFLICT(customer_email, campaign_id, directory_id) DO UPDATE SET
+           last_http_status = ?4, is_dofollow_verified = ?5, last_checked_at = datetime('now'), updated_at = datetime('now')`
+      )
+        .bind(user.email, camp?.id || 0, directoryId, httpStatus, isDofollowVerified ? 1 : 0)
+        .run();
+    }
+
+    return jsonRes({
+      ok: true,
+      directoryId,
+      status,
+      liveBacklinkUrl,
+      httpStatus,
+      isDofollowVerified,
+      lastCheckedAt,
+    });
+  } catch {
+    return jsonRes({ error: "Invalid directory submission payload." }, 400);
+  }
+}
+
+/**
  * 5. 自动外链验活巡检引擎（HTTP 200 + 客户域名存在性 + dofollow 校验）
  */
 export async function runBacklinkHealthCheck(
@@ -1289,6 +1477,12 @@ export async function handleSaveRadarMonitor(
       .first();
     if (!own) return jsonRes({ error: "Campaign not found" }, 404);
 
+    const existingMonitor = await env.DB.prepare(
+      `SELECT exclude_words_json, webhook_url, daily_digest_enabled FROM radar_monitors WHERE campaign_id = ?1 LIMIT 1`
+    )
+      .bind(campaignId)
+      .first<{ exclude_words_json: string; webhook_url: string; daily_digest_enabled: number }>();
+
     const keywords = (Array.isArray(body.keywords) ? body.keywords : [])
       .map((s) => String(s).trim())
       .filter(Boolean)
@@ -1297,18 +1491,28 @@ export async function handleSaveRadarMonitor(
       .map((s) => String(s).trim())
       .filter(Boolean)
       .slice(0, 8);
-    const excludeWords = (Array.isArray(body.excludeWords) ? body.excludeWords : [])
-      .map((s) => String(s).trim().toLowerCase())
-      .filter(Boolean)
-      .slice(0, 12);
+    const excludeWords =
+      body.excludeWords !== undefined
+        ? (Array.isArray(body.excludeWords) ? body.excludeWords : [])
+            .map((s) => String(s).trim().toLowerCase())
+            .filter(Boolean)
+            .slice(0, 12)
+        : parseJsonArr(existingMonitor?.exclude_words_json);
     const validSources = ["hn", "reddit", "github", "devto", "lobsters"];
     const sources = (Array.isArray(body.sources) ? body.sources : ["hn", "reddit", "github", "devto"]).filter((s) =>
       validSources.includes(s)
     );
-    const rawWebhook = (body.webhookUrl || "").trim();
+    const rawWebhook =
+      body.webhookUrl !== undefined ? (body.webhookUrl || "").trim() : existingMonitor?.webhook_url || "";
     if (rawWebhook && !parseSafePublicUrl(rawWebhook)) {
       return jsonRes({ error: "Webhook URL must be a valid public HTTPS endpoint." }, 400);
     }
+    const digestEnabled =
+      body.dailyDigestEnabled !== undefined
+        ? body.dailyDigestEnabled
+          ? 1
+          : 0
+        : existingMonitor?.daily_digest_enabled ?? 1;
 
     await env.DB.prepare(
       `INSERT INTO radar_monitors (
@@ -1327,7 +1531,7 @@ export async function handleSaveRadarMonitor(
         JSON.stringify(excludeWords),
         JSON.stringify(sources.length ? sources : ["hn", "github"]),
         rawWebhook,
-        body.dailyDigestEnabled === false ? 0 : 1
+        digestEnabled
       )
       .run();
 
@@ -1648,7 +1852,7 @@ export async function handleRunRadarScan(
 
     let inserted = 0;
     for (const lead of collected.slice(0, 18)) {
-      await env.DB.prepare(
+      const res = (await env.DB.prepare(
         `INSERT OR IGNORE INTO radar_leads (
            campaign_id, user_email, external_id, source, community, author, title, excerpt, url,
            intent_type, intent_score, status, posted_at
@@ -1668,8 +1872,8 @@ export async function handleRunRadarScan(
           lead.intentScore,
           lead.postedAt
         )
-        .run();
-      inserted += 1;
+        .run()) as { meta?: { changes?: number } };
+      if (Number(res?.meta?.changes ?? 1) > 0) inserted += 1;
     }
 
     await env.DB.prepare(
@@ -2041,10 +2245,11 @@ export async function handleUpsertPublicReport(
       .bind(shareId, campaignId, user.email, title, showRev)
       .run();
 
+    const reqOrigin = new URL(request.url).origin;
     return jsonRes({
       ok: true,
       shareId,
-      reportUrl: `https://pulse.statementflow.win/report/${shareId}`,
+      reportUrl: `${reqOrigin}/report/${shareId}`,
       showRevenue: Boolean(showRev),
     });
   } catch {

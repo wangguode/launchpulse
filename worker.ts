@@ -18,6 +18,7 @@ import {
   handleSaveBrandKit,
   handleSaveDirectoryPref,
   handleSaveRadarMonitor,
+  handleSelfSubmitDirectory,
   handleTestRadarWebhook,
   handleUpdateRadarLead,
   handleUpsertPublicReport,
@@ -1175,31 +1176,57 @@ async function handleDashboardSaveCampaign(request: Request, env: Env): Promise<
 
   try {
     const body = (await request.json()) as {
+      campaignId?: number;
       productName?: string;
       targetUrl?: string;
       tagline?: string;
       competitors?: string;
+      status?: "active" | "paused";
     };
     const target = parseSafePublicHttpsUrl(body.targetUrl || "");
     if (!target) {
       return jsonResponse({ error: "Please enter a valid public HTTPS website URL." }, 400);
     }
     const productName = (body.productName || "").trim().slice(0, 80) || target.hostname.replace(/^www\./, "");
-    const slug = target.hostname
-      .replace(/^www\./, "")
-      .split(".")[0]
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "");
     const tagline = (body.tagline || "").trim().slice(0, 200);
     const competitors = (body.competitors || "").trim().slice(0, 160);
+    const status = body.status === "paused" ? "paused" : "active";
+
+    // 若携带 campaignId，则直接按 ID 更新已有项目（支持编辑名称、网址、简介、竞品与状态）
+    const editId = Number(body.campaignId || 0);
+    if (editId > 0) {
+      const own = await env.DB.prepare(`SELECT id, slug FROM campaigns WHERE id = ?1 AND user_email = ?2 LIMIT 1`)
+        .bind(editId, user.email)
+        .first<{ id: number; slug: string }>();
+      if (!own) return jsonResponse({ error: "Campaign not found" }, 404);
+      await env.DB.prepare(
+        `UPDATE campaigns
+         SET product_name = ?1, target_url = ?2, tagline = ?3, competitors = ?4, status = ?5, updated_at = datetime('now')
+         WHERE id = ?6 AND user_email = ?7`
+      )
+        .bind(productName, target.origin, tagline, competitors, status, editId, user.email)
+        .run();
+      return jsonResponse({
+        ok: true,
+        campaign: { id: editId, slug: own.slug, product_name: productName, target_url: target.origin, tagline, competitors, status },
+      });
+    }
+
+    // 使用完整规范化域名生成 slug，彻底避免 app.foo.com 与 app.bar.com 冲突静默覆盖
+    const slug = target.hostname
+      .replace(/^www\./, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 48);
 
     await env.DB.prepare(
       `INSERT INTO campaigns (user_email, slug, product_name, target_url, tagline, competitors, status, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', datetime('now'))
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, datetime('now'))
        ON CONFLICT(user_email, slug) DO UPDATE SET
-         product_name = ?3, target_url = ?4, tagline = ?5, competitors = ?6, updated_at = datetime('now')`
+         product_name = ?3, target_url = ?4, tagline = ?5, competitors = ?6, status = ?7, updated_at = datetime('now')`
     )
-      .bind(user.email, slug, productName, target.origin, tagline, competitors)
+      .bind(user.email, slug, productName, target.origin, tagline, competitors, status)
       .run();
 
     const campaign = await env.DB.prepare(
@@ -1218,12 +1245,12 @@ async function handleDashboardSaveCampaign(request: Request, env: Env): Promise<
 
       if (!existingLinks || Number(existingLinks.cnt) === 0) {
         const defaults = [
-          { channel: "directory", label: "50+ Directory Distribution" },
+          { channel: "directory", label: "100+ Directory Distribution" },
           { channel: "community", label: "HN / Reddit Buyer Replies" },
           { channel: "seo", label: "Competitor /vs/ & /llms.txt" },
         ];
         for (const d of defaults) {
-          const code = randomShortCode(`${slug.slice(0, 4)}${d.channel[0]}`);
+          const code = randomShortCode(`${slug.replace(/-/g, "").slice(0, 4)}${d.channel[0]}`);
           await env.DB.prepare(
             `INSERT OR IGNORE INTO tracking_links (code, campaign_id, user_email, channel, label, destination_url)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
@@ -1240,6 +1267,37 @@ async function handleDashboardSaveCampaign(request: Request, env: Env): Promise<
   }
 }
 
+async function handleDashboardDeleteCampaign(request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+  const user = await getSessionUser(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  try {
+    const body = (await request.json()) as { campaignId?: number };
+    const campaignId = Number(body.campaignId || 0);
+    if (!campaignId) return jsonResponse({ error: "Missing campaignId" }, 400);
+
+    const own = await env.DB.prepare(`SELECT id FROM campaigns WHERE id = ?1 AND user_email = ?2 LIMIT 1`)
+      .bind(campaignId, user.email)
+      .first();
+    if (!own) return jsonResponse({ error: "Campaign not found" }, 404);
+
+    await Promise.all([
+      env.DB.prepare(`DELETE FROM brand_kits WHERE campaign_id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
+      env.DB.prepare(`DELETE FROM radar_monitors WHERE campaign_id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
+      env.DB.prepare(`DELETE FROM radar_leads WHERE campaign_id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
+      env.DB.prepare(`DELETE FROM tracking_links WHERE campaign_id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
+      env.DB.prepare(`DELETE FROM public_reports WHERE campaign_id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
+      env.DB.prepare(`DELETE FROM directory_health_checks WHERE campaign_id = ?1 AND customer_email = ?2`).bind(campaignId, user.email).run(),
+      env.DB.prepare(`DELETE FROM campaigns WHERE id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
+    ]);
+
+    return jsonResponse({ ok: true, deletedId: campaignId });
+  } catch {
+    return jsonResponse({ error: "Unable to delete campaign." }, 400);
+  }
+}
+
 async function handleDashboardCreateLink(request: Request, env: Env): Promise<Response> {
   if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
   const user = await getSessionUser(request, env);
@@ -1252,9 +1310,17 @@ async function handleDashboardCreateLink(request: Request, env: Env): Promise<Re
       label?: string;
       destinationUrl?: string;
     };
-    const target = parseSafePublicHttpsUrl(body.destinationUrl || "");
-    if (!target) return jsonResponse({ error: "Invalid HTTPS destination URL." }, 400);
-    const channel = ["directory", "community", "seo", "custom"].includes(body.channel || "")
+    const campaignId = Number(body.campaignId || 0);
+    let rawDest = (body.destinationUrl || "").trim();
+    if (!rawDest && campaignId > 0) {
+      const camp = await env.DB.prepare(`SELECT target_url FROM campaigns WHERE id = ?1 AND user_email = ?2 LIMIT 1`)
+        .bind(campaignId, user.email)
+        .first<{ target_url: string }>();
+      rawDest = camp?.target_url || "";
+    }
+    const target = parseSafePublicHttpsUrl(rawDest);
+    if (!target) return jsonResponse({ error: "Please provide a valid public HTTPS destination URL." }, 400);
+    const channel = ["directory", "community", "seo", "social", "custom"].includes(body.channel || "")
       ? body.channel!
       : "custom";
     const label = (body.label || "Custom Campaign Link").trim().slice(0, 80);
@@ -1263,11 +1329,26 @@ async function handleDashboardCreateLink(request: Request, env: Env): Promise<Re
       `INSERT INTO tracking_links (code, campaign_id, user_email, channel, label, destination_url)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
     )
-      .bind(code, Number(body.campaignId || 0), user.email, channel, label, target.toString())
+      .bind(code, campaignId, user.email, channel, label, target.toString())
       .run();
-    return jsonResponse({ ok: true, code });
+    return jsonResponse({ ok: true, code, destinationUrl: target.toString() });
   } catch {
     return jsonResponse({ error: "Unable to create link." }, 400);
+  }
+}
+
+async function handleDashboardDeleteLink(request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+  const user = await getSessionUser(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+  try {
+    const body = (await request.json()) as { code?: string };
+    const code = String(body.code || "").trim().slice(0, 32);
+    if (!code) return jsonResponse({ error: "Missing link code" }, 400);
+    await env.DB.prepare(`DELETE FROM tracking_links WHERE code = ?1 AND user_email = ?2`).bind(code, user.email).run();
+    return jsonResponse({ ok: true, code });
+  } catch {
+    return jsonResponse({ error: "Unable to delete link." }, 400);
   }
 }
 
@@ -1603,25 +1684,51 @@ async function handleAdminDashboard(request: Request, env: Env): Promise<Respons
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
   if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+  await logAdminAudit(env, request, "admin_dashboard_read");
 
-  const [usersRes, campaignsRes, ordersRes, linksRes, dirsRes, outreachRes, brandKitsRes, dirHealthRes] =
-    await Promise.all([
-      env.DB.prepare(`SELECT id, email, name, role, created_at FROM users ORDER BY id DESC LIMIT 100`).all(),
-      env.DB.prepare(`SELECT * FROM campaigns ORDER BY updated_at DESC LIMIT 100`).all(),
-      env.DB.prepare(`SELECT * FROM customers_orders ORDER BY created_at DESC LIMIT 100`).all<{
-        plan: string;
-        amount_usd: number;
-        status: string;
-      }>(),
-      env.DB.prepare(`SELECT * FROM tracking_links ORDER BY clicks_count DESC LIMIT 200`).all<{
-        clicks_count: number;
-        conversions_count: number;
-      }>(),
-      env.DB.prepare(`SELECT * FROM directory_submissions ORDER BY updated_at DESC LIMIT 200`).all(),
-      env.DB.prepare(`SELECT * FROM outreach_logs ORDER BY last_event_at DESC LIMIT 100`).all(),
-      env.DB.prepare(`SELECT * FROM brand_kits ORDER BY updated_at DESC LIMIT 100`).all(),
-      env.DB.prepare(`SELECT * FROM directory_health_checks ORDER BY updated_at DESC LIMIT 300`).all(),
-    ]);
+  const [
+    usersRes,
+    campaignsRes,
+    ordersRes,
+    linksRes,
+    dirsRes,
+    outreachRes,
+    brandKitsRes,
+    dirHealthRes,
+    auditLogsRes,
+    countsUsers,
+    countsCampaigns,
+    countsOrders,
+    leadCountsRes,
+  ] = await Promise.all([
+    env.DB.prepare(`SELECT id, email, name, role, created_at FROM users ORDER BY id DESC LIMIT 200`).all(),
+    env.DB.prepare(`SELECT * FROM campaigns ORDER BY updated_at DESC LIMIT 200`).all(),
+    env.DB.prepare(`SELECT * FROM customers_orders ORDER BY created_at DESC LIMIT 200`).all<{
+      order_id: string;
+      customer_email: string;
+      slug: string;
+      plan: string;
+      amount_usd: number;
+      status: string;
+      created_at: string;
+    }>(),
+    env.DB.prepare(`SELECT * FROM tracking_links ORDER BY clicks_count DESC LIMIT 200`).all<{
+      clicks_count: number;
+      conversions_count: number;
+    }>(),
+    env.DB.prepare(`SELECT * FROM directory_submissions ORDER BY updated_at DESC LIMIT 600`).all(),
+    env.DB.prepare(`SELECT * FROM outreach_logs ORDER BY last_event_at DESC, id DESC LIMIT 100`).all(),
+    env.DB.prepare(`SELECT * FROM brand_kits ORDER BY updated_at DESC LIMIT 200`).all(),
+    env.DB.prepare(`SELECT * FROM directory_health_checks ORDER BY updated_at DESC LIMIT 600`).all(),
+    env.DB.prepare(`SELECT id, action, target_slug, ip, created_at FROM admin_audit_logs ORDER BY id DESC LIMIT 30`).all(),
+    env.DB.prepare(`SELECT COUNT(*) as cnt FROM users`).first<{ cnt: number }>(),
+    env.DB.prepare(`SELECT COUNT(*) as cnt FROM campaigns`).first<{ cnt: number }>(),
+    env.DB.prepare(`SELECT COUNT(*) as cnt FROM customers_orders`).first<{ cnt: number }>(),
+    env.DB.prepare(`SELECT campaign_id, COUNT(*) as cnt FROM radar_leads WHERE status != 'dismissed' GROUP BY campaign_id`).all<{
+      campaign_id: number;
+      cnt: number;
+    }>(),
+  ]);
 
   const orders = ordersRes.results || [];
   const links = linksRes.results || [];
@@ -1638,9 +1745,9 @@ async function handleAdminDashboard(request: Request, env: Env): Promise<Respons
   return jsonResponse({
     syncedAt: new Date().toISOString(),
     kpis: {
-      totalUsers: (usersRes.results || []).length,
-      totalCampaigns: (campaignsRes.results || []).length,
-      totalOrders: orders.length,
+      totalUsers: Number(countsUsers?.cnt ?? (usersRes.results || []).length),
+      totalCampaigns: Number(countsCampaigns?.cnt ?? (campaignsRes.results || []).length),
+      totalOrders: Number(countsOrders?.cnt ?? orders.length),
       totalRevenueUsd,
       activeMrrUsd,
       totalClicks,
@@ -1655,7 +1762,118 @@ async function handleAdminDashboard(request: Request, env: Env): Promise<Respons
     outreach: outreachRes.results || [],
     brandKits: brandKitsRes.results || [],
     directoryHealth: dirHealthRes.results || [],
+    auditLogs: auditLogsRes.results || [],
+    leadCounts: leadCountsRes.results || [],
   });
+}
+
+/**
+ * 管理员手工开通 / 变更 / 撤销客户套餐（线下打款、DFY 托管或客服补单）
+ */
+async function handleAdminGrantPlan(request: Request, env: Env): Promise<Response> {
+  if (!(await isAdminAuthorized(request, env))) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+  try {
+    const body = (await request.json()) as {
+      orderId?: string;
+      customerEmail?: string;
+      plan?: "blitz" | "radar" | "dfy" | "fixpack";
+      amountUsd?: number;
+      status?: "active" | "canceled" | "refunded";
+      slug?: string;
+    };
+    const status = ["active", "canceled", "refunded"].includes(body.status || "") ? String(body.status) : "active";
+
+    // 若传了既有 orderId，直接更新该订单状态
+    if (body.orderId && !body.customerEmail) {
+      const oid = body.orderId.trim().slice(0, 80);
+      await env.DB.prepare(`UPDATE customers_orders SET status = ?1 WHERE order_id = ?2`).bind(status, oid).run();
+      await logAdminAudit(env, request, "order_status_update", `${oid}:${status}`);
+      return jsonResponse({ ok: true, orderId: oid, status });
+    }
+
+    const email = (body.customerEmail || "").trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      return jsonResponse({ error: "Please enter a valid customer email." }, 400);
+    }
+    const plan = ["blitz", "radar", "dfy", "fixpack"].includes(body.plan || "") ? String(body.plan) : "blitz";
+    const defaultAmt = plan === "dfy" ? 299 : plan === "radar" ? 29 : 39;
+    const amountUsd = Number.isFinite(Number(body.amountUsd)) && Number(body.amountUsd) >= 0 ? Number(body.amountUsd) : defaultAmt;
+    const orderId = (body.orderId || "").trim().slice(0, 64) || `ord_ops_${Date.now().toString(36)}`;
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    const magicToken = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+
+    await env.DB.prepare(
+      `INSERT INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token, created_at)
+       VALUES (?1, ?2, ?3, '', ?4, ?5, ?6, ?7, datetime('now'))
+       ON CONFLICT(order_id) DO UPDATE SET plan = ?4, amount_usd = ?5, status = ?6`
+    )
+      .bind(orderId, email, (body.slug || "").trim().slice(0, 60), plan, amountUsd, status, magicToken)
+      .run();
+
+    await logAdminAudit(env, request, "grant_plan", `${email}:${plan}:${status}`);
+    return jsonResponse({ ok: true, orderId, email, plan, amountUsd, status });
+  } catch {
+    return jsonResponse({ error: "Invalid plan grant payload." }, 400);
+  }
+}
+
+/**
+ * 管理员向客户一键发送目录履约进展邮件（通过已接入的 Resend 服务）
+ */
+async function handleAdminNotifyCustomer(request: Request, env: Env): Promise<Response> {
+  if (!(await isAdminAuthorized(request, env))) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+  try {
+    const body = (await request.json()) as {
+      customerEmail?: string;
+      productName?: string;
+      liveCount?: number;
+      submittedCount?: number;
+      note?: string;
+    };
+    const email = (body.customerEmail || "").trim().toLowerCase();
+    if (!email || !email.includes("@")) return jsonResponse({ error: "Missing valid customerEmail" }, 400);
+
+    const origin = new URL(request.url).origin;
+    const prod = (body.productName || "your SaaS").trim().slice(0, 80);
+    const live = Number(body.liveCount || 0);
+    const sub = Number(body.submittedCount || 0);
+    const sent = await sendResendEmail(env, {
+      to: email,
+      subject: `LaunchPulse Progress Update for ${prod}: ${live} Live Backlinks Verified`,
+      text: [
+        `Hi there,`,
+        ``,
+        `Here is your latest LaunchPulse distribution update for ${prod}:`,
+        `- Verified Live Backlinks: ${live}`,
+        `- Submitted & Under Review: ${sub}`,
+        body.note ? `- Operations Note: ${body.note.trim().slice(0, 300)}` : "",
+        ``,
+        `Inspect every live backlink URL, HTTP status, and attribution link in your console:`,
+        `${origin}/dashboard`,
+        ``,
+        `— LaunchPulse Operations`,
+      ]
+        .filter((line) => line !== "")
+        .join("\n"),
+    });
+    await logAdminAudit(env, request, "notify_customer", `${email}:${sent ? "sent" : "no_resend_key"}`);
+    if (!sent) {
+      return jsonResponse(
+        { ok: false, error: "Resend API key is not configured or rejected the delivery. Audit logged." },
+        503
+      );
+    }
+    return jsonResponse({ ok: true, sent: true });
+  } catch {
+    return jsonResponse({ error: "Failed to send customer update." }, 400);
+  }
 }
 
 /**
@@ -1736,8 +1954,19 @@ export default {
     if (url.pathname === "/api/dashboard/campaign" && request.method === "POST") {
       return handleDashboardSaveCampaign(request, env);
     }
+    if (url.pathname === "/api/dashboard/campaign" && request.method === "DELETE") {
+      return handleDashboardDeleteCampaign(request, env);
+    }
     if (url.pathname === "/api/dashboard/links" && request.method === "POST") {
       return handleDashboardCreateLink(request, env);
+    }
+    if (url.pathname === "/api/dashboard/links" && request.method === "DELETE") {
+      return handleDashboardDeleteLink(request, env);
+    }
+    if (url.pathname === "/api/dashboard/directory-submit" && request.method === "POST") {
+      const user = await getSessionUser(request, env);
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+      return handleSelfSubmitDirectory(request, env, user);
     }
     if (url.pathname === "/api/dashboard/brand-kit" && request.method === "POST") {
       const user = await getSessionUser(request, env);
@@ -1792,20 +2021,30 @@ export default {
       return handleGetPublicReport(shareId, env);
     }
 
-    // V4 管理员一键触发外链 HTTP/dofollow 验活巡检
+    // V4 管理员一键触发外链 HTTP/dofollow 验活巡检（支持单项目与全站模式）
     if (url.pathname === "/api/admin/verify-backlinks" && request.method === "POST") {
       if (!(await isAdminAuthorized(request, env))) {
         return jsonResponse({ error: "Unauthorized" }, 401);
       }
-      const body = (await request.json().catch(() => ({}))) as { customerEmail?: string };
-      const summary = await runBacklinkHealthCheck(env, body.customerEmail || "", 20);
-      await logAdminAudit(env, request, "verify_backlinks", body.customerEmail || "all");
-      return jsonResponse({ ok: true, ...summary });
+      const body = (await request.json().catch(() => ({}))) as { scope?: "all" | "customer"; customerEmail?: string };
+      const targetEmail = body.scope === "all" ? "" : (body.customerEmail || "").trim();
+      const summary = await runBacklinkHealthCheck(env, targetEmail, 25);
+      await logAdminAudit(env, request, "verify_backlinks", targetEmail || "all");
+      return jsonResponse({ ok: true, scope: targetEmail ? "customer" : "all", ...summary });
     }
 
-    // V2 在线可视化管理台聚合接口
+    // 管理员手工开通/变更客户套餐
+    if (url.pathname === "/api/admin/grant-plan" && request.method === "POST") {
+      return handleAdminGrantPlan(request, env);
+    }
+
+    // 管理员发送客户目录履约进展邮件
+    if (url.pathname === "/api/admin/notify-customer" && request.method === "POST") {
+      return handleAdminNotifyCustomer(request, env);
+    }
+
+    // V2 在线可视化管理台聚合接口（审计日志已移入鉴权通过后）
     if (url.pathname === "/api/admin/dashboard" && request.method === "GET") {
-      await logAdminAudit(env, request, "admin_dashboard_read");
       return handleAdminDashboard(request, env);
     }
 
@@ -1959,16 +2198,14 @@ export default {
       }
     }
 
-    // 管理员回填客户真实目录外链收录结果接口（支持 HttpOnly Admin Cookie 或 x-admin-key）
+    // 管理员回填客户真实目录外链收录结果接口（支持单条与批量更新、截图凭证回填与 URL 校验）
     if (url.pathname === "/api/admin/directory-update" && request.method === "POST") {
       if (!(await isAdminAuthorized(request, env))) {
         return jsonResponse({ error: "Unauthorized" }, 401);
       }
       if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
       try {
-        const body = (await request.json()) as {
-          customerEmail?: string;
-          slug?: string;
+        interface DirUpdateEntry {
           directoryId?: string;
           directoryName?: string;
           directoryUrl?: string;
@@ -1978,44 +2215,76 @@ export default {
           liveBacklinkUrl?: string;
           proofScreenshotUrl?: string;
           scheduledWave?: number;
+        }
+        const body = (await request.json()) as DirUpdateEntry & {
+          customerEmail?: string;
+          campaignId?: number;
+          slug?: string;
+          items?: DirUpdateEntry[];
         };
         const email = (body.customerEmail || "").trim().toLowerCase();
-        const dirId = (body.directoryId || "").trim();
-        if (!email || !dirId) return jsonResponse({ error: "Missing customerEmail or directoryId" }, 400);
-        const st = ["queued", "submitted", "live"].includes(body.status || "")
-          ? body.status
-          : "submitted";
-        await env.DB.prepare(
-          `INSERT INTO directory_submissions (customer_email, slug, directory_id, directory_name, directory_url, dr, category, status, live_backlink_url, updated_at)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, datetime('now'))
-           ON CONFLICT(customer_email, directory_id) DO UPDATE SET
-             status = ?8, live_backlink_url = ?9, updated_at = datetime('now')`
-        )
-          .bind(
-            email,
-            body.slug || "",
-            dirId,
-            body.directoryName || dirId,
-            body.directoryUrl || "",
-            Number(body.dr || 50),
-            body.category || "SaaS Directory",
-            st,
-            body.liveBacklinkUrl || ""
-          )
-          .run();
-        if (body.proofScreenshotUrl || body.scheduledWave) {
-          const wave = [1, 2, 3].includes(Number(body.scheduledWave)) ? Number(body.scheduledWave) : 1;
+        if (!email) return jsonResponse({ error: "Missing customerEmail" }, 400);
+        const campaignId = Number(body.campaignId || 0);
+        const entries: DirUpdateEntry[] =
+          Array.isArray(body.items) && body.items.length > 0 ? body.items.slice(0, 50) : [body];
+
+        let updatedCount = 0;
+        for (const item of entries) {
+          const dirId = (item.directoryId || "").trim();
+          if (!dirId) continue;
+          const st = ["queued", "submitted", "live"].includes(item.status || "") ? item.status! : "submitted";
+          const rawLive = (item.liveBacklinkUrl || "").trim();
+          if (rawLive && !parseSafePublicHttpsUrl(rawLive)) {
+            return jsonResponse({ error: `Invalid live backlink URL for ${dirId}` }, 400);
+          }
+          const rawProof = (item.proofScreenshotUrl || "").trim();
+          if (rawProof && !parseSafePublicHttpsUrl(rawProof)) {
+            return jsonResponse({ error: `Invalid proof screenshot URL for ${dirId}` }, 400);
+          }
           await env.DB.prepare(
-            `INSERT INTO directory_health_checks (customer_email, campaign_id, directory_id, scheduled_wave, proof_screenshot_url, updated_at)
-             VALUES (?1, 0, ?2, ?3, ?4, datetime('now'))
-             ON CONFLICT(customer_email, campaign_id, directory_id) DO UPDATE SET
-               scheduled_wave = ?3, proof_screenshot_url = COALESCE(NULLIF(?4, ''), proof_screenshot_url), updated_at = datetime('now')`
+            `INSERT INTO directory_submissions (customer_email, slug, directory_id, directory_name, directory_url, dr, category, status, live_backlink_url, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, datetime('now'))
+             ON CONFLICT(customer_email, directory_id) DO UPDATE SET
+               slug = COALESCE(NULLIF(?2, ''), slug),
+               status = ?8,
+               live_backlink_url = CASE WHEN ?9 != '' OR ?8 = 'queued' THEN ?9 ELSE live_backlink_url END,
+               updated_at = datetime('now')`
           )
-            .bind(email, dirId, wave, (body.proofScreenshotUrl || "").trim().slice(0, 400))
+            .bind(
+              email,
+              body.slug || "",
+              dirId,
+              item.directoryName || dirId,
+              item.directoryUrl || "",
+              Number(item.dr || 50),
+              item.category || "SaaS Directory",
+              st,
+              rawLive
+            )
             .run();
+
+          if (rawProof || item.scheduledWave) {
+            const wave = [1, 2, 3].includes(Number(item.scheduledWave)) ? Number(item.scheduledWave) : 1;
+            await env.DB.prepare(
+              `INSERT INTO directory_health_checks (customer_email, campaign_id, directory_id, scheduled_wave, proof_screenshot_url, updated_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))
+               ON CONFLICT(customer_email, campaign_id, directory_id) DO UPDATE SET
+                 scheduled_wave = ?4, proof_screenshot_url = COALESCE(NULLIF(?5, ''), proof_screenshot_url), updated_at = datetime('now')`
+            )
+              .bind(email, campaignId, dirId, wave, rawProof.slice(0, 400))
+              .run();
+          }
+          updatedCount += 1;
         }
-        await logAdminAudit(env, request, "directory_update", `${body.slug || email}:${dirId}:${st}`);
-        return jsonResponse({ ok: true, directoryId: dirId, status: st });
+
+        if (updatedCount === 0) return jsonResponse({ error: "Missing directoryId" }, 400);
+        await logAdminAudit(
+          env,
+          request,
+          entries.length > 1 ? "directory_batch_update" : "directory_update",
+          `${body.slug || email}:${entries[0]?.directoryId || "batch"}:${updatedCount}`
+        );
+        return jsonResponse({ ok: true, updatedCount });
       } catch {
         return jsonResponse({ error: "Invalid directory update payload" }, 400);
       }
@@ -2099,6 +2368,12 @@ export default {
               comment_text?: string;
             }>;
           };
+          const activeCamp = await env.DB.prepare(
+            `SELECT id FROM campaigns WHERE user_email = ?1 ORDER BY id DESC LIMIT 1`
+          )
+            .bind(sub.customer_email)
+            .first<{ id: number }>();
+
           const freshLines: string[] = [];
           for (const hit of hnData.hits || []) {
             const title = cleanEntities(hit.story_title || hit.title || "");
@@ -2111,6 +2386,17 @@ export default {
             )
               .bind(sub.customer_email, sub.slug, `hn-${hit.objectID}`, title.slice(0, 120), excerpt, leadUrl)
               .run();
+            // 同步写入 radar_leads，让定时任务扫到的线索直接出现在 /dashboard 买家收件箱里
+            if (activeCamp?.id) {
+              await env.DB.prepare(
+                `INSERT OR IGNORE INTO radar_leads (
+                   campaign_id, user_email, external_id, source, community, author, title, excerpt, url,
+                   intent_type, intent_score, status, posted_at
+                 ) VALUES (?1, ?2, ?3, 'Hacker News', 'HN Daily Radar', '@hn_dev', ?4, ?5, ?6, 'buying', 91, 'new', date('now'))`
+              )
+                .bind(activeCamp.id, sub.customer_email, `hn-${hit.objectID}`, title.slice(0, 140), excerpt, leadUrl)
+                .run();
+            }
             freshLines.push(`• ${title}\n  ${leadUrl}`);
           }
           if (freshLines.length > 0) {

@@ -13,3 +13,5 @@ ops-data/
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
+
+.impeccable/

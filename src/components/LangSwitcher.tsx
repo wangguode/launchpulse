@@ -18,10 +18,11 @@ export default function LangSwitcher({ surface = "auto" }: { surface?: "auto" | 
     <div
       className={`inline-flex items-center rounded-full border p-0.5 text-[11px] font-medium ${containerCls}`}
       role="group"
-      aria-label="切换中英文语言"
+      aria-label={isZh ? "切换界面语言" : "Switch interface language"}
     >
       <button
         type="button"
+        aria-pressed={isZh}
         onClick={() => setLocale("zh")}
         className={`px-2 py-0.5 rounded-full lp-ease cursor-pointer ${
           isZh
@@ -37,6 +38,7 @@ export default function LangSwitcher({ surface = "auto" }: { surface?: "auto" | 
       </button>
       <button
         type="button"
+        aria-pressed={!isZh}
         onClick={() => setLocale("en")}
         className={`px-2 py-0.5 rounded-full lp-ease cursor-pointer ${
           !isZh

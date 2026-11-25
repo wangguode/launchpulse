@@ -31,6 +31,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 
@@ -40,15 +41,24 @@ export interface ShellNavItem {
   mobileLabel?: string;
   icon: ReactNode;
   badge?: string | number;
+  disabled?: boolean;
+}
+
+export interface ShellNavGroup {
+  label: string;
+  items: ShellNavItem[];
 }
 
 interface AppShellProps {
-  navItems: ShellNavItem[];
+  navItems?: ShellNavItem[];
+  navGroups?: ShellNavGroup[];
   activeKey: string;
   onSelect: (key: string) => void;
   breadcrumbRoot: string;
   breadcrumbCurrent: string;
   navGroupLabel?: string;
+  brandSubtitle?: string;
+  opsMode?: boolean;
   sidebarTopSlot?: ReactNode;
   sidebarFooter?: ReactNode;
   headerActions?: ReactNode;
@@ -58,16 +68,21 @@ interface AppShellProps {
 }
 
 /**
- * 基于 Kiranism/next-shadcn-dashboard-starter (MIT) 原装 SidebarProvider 重构的应用外壳
- * - 支持图标轨折叠（⌘B）、移动端原装 Sheet 抽屉、10 套 shadcn 主题实时切换与视图过渡动画
+ * LaunchPulse 统一应用外壳
+ * - 支持多分组侧边栏导航（navGroups），消除导航饥饿感
+ * - 支持 opsMode 内部履约视觉隔离（独立色标与品牌副标题）
+ * - 支持图标轨折叠（⌘B）、移动端原装 Sheet 抽屉与全局命令面板（⌘K）
  */
 export default function AppShell({
-  navItems,
+  navItems = [],
+  navGroups,
   activeKey,
   onSelect,
   breadcrumbRoot,
   breadcrumbCurrent,
-  navGroupLabel = "核心工作台",
+  navGroupLabel = "工作台",
+  brandSubtitle = "Growth Console",
+  opsMode = false,
   sidebarTopSlot,
   sidebarFooter,
   headerActions,
@@ -75,19 +90,35 @@ export default function AppShell({
   commandLabel = "快速搜索...",
   children,
 }: AppShellProps) {
+  const groups: ShellNavGroup[] =
+    navGroups && navGroups.length > 0 ? navGroups : [{ label: navGroupLabel, items: navItems }];
+
   return (
     <SidebarProvider defaultOpen={true}>
       <Sidebar collapsible="icon" variant="inset">
-        <SidebarHeader className="gap-2">
+        <SidebarHeader className="gap-2.5 pb-1">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" render={<Link href="/" />}>
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <div
+                  className={`flex aspect-square size-8 items-center justify-center rounded-lg shadow-xs ${
+                    opsMode
+                      ? "bg-amber-600 text-white dark:bg-amber-500 dark:text-slate-950"
+                      : "bg-primary text-primary-foreground"
+                  }`}
+                >
                   <BrandMark className="size-4" tone="light" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">LaunchPulse</span>
-                  <span className="truncate text-xs text-muted-foreground">Growth Command</span>
+                  <span className="truncate font-semibold tracking-tight flex items-center gap-1.5">
+                    LaunchPulse
+                    {opsMode && (
+                      <Badge variant="warning" className="h-4 px-1.5 text-[10px] font-semibold">
+                        OPS
+                      </Badge>
+                    )}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">{brandSubtitle}</span>
                 </div>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -96,53 +127,62 @@ export default function AppShell({
           {sidebarTopSlot && <div className="px-1 group-data-[collapsible=icon]:hidden">{sidebarTopSlot}</div>}
         </SidebarHeader>
 
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>{navGroupLabel}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {navItems.map((item) => {
-                  const active = item.key === activeKey;
-                  return (
-                    <SidebarMenuItem key={item.key}>
-                      <SidebarMenuButton
-                        isActive={active}
-                        tooltip={item.label}
-                        onClick={() => onSelect(item.key)}
-                        className="cursor-pointer"
-                      >
-                        {item.icon}
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                      {item.badge !== undefined && item.badge !== "" && (
-                        <SidebarMenuBadge className="tabular-nums">{item.badge}</SidebarMenuBadge>
-                      )}
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+        <SidebarContent className="gap-1">
+          {groups.map((grp) => (
+            <SidebarGroup key={grp.label} className="py-1.5">
+              <SidebarGroupLabel className="text-[11px] font-medium tracking-wide text-muted-foreground/85">
+                {grp.label}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {grp.items.map((item) => {
+                    const active = item.key === activeKey;
+                    return (
+                      <SidebarMenuItem key={item.key}>
+                        <SidebarMenuButton
+                          isActive={active}
+                          disabled={item.disabled}
+                          tooltip={item.label}
+                          onClick={() => !item.disabled && onSelect(item.key)}
+                          className="cursor-pointer font-medium data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                        >
+                          {item.icon}
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                        {item.badge !== undefined && item.badge !== "" && (
+                          <SidebarMenuBadge className="tabular-nums text-[11px] text-muted-foreground">
+                            {item.badge}
+                          </SidebarMenuBadge>
+                        )}
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
         </SidebarContent>
 
-        {sidebarFooter && <SidebarFooter>{sidebarFooter}</SidebarFooter>}
+        {sidebarFooter && <SidebarFooter className="border-t border-sidebar-border/70 pt-2">{sidebarFooter}</SidebarFooter>}
         <SidebarRail />
       </Sidebar>
 
-      <SidebarInset className="min-w-0">
-        {/* Kiranism 原装标准顶栏：SidebarTrigger + Breadcrumb + Search + ThemeMode + ThemeSelector */}
-        <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
+      <SidebarInset className="min-w-0 overflow-x-hidden">
+        {opsMode && (
+          <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-400 shrink-0" />
+        )}
+        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-card/85 backdrop-blur-md px-4">
           <div className="flex min-w-0 items-center gap-2">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-1 data-vertical:h-4 data-vertical:self-center" />
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden sm:block">
-                  <span className="text-muted-foreground">{breadcrumbRoot}</span>
+                  <span className="text-muted-foreground text-xs font-medium">{breadcrumbRoot}</span>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden sm:block" />
                 <BreadcrumbItem>
-                  <BreadcrumbPage className="font-medium truncate max-w-[160px] sm:max-w-none">
+                  <BreadcrumbPage className="font-semibold text-sm truncate max-w-[160px] sm:max-w-none">
                     {breadcrumbCurrent}
                   </BreadcrumbPage>
                 </BreadcrumbItem>
@@ -156,8 +196,9 @@ export default function AppShell({
                 type="button"
                 variant="outline"
                 size="sm"
+                aria-label={commandLabel}
                 onClick={onOpenCommand}
-                className="h-8 gap-2 text-muted-foreground font-normal px-2.5"
+                className="h-8 gap-2 text-muted-foreground font-normal px-2.5 bg-background/70"
               >
                 <IconSearch className="size-3.5" />
                 <span className="hidden md:inline text-xs">{commandLabel}</span>
