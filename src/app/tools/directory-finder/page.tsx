@@ -7,6 +7,7 @@ import { DISTRIBUTION_DIRECTORIES } from "@/data/directories";
 import { useI18n } from "@/components/I18nProvider";
 import BrandMark from "@/components/BrandMark";
 import LangSwitcher from "@/components/LangSwitcher";
+import DomainFavicon from "@/components/frosted/DomainFavicon";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,29 +58,29 @@ export default function DirectoryFinderToolPage() {
   const dofollowTotal = DISTRIBUTION_DIRECTORIES.filter((d) => d.linkType === "dofollow").length;
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="sticky top-0 z-40 h-14 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-          <div className="flex items-center gap-2 text-sm min-w-0">
-            <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight shrink-0">
-              <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+    <div className="min-h-screen bg-transparent text-foreground flex flex-col">
+      <div className="sticky top-3 z-40 px-4 sm:px-6">
+        <header className="lp-frosted-topbar mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 rounded-2xl px-4 sm:px-5">
+          <div className="flex items-center gap-2.5 text-sm min-w-0">
+            <Link href="/" className="flex items-center gap-2.5 font-semibold text-[15px] tracking-tight shrink-0">
+              <div className="lp-btn-bevel flex size-8 items-center justify-center rounded-[10px]">
                 <BrandMark className="size-4" tone="light" />
               </div>
               <span>LaunchPulse</span>
             </Link>
-            <span className="text-muted-foreground">/</span>
+            <span className="text-muted-foreground opacity-50">/</span>
             <span className="text-muted-foreground truncate">{isZh ? "100+ 目录检索库" : "Directory Finder"}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <LangSwitcher />
             <ThemeModeToggle />
             <Button size="sm" render={<Link href="/dashboard?sample=1" />}>
               {isZh ? "在指挥台管理提交" : "Manage in Console"}
             </Button>
           </div>
-        </div>
-      </header>
+        </header>
+      </div>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
         <Card>
@@ -169,8 +170,13 @@ export default function DirectoryFinderToolPage() {
                 {filtered.map((d) => (
                   <TableRow key={d.id}>
                     <TableCell>
-                      <div className="font-medium">{d.name}</div>
-                      <div className="text-xs font-mono text-muted-foreground">{d.url.replace("https://", "")}</div>
+                      <div className="flex items-center gap-3">
+                        <DomainFavicon name={d.name} url={d.url} />
+                        <div>
+                          <div className="font-medium">{d.name}</div>
+                          <div className="text-xs font-mono text-muted-foreground">{d.url.replace("https://", "")}</div>
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="font-mono">

@@ -95,8 +95,8 @@ export default function DynamicLiveAuditPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-background text-muted-foreground flex flex-col items-center justify-center gap-3">
-        <IconLoader2 className="size-6 text-primary animate-spin" />
+      <main className="min-h-screen bg-transparent text-muted-foreground flex flex-col items-center justify-center gap-3">
+        <IconLoader2 className="size-6 text-accent-cobalt animate-spin" />
         <p className="text-sm">{t.liveAudit.loadingText}</p>
       </main>
     );
@@ -108,28 +108,28 @@ export default function DynamicLiveAuditPage() {
 
   if (instantScan) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex flex-col">
-        <header className="sticky top-0 z-40 h-14 border-b bg-background/95 backdrop-blur">
-          <div className="mx-auto flex h-full max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
-            <div className="flex items-center gap-2 text-sm min-w-0">
-              <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight shrink-0">
-                <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+      <div className="min-h-screen bg-transparent text-foreground flex flex-col">
+        <div className="sticky top-3 z-40 px-4 sm:px-6">
+          <header className="lp-frosted-topbar mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 rounded-2xl px-4 sm:px-5">
+            <div className="flex items-center gap-2.5 text-sm min-w-0">
+              <Link href="/" className="flex items-center gap-2.5 font-semibold text-[15px] tracking-tight shrink-0">
+                <div className="lp-btn-bevel flex size-8 items-center justify-center rounded-[10px]">
                   <BrandMark className="size-4" tone="light" />
                 </div>
                 <span>LaunchPulse</span>
               </Link>
-              <span className="text-muted-foreground">/</span>
+              <span className="text-muted-foreground opacity-50">/</span>
               <span className="font-mono text-xs text-muted-foreground truncate">{instantScan.domain}</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <LangSwitcher />
               <ThemeModeToggle />
               <Button size="sm" render={<Link href="/dashboard?sample=1" />}>
                 {isZh ? "进入指挥台" : "Console"}
               </Button>
             </div>
-          </div>
-        </header>
+          </header>
+        </div>
 
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 space-y-6">
           <Card>
@@ -240,7 +240,7 @@ export default function DynamicLiveAuditPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4 px-6 text-center">
+    <main className="min-h-screen bg-transparent text-foreground flex flex-col items-center justify-center gap-4 px-6 text-center">
       <p className="text-lg font-semibold">
         {errorKey ? t.liveAudit[errorKey] : t.liveAudit.notFound}
       </p>

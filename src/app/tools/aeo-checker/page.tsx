@@ -100,17 +100,17 @@ export default function AeoCheckerToolPage() {
   const subScores = resData?.subScores || { seo: 0, aeo: 0, social: 0, security: 0 };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="sticky top-0 z-40 h-14 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-          <div className="flex items-center gap-2 text-sm min-w-0">
-            <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight shrink-0">
-              <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+    <div className="min-h-screen bg-transparent text-foreground flex flex-col">
+      <div className="sticky top-3 z-40 px-4 sm:px-6">
+        <header className="lp-frosted-topbar mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 rounded-2xl px-4 sm:px-5">
+          <div className="flex items-center gap-2.5 text-sm min-w-0">
+            <Link href="/" className="flex items-center gap-2.5 font-semibold text-[15px] tracking-tight shrink-0">
+              <div className="lp-btn-bevel flex size-8 items-center justify-center rounded-[10px]">
                 <BrandMark className="size-4" tone="light" />
               </div>
               <span>LaunchPulse</span>
             </Link>
-            <span className="text-muted-foreground">/</span>
+            <span className="text-muted-foreground opacity-50">/</span>
             <span className="text-muted-foreground truncate">{isZh ? "AEO 可见度体检" : "AEO Checker"}</span>
           </div>
 
@@ -125,8 +125,8 @@ export default function AeoCheckerToolPage() {
               {isZh ? "进入指挥台" : "Console"}
             </Button>
           </div>
-        </div>
-      </header>
+        </header>
+      </div>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
         <div className="grid lg:grid-cols-12 gap-6 items-start">

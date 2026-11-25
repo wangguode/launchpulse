@@ -138,21 +138,21 @@ export default function WarRoomClient({ report }: Props) {
   const lockedLeads = isUnlocked ? [] : report.buyerLeads.filter((l) => !l.unlockedByDefault);
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
-      <header className="sticky top-0 z-40 h-14 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-          <div className="flex items-center gap-2 text-sm min-w-0">
-            <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight shrink-0">
-              <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+    <div className="min-h-screen bg-transparent text-foreground overflow-x-hidden">
+      <div className="sticky top-3 z-40 px-4 sm:px-6">
+        <header className="lp-frosted-topbar mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 rounded-2xl px-4 sm:px-5">
+          <div className="flex items-center gap-2.5 text-sm min-w-0">
+            <Link href="/" className="flex items-center gap-2.5 font-semibold text-[15px] tracking-tight shrink-0">
+              <div className="lp-btn-bevel flex size-8 items-center justify-center rounded-[10px]">
                 <BrandMark className="size-4" tone="light" />
               </div>
               <span className="hidden sm:inline">LaunchPulse</span>
             </Link>
-            <span className="text-muted-foreground hidden sm:inline">/</span>
+            <span className="text-muted-foreground opacity-50 hidden sm:inline">/</span>
             <span className="hidden sm:inline font-mono text-xs text-muted-foreground truncate">{report.domain}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <LangSwitcher />
             <ThemeModeToggle />
             <Button variant="ghost" size="sm" className="hidden md:inline-flex text-xs" render={<Link href="/login" />}>
@@ -163,14 +163,14 @@ export default function WarRoomClient({ report }: Props) {
                 {loadingPlan === "blitz" ? t.pricing.loadingCheckout : locale === "zh" ? "开通启动包 $39" : "Start $39"}
               </Button>
             ) : (
-              <Badge variant="secondary" className="gap-1">
+              <Badge variant="success" className="gap-1">
                 <IconLockOpen className="size-3.5" />
                 {t.warRoom.fullPackUnlocked} ({unlockedPlan})
               </Badge>
             )}
           </div>
-        </div>
-      </header>
+        </header>
+      </div>
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8 space-y-8">
         {postCheckoutPrompt && !isUnlocked && (

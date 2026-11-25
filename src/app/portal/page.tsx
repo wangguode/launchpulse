@@ -108,24 +108,24 @@ export default function PortalBridgePage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="sticky top-0 z-40 h-14 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-full max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 font-semibold text-sm tracking-tight">
-            <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+    <div className="min-h-screen bg-transparent text-foreground flex flex-col">
+      <div className="px-4 pt-3 sm:px-6">
+        <header className="lp-frosted-topbar mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 rounded-2xl px-4 sm:px-5">
+          <Link href="/" className="flex items-center gap-2.5 font-semibold text-[15px] tracking-tight">
+            <div className="lp-btn-bevel flex size-8 items-center justify-center rounded-[10px]">
               <BrandMark className="size-4" tone="light" />
             </div>
             <span>LaunchPulse</span>
           </Link>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <LangSwitcher />
             <ThemeModeToggle />
             <Button size="sm" variant="outline" render={<Link href="/login" />}>
               {isZh ? "账号登录" : "Sign In"}
             </Button>
           </div>
-        </div>
-      </header>
+        </header>
+      </div>
 
       <main className="flex-1 flex items-center justify-center px-4 py-12">
         {exchanging ? (
