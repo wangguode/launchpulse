@@ -1,119 +1,166 @@
 /* =====================================================================
- * LaunchPulse 专属设计系统（对标 Dub / PostHog / Stripe 现代增长分析台）
- * - 浅色模式：冷白石膏画布 (#F8FAFC) + 洁白卡片 + 脉冲蓝主色 (#2563EB)
- * - 暗黑模式：深海岩灰画布 (#0B0F17) + 分层卡片 (#121824) + 柔亮脉冲蓝 (#4F83FF)
- * - 零多余主题死代码，仅加载一套高辨识度语义令牌
+ * LaunchPulse V8 五层光学磨砂设计系统（Pearl Frost 冰晶浅色 & Obsidian Vibrancy 黑曜石流光）
+ * - 严格遵守 3% 色彩预算：主按钮采用深曜石高光棱角，钴蓝仅赋予核心数据曲线与高优焦点
+ * - 分层透光亚克力（Sidebar 0.58 / Topbar 0.64 / Card 0.70 / Pill 0.88）+ 1px 顶部高光内描边
  * ===================================================================== */
 
 :root,
 [data-theme='launchpulse'] {
-  --background: oklch(0.985 0.004 248);
-  --foreground: oklch(0.165 0.018 258);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.165 0.018 258);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.165 0.018 258);
+  --background: #edf1f7;
+  --foreground: #0f172a;
+  --card: rgba(255, 255, 255, 0.72);
+  --card-foreground: #0f172a;
+  --popover: rgba(255, 255, 255, 0.92);
+  --popover-foreground: #0f172a;
 
-  /* LaunchPulse 专属脉冲蓝主色 */
-  --primary: oklch(0.52 0.21 260);
-  --primary-foreground: oklch(0.99 0 0);
+  /* 3% 色彩预算：主操作按钮为深曜石色，杜绝满屏刺眼蓝按钮 */
+  --primary: #141923;
+  --primary-foreground: #ffffff;
+  --accent-cobalt: #2563eb;
 
-  --secondary: oklch(0.955 0.009 252);
-  --secondary-foreground: oklch(0.24 0.02 258);
-  --muted: oklch(0.962 0.006 250);
-  --muted-foreground: oklch(0.47 0.018 255);
-  --accent: oklch(0.948 0.014 256);
-  --accent-foreground: oklch(0.19 0.02 258);
+  --secondary: rgba(255, 255, 255, 0.82);
+  --secondary-foreground: #1e293b;
+  --muted: rgba(241, 245, 252, 0.72);
+  --muted-foreground: #526075;
+  --accent: rgba(255, 255, 255, 0.86);
+  --accent-foreground: #0f172a;
 
-  --destructive: oklch(0.577 0.215 27.3);
-  --destructive-foreground: oklch(0.99 0 0);
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
 
-  --border: oklch(0.915 0.009 250);
-  --input: oklch(0.89 0.012 252);
-  --ring: oklch(0.52 0.21 260);
+  --border: rgba(15, 23, 42, 0.075);
+  --input: rgba(15, 23, 42, 0.11);
+  --ring: #2563eb;
 
-  /* 协调的数据分析色板：脉冲蓝 / 翠绿 / 靛青 / 琥珀 / 岩灰 */
-  --chart-1: oklch(0.54 0.21 260);
-  --chart-2: oklch(0.6 0.16 162);
-  --chart-3: oklch(0.58 0.18 282);
-  --chart-4: oklch(0.72 0.16 70);
-  --chart-5: oklch(0.55 0.025 254);
+  /* 克制的高对比度数据图表色板 */
+  --chart-1: #2563eb;
+  --chart-2: #64748b;
+  --chart-3: #10b981;
+  --chart-4: #f59e0b;
+  --chart-5: #475569;
 
-  /* 侧边栏独立冷灰底色，自然与内容区产生层级 */
-  --sidebar: oklch(0.968 0.007 250);
-  --sidebar-foreground: oklch(0.22 0.018 258);
-  --sidebar-primary: oklch(0.52 0.21 260);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.935 0.022 258);
-  --sidebar-accent-foreground: oklch(0.42 0.17 260);
-  --sidebar-border: oklch(0.91 0.01 250);
-  --sidebar-ring: oklch(0.52 0.21 260);
+  /* 悬浮磨砂侧栏：激活态使用纯白高光胶囊，彻底消灭廉价蓝底侧栏 */
+  --sidebar: rgba(255, 255, 255, 0.58);
+  --sidebar-foreground: #334155;
+  --sidebar-primary: #141923;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.90);
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: rgba(15, 23, 42, 0.065);
+  --sidebar-ring: #2563eb;
 
-  --font-sans: var(--font-geist-sans), 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* 五层光学磨砂专属令牌 */
+  --frost-orb-1: rgba(59, 130, 246, 0.17);
+  --frost-orb-2: rgba(99, 102, 241, 0.13);
+  --frost-orb-3: rgba(16, 185, 129, 0.10);
+  --frost-topbar: rgba(255, 255, 255, 0.65);
+  --frost-card: rgba(255, 255, 255, 0.70);
+  --frost-card-hover: rgba(255, 255, 255, 0.82);
+  --frost-pill: rgba(255, 255, 255, 0.90);
+  --frost-well: rgba(241, 245, 252, 0.66);
+  --frost-hairline: rgba(15, 23, 42, 0.07);
+  --frost-bar-fill: linear-gradient(90deg, rgba(37, 99, 235, 0.14) 0%, rgba(37, 99, 235, 0.03) 100%);
+  --frost-card-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 12px 32px -12px rgba(15, 23, 42, 0.07),
+    0 2px 6px -1px rgba(15, 23, 42, 0.03);
+  --frost-pill-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.98),
+    0 2px 8px -2px rgba(15, 23, 42, 0.08);
+  --frost-btn-primary-bg: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  --frost-btn-primary-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 6px 16px -4px rgba(15, 23, 42, 0.25);
+
+  --font-sans: var(--font-jakarta), 'MiSans', 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-  --radius: 0.55rem;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 0.75rem;
 
-  --shadow-2xs: 0px 1px 1px 0px hsl(222 47% 11% / 0.03);
-  --shadow-xs: 0px 1px 2px 0px hsl(222 47% 11% / 0.05);
-  --shadow-sm: 0px 1px 3px 0px hsl(222 47% 11% / 0.06), 0px 1px 2px -1px hsl(222 47% 11% / 0.04);
-  --shadow: 0px 2px 4px -1px hsl(222 47% 11% / 0.06), 0px 1px 2px -1px hsl(222 47% 11% / 0.04);
-  --shadow-md: 0px 4px 8px -2px hsl(222 47% 11% / 0.07), 0px 2px 4px -2px hsl(222 47% 11% / 0.05);
-  --shadow-lg: 0px 10px 18px -4px hsl(222 47% 11% / 0.08), 0px 4px 6px -2px hsl(222 47% 11% / 0.04);
-  --shadow-xl: 0px 18px 28px -6px hsl(222 47% 11% / 0.10), 0px 8px 10px -4px hsl(222 47% 11% / 0.04);
-  --shadow-2xl: 0px 25px 50px -12px hsl(222 47% 11% / 0.22);
+  --shadow-2xs: 0px 1px 2px 0px rgba(15, 23, 42, 0.03);
+  --shadow-xs: var(--frost-card-shadow);
+  --shadow-sm: var(--frost-card-shadow);
+  --shadow: var(--frost-card-shadow);
+  --shadow-md: 0px 14px 34px -10px rgba(15, 23, 42, 0.10);
+  --shadow-lg: 0px 20px 44px -12px rgba(15, 23, 42, 0.14);
+  --shadow-xl: 0px 24px 52px -12px rgba(15, 23, 42, 0.18);
+  --shadow-2xl: 0px 30px 64px -14px rgba(15, 23, 42, 0.24);
 
-  --tracking-normal: 0em;
+  --tracking-normal: 0.008em;
   --spacing: 0.25rem;
   --header-height: calc(var(--spacing, 0.25rem) * 14);
 }
 
 .dark,
 [data-theme='launchpulse'].dark {
-  --background: oklch(0.14 0.014 258);
-  --foreground: oklch(0.955 0.006 250);
-  --card: oklch(0.182 0.015 258);
-  --card-foreground: oklch(0.955 0.006 250);
-  --popover: oklch(0.195 0.016 258);
-  --popover-foreground: oklch(0.955 0.006 250);
+  --background: #06080f;
+  --foreground: #f1f5f9;
+  --card: rgba(19, 23, 35, 0.62);
+  --card-foreground: #f1f5f9;
+  --popover: rgba(16, 20, 32, 0.94);
+  --popover-foreground: #f1f5f9;
 
-  /* 暗黑模式下采用柔亮脉冲蓝，杜绝纯白刺眼眩光 */
-  --primary: oklch(0.64 0.19 258);
-  --primary-foreground: oklch(0.99 0 0);
+  /* 暗黑主按钮为高亮银白棱角胶囊，对齐 Raycast / Linear / Framer */
+  --primary: #f1f5f9;
+  --primary-foreground: #090d16;
+  --accent-cobalt: #60a5fa;
 
-  --secondary: oklch(0.24 0.016 258);
-  --secondary-foreground: oklch(0.93 0.008 250);
-  --muted: oklch(0.225 0.014 258);
-  --muted-foreground: oklch(0.69 0.014 255);
-  --accent: oklch(0.255 0.022 258);
-  --accent-foreground: oklch(0.96 0.006 250);
+  --secondary: rgba(32, 38, 56, 0.78);
+  --secondary-foreground: #e2e8f0;
+  --muted: rgba(13, 16, 26, 0.60);
+  --muted-foreground: #94a3b8;
+  --accent: rgba(36, 42, 62, 0.85);
+  --accent-foreground: #f8fafc;
 
-  --destructive: oklch(0.64 0.2 25);
-  --destructive-foreground: oklch(0.99 0 0);
+  --destructive: #f87171;
+  --destructive-foreground: #090d16;
 
-  --border: oklch(0.275 0.015 258);
-  --input: oklch(0.31 0.017 258);
-  --ring: oklch(0.64 0.19 258);
+  --border: rgba(255, 255, 255, 0.075);
+  --input: rgba(255, 255, 255, 0.11);
+  --ring: #60a5fa;
 
-  --chart-1: oklch(0.66 0.19 258);
-  --chart-2: oklch(0.71 0.16 162);
-  --chart-3: oklch(0.69 0.17 282);
-  --chart-4: oklch(0.79 0.15 72);
-  --chart-5: oklch(0.66 0.02 254);
+  --chart-1: #60a5fa;
+  --chart-2: #64748b;
+  --chart-3: #34d399;
+  --chart-4: #fbbf24;
+  --chart-5: #94a3b8;
 
-  --sidebar: oklch(0.158 0.015 258);
-  --sidebar-foreground: oklch(0.93 0.008 250);
-  --sidebar-primary: oklch(0.64 0.19 258);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.245 0.035 258);
-  --sidebar-accent-foreground: oklch(0.84 0.12 258);
-  --sidebar-border: oklch(0.255 0.015 258);
-  --sidebar-ring: oklch(0.64 0.19 258);
+  --sidebar: rgba(13, 16, 25, 0.64);
+  --sidebar-foreground: #94a3b8;
+  --sidebar-primary: #f1f5f9;
+  --sidebar-primary-foreground: #090d16;
+  --sidebar-accent: rgba(36, 42, 60, 0.86);
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --sidebar-ring: #60a5fa;
 
-  --shadow-xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.28);
-  --shadow-sm: 0px 1px 3px 0px hsl(0 0% 0% / 0.34);
-  --shadow: 0px 2px 6px -1px hsl(0 0% 0% / 0.38);
-  --shadow-md: 0px 6px 12px -2px hsl(0 0% 0% / 0.42);
+  --frost-orb-1: rgba(37, 99, 235, 0.22);
+  --frost-orb-2: rgba(124, 58, 237, 0.16);
+  --frost-orb-3: rgba(16, 185, 129, 0.11);
+  --frost-topbar: rgba(15, 18, 28, 0.66);
+  --frost-card: rgba(19, 23, 35, 0.60);
+  --frost-card-hover: rgba(25, 30, 46, 0.72);
+  --frost-pill: rgba(36, 42, 60, 0.88);
+  --frost-well: rgba(10, 12, 20, 0.56);
+  --frost-hairline: rgba(255, 255, 255, 0.075);
+  --frost-bar-fill: linear-gradient(90deg, rgba(59, 130, 246, 0.22) 0%, rgba(59, 130, 246, 0.04) 100%);
+  --frost-card-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 20px 42px -16px rgba(0, 0, 0, 0.62);
+  --frost-pill-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
+    0 4px 12px -2px rgba(0, 0, 0, 0.45);
+  --frost-btn-primary-bg: linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%);
+  --frost-btn-primary-shadow:
+    inset 0 1px 0 #ffffff,
+    0 8px 20px -4px rgba(59, 130, 246, 0.24);
+
+  --shadow-xs: var(--frost-card-shadow);
+  --shadow-sm: var(--frost-card-shadow);
+  --shadow: var(--frost-card-shadow);
+  --shadow-md: 0px 20px 42px -12px rgba(0, 0, 0, 0.55);
 }
 
 @theme inline {
@@ -125,6 +172,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-accent-cobalt: var(--accent-cobalt);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -164,8 +212,4 @@
   --shadow-lg: var(--shadow-lg);
   --shadow-xl: var(--shadow-xl);
   --shadow-2xl: var(--shadow-2xl);
-}
-
-body {
-  @apply overscroll-none;
 }

@@ -19,6 +19,7 @@ import {
 } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import DomainFavicon from "@/components/frosted/DomainFavicon";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
@@ -687,24 +688,23 @@ export default function BuyerInboxView({
                     setSelectedId(lead.id);
                     setMobileDetailOpen(true);
                   }}
-                  className={`flex flex-col items-start gap-2 rounded-lg border p-3.5 text-left text-sm transition-colors cursor-pointer ${
+                  className={`flex flex-col items-start gap-2 rounded-xl border p-3.5 text-left text-sm transition-all cursor-pointer ${
                     selected
-                      ? "bg-primary/[0.06] border-primary/40 shadow-2xs"
-                      : "bg-card hover:bg-accent/45"
+                      ? "lp-frost-pill ring-1 ring-accent-cobalt/40"
+                      : "lp-frost-well hover:bg-[var(--frost-pill)]"
                   }`}
                 >
                   <div className="flex w-full items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <DomainFavicon name={lead.source} size="sm" />
                       <Badge variant={intentVariant} className="text-[11px] tabular-nums shrink-0">
                         {formatIntentBadge(lead.intent_type, lead.intent_score, isZh)}
                       </Badge>
-                      <span
-                        className={`inline-flex h-5 items-center rounded-full border px-2 text-[11px] font-medium truncate ${getSourceToneClasses(lead.source)}`}
-                      >
+                      <span className="text-xs font-medium text-muted-foreground truncate">
                         {lead.source}
                       </span>
                       {lead.status === "won" && (
-                        <Badge variant="success" className="text-[10px]">
+                        <Badge variant="success" className="text-[10.5px]">
                           {isZh ? "已转化" : "Won"}
                         </Badge>
                       )}

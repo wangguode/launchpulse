@@ -28,6 +28,8 @@ import {
 } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import DomainFavicon from "@/components/frosted/DomainFavicon";
+import WaveTelemetryMatrix from "@/components/frosted/WaveTelemetryMatrix";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -206,19 +208,22 @@ export default function DirectoriesChannelsView({
         cell: ({ row }) => {
           const d = row.original;
           return (
-            <div className="min-w-[190px]">
-              <div className="font-medium text-foreground flex items-center gap-1.5">
-                <span>{d.name}</span>
-                {d.moderationState === "priority" && (
-                  <Badge variant="info" className="h-4 px-1.5 text-[10px]">
-                    {isZh ? "优先" : "Priority"}
-                  </Badge>
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {formatCategoryLabel(d.category, isZh)} ·{" "}
-                {d.pricing === "free" ? (isZh ? "免费收录" : "Free") : isZh ? "含加速项" : "Freemium"} ·{" "}
-                {d.linkType === "dofollow" ? "Dofollow" : "Nofollow"}
+            <div className="flex items-center gap-3 min-w-[210px]">
+              <DomainFavicon name={d.name} url={d.url} />
+              <div className="min-w-0">
+                <div className="font-medium text-foreground flex items-center gap-1.5">
+                  <span className="truncate">{d.name}</span>
+                  {d.moderationState === "priority" && (
+                    <Badge variant="info" className="h-4.5 px-1.5 text-[10.5px]">
+                      {isZh ? "优先" : "Priority"}
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {formatCategoryLabel(d.category, isZh)} ·{" "}
+                  {d.pricing === "free" ? (isZh ? "免费收录" : "Free") : isZh ? "含加速项" : "Freemium"} ·{" "}
+                  {d.linkType === "dofollow" ? "Dofollow" : "Nofollow"}
+                </div>
               </div>
             </div>
           );
@@ -429,6 +434,17 @@ export default function DirectoriesChannelsView({
           </CardContent>
         </Card>
       )}
+
+      {/* 100 目录三波次交互矩阵（点击波次直接联动下方表格筛选） */}
+      <WaveTelemetryMatrix
+        directories={ledger.directories}
+        isZh={isZh}
+        activeWave={waveFilter}
+        onSelectWave={(w) => setWaveFilter(w)}
+        onSelectDirectory={(d) => {
+          if (unlockedIdSet.has(d.id)) setSelectedDirId(d.id);
+        }}
+      />
 
       {/* 多维筛选工具栏 */}
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">

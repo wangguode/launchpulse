@@ -17,6 +17,8 @@ import {
 } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import DomainFavicon from "@/components/frosted/DomainFavicon";
+import ProportionalBarList from "@/components/frosted/ProportionalBarList";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -468,77 +470,57 @@ export default function AttributionAnalyticsView({
 
       {/* 第二行：释放后端 40% 沉睡分析资产 — 国家分布 + 设备分布 + 实时点击流水 */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Card className="lg:col-span-4 min-w-0 shadow-xs">
+        <Card className="lg:col-span-4 min-w-0">
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <IconGlobe className="size-4 text-primary" />
-              {isZh ? "访客国家 / 地区分布" : "Top Countries"}
+            <CardTitle className="flex items-center gap-2">
+              <IconGlobe className="size-4 text-accent-cobalt" />
+              {isZh ? "访客国家与地区占比" : "Top Countries"}
             </CardTitle>
             <CardDescription>{isZh ? "由边缘短链节点实时识别访客地域" : "Geo-detected at Cloudflare Edge"}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {(stats.countryBreakdown || []).length === 0 ? (
-              <p className="text-xs text-muted-foreground py-8 text-center">
-                {isZh ? "尚无国家点击数据，分享短链后实时展示" : "No country clicks yet"}
-              </p>
-            ) : (
-              stats.countryBreakdown.map((c) => {
-                const pct = Math.round((c.clicks / countryTotal) * 100);
-                return (
-                  <div key={c.country} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium">
-                        {isZh ? COUNTRY_NAMES_ZH[c.country] || c.country : c.country}
-                      </span>
-                      <span className="font-mono text-muted-foreground">
-                        <strong className="text-foreground">{c.clicks}</strong> ({pct}%)
-                      </span>
-                    </div>
-                    <Progress value={pct} className="h-1.5" />
-                  </div>
-                );
-              })
-            )}
+          <CardContent>
+            <ProportionalBarList
+              items={(stats.countryBreakdown || []).map((c) => ({
+                key: c.country,
+                codeBadge: c.country,
+                label: isZh ? (COUNTRY_NAMES_ZH[c.country] || c.country).replace(/\s*\([A-Z]+\)/, "") : c.country,
+                value: c.clicks,
+                sharePct: Number(((c.clicks / countryTotal) * 100).toFixed(1)),
+              }))}
+              emptyText={isZh ? "尚无国家点击数据，分享短链后实时展示" : "No country clicks yet"}
+            />
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 min-w-0 shadow-xs">
+        <Card className="lg:col-span-3 min-w-0">
           <CardHeader>
-            <CardTitle className="text-base">{isZh ? "访问设备占比" : "Devices"}</CardTitle>
-            <CardDescription>{isZh ? "桌面端 vs 移动端访问结构" : "Desktop vs Mobile clicks"}</CardDescription>
+            <CardTitle>{isZh ? "访问设备占比" : "Devices"}</CardTitle>
+            <CardDescription>{isZh ? "桌面端与移动端访问结构" : "Desktop vs Mobile clicks"}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {(stats.deviceBreakdown || []).length === 0 ? (
-              <p className="text-xs text-muted-foreground py-8 text-center">
-                {isZh ? "尚无设备统计数据" : "No device data yet"}
-              </p>
-            ) : (
-              stats.deviceBreakdown.map((d) => {
-                const pct = Math.round((d.clicks / deviceTotal) * 100);
+          <CardContent>
+            <ProportionalBarList
+              items={(stats.deviceBreakdown || []).map((d) => {
                 const isMobile = d.device.toLowerCase() === "mobile";
-                return (
-                  <div key={d.device} className="rounded-lg border p-3.5 space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="inline-flex items-center gap-1.5 font-medium">
-                        {isMobile ? <IconDeviceMobile className="size-4 text-primary" /> : <IconDeviceDesktop className="size-4 text-primary" />}
-                        {isMobile ? (isZh ? "移动端" : "Mobile") : isZh ? "桌面端" : "Desktop"}
-                      </span>
-                      <Badge variant="neutral" className="font-mono">{pct}%</Badge>
-                    </div>
-                    <Progress value={pct} className="h-1.5" />
-                    <p className="text-[11px] text-muted-foreground font-mono">
-                      {d.clicks.toLocaleString()} {isZh ? "次点击" : "clicks"}
-                    </p>
-                  </div>
-                );
-              })
-            )}
+                return {
+                  key: d.device,
+                  icon: isMobile ? (
+                    <IconDeviceMobile className="size-4 text-accent-cobalt shrink-0" />
+                  ) : (
+                    <IconDeviceDesktop className="size-4 text-accent-cobalt shrink-0" />
+                  ),
+                  label: isMobile ? (isZh ? "移动端" : "Mobile") : isZh ? "桌面端" : "Desktop",
+                  value: d.clicks,
+                  sharePct: Number(((d.clicks / deviceTotal) * 100).toFixed(1)),
+                };
+              })}
+              emptyText={isZh ? "尚无设备统计数据" : "No device data yet"}
+            />
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-5 min-w-0 shadow-xs">
+        <Card className="lg:col-span-5 min-w-0">
           <CardHeader>
-            <CardTitle className="text-base">{isZh ? "实时点击明细日志" : "Live Click Stream"}</CardTitle>
+            <CardTitle>{isZh ? "实时点击明细日志" : "Live Click Stream"}</CardTitle>
             <CardDescription>{isZh ? "最近 12 条边缘节点真实跳转记录" : "Latest 12 edge shortlink redirects"}</CardDescription>
           </CardHeader>
           <CardContent className="p-0 overflow-x-auto">
@@ -554,28 +536,34 @@ export default function AttributionAnalyticsView({
               <TableBody>
                 {(stats.recentClicks || []).length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-xs text-muted-foreground">
+                    <TableCell colSpan={4} className="h-24 text-center text-sm text-muted-foreground">
                       {isZh ? "暂无实时点击记录，在外部渠道投放你的短链即可看到实时访问流" : "No click events recorded yet"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  stats.recentClicks.map((clk, idx) => (
-                    <TableRow key={`${clk.code}-${idx}`}>
-                      <TableCell className="font-mono text-xs text-primary">/r/{clk.code}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground truncate max-w-[140px]">
-                        {clk.referer ? clk.referer.replace(/^https?:\/\//, "") : isZh ? "直接访问" : "Direct"}
-                      </TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">
-                        <Badge variant="neutral" className="mr-1 font-mono text-[10px]">
-                          {clk.country}
-                        </Badge>
-                        <span className="text-muted-foreground text-[11px]">{clk.device}</span>
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-[11px] text-muted-foreground whitespace-nowrap">
-                        {formatDateTimeLabel(clk.clicked_at, isZh).slice(5)}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  stats.recentClicks.map((clk, idx) => {
+                    const cleanRef = clk.referer ? clk.referer.replace(/^https?:\/\//, "") : "";
+                    return (
+                      <TableRow key={`${clk.code}-${idx}`}>
+                        <TableCell className="font-mono text-xs text-accent-cobalt">/r/{clk.code}</TableCell>
+                        <TableCell className="text-[13px] text-muted-foreground max-w-[170px]">
+                          <div className="flex items-center gap-2 truncate">
+                            {cleanRef && <DomainFavicon name={cleanRef} url={clk.referer} size="sm" />}
+                            <span className="truncate">{cleanRef || (isZh ? "直接访问" : "Direct")}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">
+                          <Badge variant="neutral" className="mr-1.5 font-mono text-[10.5px]">
+                            {clk.country}
+                          </Badge>
+                          <span className="text-muted-foreground text-xs">{clk.device}</span>
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs text-muted-foreground whitespace-nowrap">
+                          {formatDateTimeLabel(clk.clicked_at, isZh).slice(5)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

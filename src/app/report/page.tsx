@@ -7,6 +7,8 @@ import { IconExternalLink, IconPrinter, IconShieldCheck } from "@tabler/icons-re
 import { useI18n } from "@/components/I18nProvider";
 import BrandMark from "@/components/BrandMark";
 import LangSwitcher from "@/components/LangSwitcher";
+import DomainFavicon from "@/components/frosted/DomainFavicon";
+import ProportionalBarList from "@/components/frosted/ProportionalBarList";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,7 +84,7 @@ function buildFallbackSampleReport(): PublicReportData {
 }
 
 /**
- * 标准官方 shadcn/ui + Recharts 3 公开可核验增长战报页（/report）
+ * LaunchPulse V8 光学磨砂公开可核验增长战报页（/report）
  */
 export default function PublicGrowthReportPage() {
   const { locale } = useI18n();
@@ -91,7 +93,7 @@ export default function PublicGrowthReportPage() {
   const reportChartConfig = useMemo(
     () =>
       ({
-        revenueUsd: { label: isZh ? "归因营收 ($)" : "Attributed Revenue ($)", color: "var(--chart-2)" },
+        revenueUsd: { label: isZh ? "归因营收 ($)" : "Attributed Revenue ($)", color: "var(--chart-1)" },
       }) satisfies ChartConfig,
     [isZh]
   );
@@ -125,26 +127,28 @@ export default function PublicGrowthReportPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="h-14 border-b px-4 sm:px-6 flex items-center justify-between print:hidden">
-        <Link href="/" className="flex items-center gap-2 font-semibold text-sm">
-          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <BrandMark className="size-4" tone="light" />
+    <div className="min-h-screen bg-transparent text-foreground flex flex-col">
+      <div className="px-4 pt-3 sm:px-6 print:hidden">
+        <header className="lp-frosted-topbar mx-auto flex h-14 max-w-5xl items-center justify-between rounded-2xl px-4 sm:px-5">
+          <Link href="/" className="flex items-center gap-2.5 font-semibold text-[15px]">
+            <div className="lp-btn-bevel flex size-8 items-center justify-center rounded-[10px]">
+              <BrandMark className="size-4" tone="light" />
+            </div>
+            <span>LaunchPulse</span>
+            <Badge variant="secondary" className="ml-1">{isZh ? "公开核验战报" : "Verified Report"}</Badge>
+          </Link>
+          <div className="flex items-center gap-2">
+            <LangSwitcher />
+            <ThemeModeToggle />
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <IconPrinter className="size-4" />
+              {isZh ? "导出 PDF" : "Export PDF"}
+            </Button>
           </div>
-          <span>LaunchPulse</span>
-          <Badge variant="secondary" className="ml-1">{isZh ? "公开战报" : "Public Report"}</Badge>
-        </Link>
-        <div className="flex items-center gap-2">
-          <LangSwitcher />
-          <ThemeModeToggle />
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <IconPrinter className="size-4" />
-            {isZh ? "导出 PDF" : "Print"}
-          </Button>
-        </div>
-      </header>
+        </header>
+      </div>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 p-4 sm:p-6 space-y-6">
+      <main className="mx-auto w-full max-w-5xl flex-1 p-4 sm:p-6 space-y-5">
         {loading ? (
           <Card className="p-16 text-center text-sm text-muted-foreground">
             {isZh ? "正在加载边缘归因战报..." : "Loading report..."}
@@ -157,42 +161,42 @@ export default function PublicGrowthReportPage() {
             </Button>
           </Card>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-5">
             <Card>
               <CardHeader>
-                <CardTitle className="text-2xl">{data.title}</CardTitle>
-                <CardDescription className="flex items-center gap-2">
+                <CardTitle className="text-2xl font-semibold">{data.title}</CardTitle>
+                <CardDescription className="flex items-center gap-2 mt-0.5">
                   <span className="font-medium text-foreground">{data.productName}</span>
                   <span>·</span>
                   <a
                     href={data.targetUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-mono text-xs text-primary hover:underline inline-flex items-center gap-1"
+                    className="font-mono text-xs text-accent-cobalt hover:underline inline-flex items-center gap-1"
                   >
                     {data.targetUrl.replace(/^https?:\/\//, "")}
                     <IconExternalLink className="size-3" />
                   </a>
                 </CardDescription>
                 <CardAction>
-                  <Badge variant="secondary" className="gap-1.5">
-                    <IconShieldCheck className="size-3.5 text-emerald-500" />
+                  <Badge variant="success" className="gap-1.5">
+                    <IconShieldCheck className="size-3.5" />
                     {isZh ? "Cloudflare 边缘归因实证" : "Verified Edge Attribution"}
                   </Badge>
                 </CardAction>
               </CardHeader>
             </Card>
 
-            <div className="grid gap-4 lg:grid-cols-7 tabular-nums">
+            <div className="grid gap-5 lg:grid-cols-7 tabular-nums">
               <Card className="lg:col-span-4">
                 <CardHeader>
-                  <CardDescription>{isZh ? "近 30 天归因美元营收" : "Attributed Revenue (30d)"}</CardDescription>
-                  <CardTitle className="text-3xl font-bold">
+                  <CardDescription>{isZh ? "近 30 天归因净收入 (Stripe)" : "Attributed Revenue (30d)"}</CardDescription>
+                  <CardTitle className="text-3xl font-semibold">
                     ${data.stats.attributedRevenueUsd.toLocaleString()}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <ChartContainer config={reportChartConfig} className="aspect-auto h-[220px] w-full">
+                  <ChartContainer config={reportChartConfig} className="aspect-auto h-[225px] w-full">
                     <AreaChart data={series} margin={{ top: 8, right: 20, left: 0, bottom: 0 }}>
                       <CartesianGrid vertical={false} strokeDasharray="3 3" />
                       <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={28} />
@@ -204,7 +208,7 @@ export default function PublicGrowthReportPage() {
                         fill="var(--color-revenueUsd)"
                         fillOpacity={0.2}
                         stroke="var(--color-revenueUsd)"
-                        strokeWidth={2}
+                        strokeWidth={2.2}
                         isAnimationActive={false}
                       />
                     </AreaChart>
@@ -212,20 +216,20 @@ export default function PublicGrowthReportPage() {
                   <Separator />
                   <div className="grid grid-cols-4 text-center">
                     <div>
-                      <div className="font-semibold">{data.stats.funnel.clicks.toLocaleString()}</div>
-                      <div className="text-xs text-muted-foreground">{isZh ? "点击" : "Clicks"}</div>
+                      <div className="text-base font-semibold">{data.stats.funnel.clicks.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">{isZh ? "短链点击" : "Clicks"}</div>
                     </div>
                     <div>
-                      <div className="font-semibold">{data.stats.funnel.qualifiedVisits.toLocaleString()}</div>
-                      <div className="text-xs text-muted-foreground">{isZh ? "进站" : "Visits"}</div>
+                      <div className="text-base font-semibold">{data.stats.funnel.qualifiedVisits.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">{isZh ? "有效进站" : "Visits"}</div>
                     </div>
                     <div>
-                      <div className="font-semibold">{data.stats.funnel.signups}</div>
-                      <div className="text-xs text-muted-foreground">{isZh ? "注册" : "Signups"}</div>
+                      <div className="text-base font-semibold">{data.stats.funnel.signups}</div>
+                      <div className="text-xs text-muted-foreground">{isZh ? "注册试用" : "Signups"}</div>
                     </div>
                     <div>
-                      <div className="font-semibold">{data.stats.funnel.purchases}</div>
-                      <div className="text-xs text-muted-foreground">{isZh ? "付费" : "Paid"}</div>
+                      <div className="text-base font-semibold">{data.stats.funnel.purchases}</div>
+                      <div className="text-xs text-muted-foreground">{isZh ? "美元付费" : "Paid"}</div>
                     </div>
                   </div>
                 </CardContent>
@@ -233,31 +237,34 @@ export default function PublicGrowthReportPage() {
 
               <Card className="lg:col-span-3">
                 <CardHeader>
-                  <CardTitle className="text-base">{isZh ? "渠道拆解与权威外链" : "Channels & Backlinks"}</CardTitle>
+                  <CardTitle>{isZh ? "渠道拆解与已收录外链" : "Channels & Backlinks"}</CardTitle>
                   <CardDescription>
                     {isZh
-                      ? `已验活 ${data.stats.directoriesLive}/${data.stats.directoriesTotal || 100} 站 · 单次访问产出 $${data.stats.rpv.toFixed(2)}`
+                      ? `已收录 ${data.stats.directoriesLive}/${data.stats.directoriesTotal || 100} 站 · 单次访问产出 $${data.stats.rpv.toFixed(2)}`
                       : `${data.stats.directoriesLive}/${data.stats.directoriesTotal || 100} live · $${data.stats.rpv.toFixed(2)}/visit`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2 text-sm">
-                    {data.stats.channelBreakdown.map((ch) => (
-                      <div key={ch.channel} className="flex items-center justify-between">
-                        <span>{formatChannelLabel(ch.channel, isZh)}</span>
-                        <span className="font-mono font-semibold">${(ch.revenueUsd || 0).toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <ProportionalBarList
+                    items={data.stats.channelBreakdown.map((ch) => ({
+                      key: ch.channel,
+                      label: formatChannelLabel(ch.channel, isZh),
+                      value: Math.max(ch.revenueUsd || 0, 1),
+                      formattedValue: `$${(ch.revenueUsd || 0).toLocaleString()}`,
+                    }))}
+                  />
                   <Separator />
                   <div className="space-y-2">
                     {data.stats.topDirectories.slice(0, 5).map((d, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs rounded-md border px-3 py-2">
-                        <span className="font-medium truncate">{d.name}</span>
+                      <div key={i} className="lp-frost-well flex items-center justify-between text-[13px] rounded-xl px-3 py-2.5">
+                        <span className="inline-flex items-center gap-2.5 font-medium truncate">
+                          <DomainFavicon name={d.name} url={d.url} size="sm" />
+                          <span className="truncate">{d.name}</span>
+                        </span>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-mono text-muted-foreground">DR {d.dr}</span>
-                          <Badge variant="secondary" className="text-xs">
-                            {isZh ? "已验活" : "Live"}
+                          <span className="text-xs text-muted-foreground">DR {d.dr}</span>
+                          <Badge variant="success">
+                            {isZh ? "已收录" : "Live"}
                           </Badge>
                         </div>
                       </div>

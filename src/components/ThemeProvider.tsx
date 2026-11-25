@@ -8,10 +8,9 @@ import { Toaster } from "@/components/ui/sonner";
 export type ThemeMode = "light" | "dark" | "system";
 
 /**
- * 集成 Kiranism/next-shadcn-dashboard-starter 原装主题系统：
- * - next-themes 管理浅色 / 深色（.dark class）
- * - ActiveThemeProvider 管理 10 套官方 shadcn 配色主题（默认 Vercel）
- * - 全局挂载 TooltipProvider 与 Sonner 通知系统
+ * LaunchPulse V8 光学磨砂双模主题引擎：
+ * - 默认 Pearl Frost（冰晶浅色五层磨砂画布），一键切换 Obsidian Vibrancy（黑曜石流光磨砂）
+ * - 移除开源模板痕迹的多配色杂音，统一使用 launchpulse 光学令牌
  */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (
@@ -21,7 +20,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       enableSystem={false}
       disableTransitionOnChange
     >
-      <ActiveThemeProvider initialTheme="vercel">
+      <ActiveThemeProvider initialTheme="launchpulse">
         <TooltipProvider delay={150}>
           {children}
           <Toaster position="bottom-right" richColors />

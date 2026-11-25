@@ -19,6 +19,8 @@ import {
 import { useI18n } from "@/components/I18nProvider";
 import BrandMark from "@/components/BrandMark";
 import LangSwitcher from "@/components/LangSwitcher";
+import DomainFavicon from "@/components/frosted/DomainFavicon";
+import WaveTelemetryMatrix from "@/components/frosted/WaveTelemetryMatrix";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
 import {
   Accordion,
@@ -95,7 +97,7 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
       ({
         revenueUsd: {
           label: isZh ? "归因营收 ($)" : "Attributed Revenue ($)",
-          color: "var(--chart-2)",
+          color: "var(--chart-1)",
         },
       }) satisfies ChartConfig,
     [isZh]
@@ -265,18 +267,18 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* 标准 shadcn 顶栏（含 10 套多主题切换 + 深浅色切换 + 中英切换） */}
-      <header className="sticky top-0 z-40 h-14 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
-        <div className="mx-auto flex h-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 font-semibold text-sm tracking-tight">
-            <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+    <div className="min-h-screen bg-transparent text-foreground">
+      {/* 悬浮光学磨砂旗舰导航舱 */}
+      <div className="sticky top-3 z-40 px-4 sm:px-6">
+        <header className="lp-frosted-topbar mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 rounded-2xl px-4 sm:px-5">
+          <Link href="/" className="flex items-center gap-2.5 font-semibold text-[15px] tracking-tight">
+            <div className="lp-btn-bevel flex size-8 items-center justify-center rounded-[10px]">
               <BrandMark className="size-4" tone="light" />
             </div>
             <span>LaunchPulse</span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground" aria-label="官网导航">
+          <nav className="hidden md:flex items-center gap-7 text-[14px] text-muted-foreground" aria-label="官网导航">
             <a href="#features" className="hover:text-foreground transition-colors">
               {isZh ? "核心模块" : "Modules"}
             </a>
@@ -291,57 +293,63 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
             </Link>
           </nav>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <LangSwitcher />
             <ThemeModeToggle />
             <Button size="sm" render={<Link href="/dashboard?sample=1" />}>
               {isZh ? "进入指挥台" : "Open Console"}
+              <IconArrowRight className="size-3.5" />
             </Button>
           </div>
-        </div>
-      </header>
+        </header>
+      </div>
 
-      {/* 第 1 幕：标准 SaaS Hero + 命令式诊断栏 + 嵌入式真实 Recharts 指挥台预览 */}
-      <section className="border-b">
-        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20 space-y-12">
-          <div className="mx-auto max-w-3xl text-center space-y-5">
-            <h1 className="lp-display text-4xl font-bold tracking-tight sm:text-5xl leading-[1.15]">
+      {/* 第 1 幕：殿堂级排版 Hero + 命令式诊断栏 + 嵌入式光学磨砂指挥台实景 */}
+      <section>
+        <div className="mx-auto max-w-6xl px-4 pt-14 pb-16 sm:px-6 sm:pt-20 sm:pb-20 space-y-12">
+          <div className="mx-auto max-w-4xl text-center space-y-6">
+            <div className="inline-flex items-center gap-2 lp-frost-pill rounded-full px-3.5 py-1 text-xs font-medium text-muted-foreground">
+              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{isZh ? "100 高权目录三波次分发 · 社区求购雷达 · Stripe 边缘美元归因" : "100 Curated Directories · Buyer Radar · Verifiable Revenue Attribution"}</span>
+            </div>
+
+            <h1 className="lp-display text-4xl font-semibold tracking-[-0.035em] sm:text-6xl lg:text-[64px] leading-[1.08]">
               {isZh ? (
                 <>
-                  产品上线后，
+                  把海外外链分发，
                   <br />
-                  把海外买家和外链带回来。
+                  变成可核验的美元回款
                 </>
               ) : (
                 <>
-                  After you ship,
+                  Turn global directories
                   <br />
-                  bring back buyers and backlinks.
+                  into verifiable revenue.
                 </>
               )}
             </h1>
-            <p className="mx-auto max-w-2xl text-base text-muted-foreground leading-relaxed">
+            <p className="mx-auto max-w-2xl text-[16.5px] text-muted-foreground leading-relaxed">
               {isZh
-                ? "一次录入品牌资料，开启 100+ 海外精选目录节奏投放、全网求购线索监听与美元级营收归因。"
-                : "Fill your Brand Kit once to pace 100+ curated directory submissions, monitor live buying threads, and attribute revenue per channel."}
+                ? "一次录入品牌资料，按三波次自然节奏投递 100+ 海外高权重目录，全天候捕捉 Reddit 与 Hacker News 买家求购信号，并将每笔美元收款精确归因到具体渠道。"
+                : "Calibrate your Brand Kit once to pace 100+ high-DR directory submissions, capture live Reddit & HN buying threads, and reconcile every dollar of revenue."}
             </p>
 
-            {/* 免费诊断输入条 */}
-            <form onSubmit={handleRunScan} className="mx-auto max-w-2xl pt-2">
-              <div className="flex flex-col sm:flex-row gap-2">
+            {/* 免费诊断磨砂胶囊输入舱 */}
+            <form onSubmit={handleRunScan} className="mx-auto max-w-2xl pt-1">
+              <div className="lp-frosted-card flex flex-col sm:flex-row gap-2 rounded-2xl p-2">
                 <div className="relative flex-1">
-                  <IconSearch className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <IconSearch className="size-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <Input
                     ref={scanInputRef}
                     value={scanUrl}
                     onChange={(e) => setScanUrl(e.target.value)}
-                    placeholder={isZh ? "输入官网地址，例如 https://your-saas.com" : "https://your-saas.com"}
-                    className="h-10 pl-9 pr-14"
+                    placeholder={isZh ? "粘贴你的产品官网地址，例如 https://your-saas.com" : "https://your-saas.com"}
+                    className="h-11 pl-10 pr-14 border-transparent bg-transparent shadow-none focus-visible:ring-0 text-[14.5px]"
                   />
-                  <Kbd className="hidden sm:inline-flex absolute right-2.5 top-1/2 -translate-y-1/2">⌘K</Kbd>
+                  <Kbd className="lp-frost-pill border-none hidden sm:inline-flex absolute right-3 top-1/2 -translate-y-1/2">⌘K</Kbd>
                 </div>
-                <Button type="submit" size="lg" className="h-10 px-5" disabled={scanning}>
-                  {scanning ? (isZh ? "诊断中..." : "Scanning...") : isZh ? "免费诊断" : "Free Audit"}
+                <Button type="submit" size="lg" className="h-11 px-6 rounded-xl" disabled={scanning}>
+                  {scanning ? (isZh ? "诊断中..." : "Scanning...") : isZh ? "免费增长体检" : "Free Growth Audit"}
                   <IconArrowRight className="size-4" />
                 </Button>
               </div>
@@ -377,108 +385,116 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
             )}
           </div>
 
-          {/* 嵌入式真实 shadcn/ui + Recharts 3 指挥台实时窗口 */}
-          <Card className="overflow-hidden shadow-md">
-            <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-2.5 text-xs">
-              <div className="flex items-center gap-2 font-medium">
-                <span className="size-2 rounded-full bg-emerald-500" />
-                <span>{isZh ? "LaunchPulse 增长指挥台 · AcmeFlow 实时视图" : "LaunchPulse Command Center · AcmeFlow"}</span>
-              </div>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/dashboard?sample=1" />}>
-                {isZh ? "进入完整交互控制台" : "Open Full Demo"}
-                <IconArrowUpRight className="size-3.5" />
-              </Button>
-            </div>
+          {/* 嵌入式光学磨砂指挥台实景舞台（含 100 目录三波次遥测矩阵） */}
+          <div className="space-y-4" data-ui="hero-console">
+            <WaveTelemetryMatrix directories={SAMPLE_LEDGER.directories} isZh={isZh} />
 
-            <div className="grid grid-cols-1 divide-y lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-              {/* 栏 1：Recharts 3 归因营收 */}
-              <div className="p-5 space-y-3">
-                <div className="flex items-baseline justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground">{isZh ? "近 30 天归因营收" : "Revenue (30d)"}</p>
-                    <p className="text-2xl font-bold tabular-nums mt-0.5">
-                      ${SAMPLE_LEDGER.revenue.totalUsd.toLocaleString()}
-                    </p>
+            <Card className="overflow-hidden">
+              <div className="flex items-center justify-between border-b border-border/70 bg-[var(--frost-well)] px-5 py-3 text-[13px]">
+                <div className="flex items-center gap-2.5 font-medium">
+                  <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>{isZh ? "LaunchPulse 增长指挥台 · AcmeFlow 30 天真实归因账本" : "LaunchPulse Command Center · Live Attribution Stage"}</span>
+                </div>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/dashboard?sample=1" />}>
+                  {isZh ? "进入完整交互沙盒" : "Open Live Sandbox"}
+                  <IconArrowUpRight className="size-3.5" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 divide-y border-border/60 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+                {/* 栏 1：归因营收曲线 */}
+                <div className="p-5 space-y-3">
+                  <div className="flex items-baseline justify-between">
+                    <div>
+                      <p className="text-[13px] text-muted-foreground">{isZh ? "Stripe 归因净收入 (30天)" : "Attributed Revenue (30d)"}</p>
+                      <p className="text-[28px] font-semibold tabular-nums mt-0.5">
+                        ${SAMPLE_LEDGER.revenue.totalUsd.toLocaleString()}
+                      </p>
+                    </div>
+                    <Badge variant="success" className="tabular-nums">
+                      <IconTrendingUp className="size-3" />
+                      +${SAMPLE_LEDGER.revenue.deltaUsd}
+                    </Badge>
                   </div>
-                  <Badge variant="secondary" className="tabular-nums">
-                    <IconTrendingUp className="size-3" />
-                    +${SAMPLE_LEDGER.revenue.deltaUsd}
-                  </Badge>
+                  <ChartContainer config={heroChartConfig} className="aspect-auto h-[126px] w-full">
+                    <AreaChart data={heroChartData}>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis dataKey="date" hide />
+                      <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                      <Area
+                        dataKey="revenueUsd"
+                        type="monotone"
+                        fill="var(--color-revenueUsd)"
+                        fillOpacity={0.18}
+                        stroke="var(--color-revenueUsd)"
+                        strokeWidth={2.2}
+                      />
+                    </AreaChart>
+                  </ChartContainer>
+                  <p className="text-[13px] text-muted-foreground tabular-nums">
+                    {SAMPLE_LEDGER.revenue.funnel.clicks.toLocaleString()} {isZh ? "点击" : "clicks"} →{" "}
+                    {SAMPLE_LEDGER.revenue.funnel.signups} {isZh ? "注册" : "signups"} →{" "}
+                    {SAMPLE_LEDGER.revenue.funnel.paid} {isZh ? "笔付费" : "paid"}
+                  </p>
                 </div>
-                <ChartContainer config={heroChartConfig} className="aspect-auto h-[120px] w-full">
-                  <AreaChart data={heroChartData}>
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis dataKey="date" hide />
-                    <ChartTooltip content={<ChartTooltipContent hideLabel />} />
-                    <Area
-                      dataKey="revenueUsd"
-                      type="monotone"
-                      fill="var(--color-revenueUsd)"
-                      fillOpacity={0.18}
-                      stroke="var(--color-revenueUsd)"
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ChartContainer>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {SAMPLE_LEDGER.revenue.funnel.clicks.toLocaleString()} {isZh ? "点击" : "clicks"} →{" "}
-                  {SAMPLE_LEDGER.revenue.funnel.signups} {isZh ? "注册" : "signups"} →{" "}
-                  {SAMPLE_LEDGER.revenue.funnel.paid} {isZh ? "付费" : "paid"}
-                </p>
-              </div>
 
-              {/* 栏 2：今日高意向求购 */}
-              <div className="p-5 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold">{isZh ? "买家求购收件箱" : "Buyer Intent Inbox"}</span>
-                  <Badge variant="outline" className="tabular-nums">
-                    {isZh ? `待跟进 ${SAMPLE_LEDGER.leadCounts.pending}` : `${SAMPLE_LEDGER.leadCounts.pending} open`}
-                  </Badge>
-                </div>
-                <div className="space-y-2.5">
-                  {SAMPLE_DATA.radarLeads
-                    .filter((l) => l.status === "new")
-                    .slice(0, 3)
-                    .map((lead) => (
-                      <div key={lead.id} className="rounded-md border p-2.5 space-y-1">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-medium text-primary">
-                            {lead.intent_score}% · {lead.source}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {isZh ? lead.relative_time_zh : lead.relative_time_en}
-                          </span>
+                {/* 栏 2：今日高意向求购 */}
+                <div className="p-5 space-y-3">
+                  <div className="flex items-center justify-between text-[13px]">
+                    <span className="font-medium">{isZh ? "高意向买家求购雷达" : "Buyer Intent Radar"}</span>
+                    <Badge variant="outline" className="tabular-nums">
+                      {isZh ? `待回复 ${SAMPLE_LEDGER.leadCounts.pending}` : `${SAMPLE_LEDGER.leadCounts.pending} open`}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2.5">
+                    {SAMPLE_DATA.radarLeads
+                      .filter((l) => l.status === "new")
+                      .slice(0, 3)
+                      .map((lead) => (
+                        <div key={lead.id} className="lp-frost-well rounded-xl p-3 space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                              <DomainFavicon name={lead.source} size="sm" />
+                              <span>{lead.source} · {lead.intent_score}%</span>
+                            </span>
+                            <span className="text-muted-foreground">
+                              {isZh ? lead.relative_time_zh : lead.relative_time_en}
+                            </span>
+                          </div>
+                          <p className="text-[13px] font-medium line-clamp-1">{lead.title}</p>
                         </div>
-                        <p className="text-xs font-medium line-clamp-1">{lead.title}</p>
+                      ))}
+                  </div>
+                </div>
+
+                {/* 栏 3：权威目录验活回执 */}
+                <div className="p-5 space-y-3">
+                  <div className="flex items-center justify-between text-[13px] tabular-nums">
+                    <span className="font-medium">{isZh ? "权威目录收录回执" : "Verified Directories"}</span>
+                    <span className="text-muted-foreground">
+                      {SAMPLE_LEDGER.dirCounts.live}/{SAMPLE_LEDGER.dirCounts.total}
+                    </span>
+                  </div>
+                  <div className="space-y-2 text-[13px] tabular-nums">
+                    {SAMPLE_LEDGER.recentVerifiedReceipts.map((dir) => (
+                      <div key={dir.id} className="lp-frost-well flex items-center justify-between rounded-xl px-3 py-2.5">
+                        <span className="inline-flex items-center gap-2.5 font-medium truncate">
+                          <DomainFavicon name={dir.name} url={dir.url} size="sm" />
+                          <span className="truncate">{dir.name.replace(" Software", "")}</span>
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-muted-foreground">DR {dir.dr}</span>
+                          <Badge variant="success">
+                            {isZh ? "已收录" : "Live"}
+                          </Badge>
+                        </div>
                       </div>
                     ))}
+                  </div>
                 </div>
               </div>
-
-              {/* 栏 3：权威目录验活回执 */}
-              <div className="p-5 space-y-3">
-                <div className="flex items-center justify-between text-xs tabular-nums">
-                  <span className="font-semibold">{isZh ? "权威目录验活回执" : "Verified Directories"}</span>
-                  <span className="font-mono text-muted-foreground">
-                    {SAMPLE_LEDGER.dirCounts.live}/{SAMPLE_LEDGER.dirCounts.total}
-                  </span>
-                </div>
-                <div className="divide-y rounded-md border text-xs tabular-nums">
-                  {SAMPLE_LEDGER.recentVerifiedReceipts.map((dir) => (
-                    <div key={dir.id} className="flex items-center justify-between px-3 py-2.5">
-                      <span className="font-medium truncate">{dir.name.replace(" Software", "")}</span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-mono text-muted-foreground">DR {dir.dr}</span>
-                        <Badge variant="secondary" className="text-xs">
-                          {isZh ? "已验活" : "Live"}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          </div>
         </div>
       </section>
 
@@ -664,8 +680,13 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
               <TableBody className="tabular-nums">
                 {previewDirectories.map((d) => (
                   <TableRow key={d.id}>
-                    <TableCell className="font-medium">{d.name}</TableCell>
-                    <TableCell className="font-mono">DR {d.dr}</TableCell>
+                    <TableCell className="font-medium">
+                      <span className="inline-flex items-center gap-2.5">
+                        <DomainFavicon name={d.name} url={d.url} />
+                        <span>{d.name}</span>
+                      </span>
+                    </TableCell>
+                    <TableCell className="tabular-nums font-medium">DR {d.dr}</TableCell>
                     <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
                       {formatCategoryLabel(d.category, isZh)}
                     </TableCell>
