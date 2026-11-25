@@ -1,17 +1,21 @@
 # LaunchPulse
 
-> Personalized 90-second launch video teardowns, AI search visibility (/llms.txt + JSON-LD) fixes, and 24/7 high-intent buyer radar for newly launched SaaS & AI founders.
-
-LaunchPulse helps Vibe Coders, solo SaaS founders, and indie engineering teams bridge the gap between shipping a product and getting paying customers. It combines passive, non-intrusive technical SEO/AEO/UX diagnostics with real-time community buyer intent monitoring across Hacker News, Reddit, and GitHub.
+> Global SaaS directory distribution, 24/7 multi-source buyer intent radar, and verifiable Cloudflare Edge revenue attribution for indie founders and lean B2B teams.
 
 ## Core Capabilities
-- **Instant Passive Launch & AEO Audit**: Checks meta robots, `/llms.txt` AI search manifests, `SoftwareApplication` JSON-LD schemas, clickjacking/CSP hardening headers, mobile viewport overflow, and bottom-of-funnel `/vs/` comparison gaps.
-- **Personalized 90-Second Video Teardown**: Generates an audio-first narrated walkthrough inspecting the founder's live product, red-boxing conversion leaks, and showcasing waiting community buyers.
-- **Copy-Paste Cursor & Claude Code Fix Pack ($19 one-time)**: Ready-to-run prompts and generated `/llms.txt` + JSON-LD files to ship every fix in under 15 minutes.
-- **24/7 Buyer Intent Radar Pro ($29/month)**: Continuous monitoring for high-intent developer threads asking for tools in your exact niche, with first 3 leads unlocked free to verify before paying.
+- **100+ Curated High-DR Directories**: Staggered 3-wave anti-sandbox submission pacing across verified software, AI, and developer directories with automated HTTP 200 and `dofollow` backlink checks.
+- **24/7 Buyer Intent Radar**: Monitors Reddit, Hacker News, GitHub, and DEV.to for high-intent buying and competitor-alternative threads with a Zero-Link Safe Reply Studio.
+- **Verifiable Edge Revenue Attribution**: Sub-10ms `/r/<code>` edge shortlinks and a 1-line conversion pixel (`window.lpConvert`) reconciling clicks, signups, and paid orders into shareable public growth reports.
 
-## Key Links
-- Homepage & Free Live Scanner: https://pulse.statementflow.win
-- Sample War-Room Audit (CertNudge): https://pulse.statementflow.win/audit/certnudge
-- Sample War-Room Audit (Trieste): https://pulse.statementflow.win/audit/trieste
-- Support & Founder Contact: mailto:hello@statementflow.win
+## Key Pages & Free Tools
+- Homepage: https://pulse.statementflow.win/
+- Interactive Growth Console Sandbox: https://pulse.statementflow.win/dashboard?sample=1
+- Verifiable Public Growth Report Demo: https://pulse.statementflow.win/report?id=demo-acmeflow
+- 12-Point AEO & AI Crawler Checker: https://pulse.statementflow.win/tools/aeo-checker
+- /llms.txt Manifest Generator: https://pulse.statementflow.win/tools/llms-txt-generator
+- 100+ High-DR SaaS Directory Finder: https://pulse.statementflow.win/tools/directory-finder
+
+## Pricing
+- Launch Starter: $39 one-time (Top 30 directories + HTTP verification + edge attribution shortlinks)
+- Growth Command Pro: $29/month (All 100+ directories over 3 waves + unlimited 24/7 Buyer Radar + Workers AI Reply Studio + public report)
+- Done-For-You Concierge: $299 one-time (Manual Brand Kit polish + full 100+ directory manual submission + 30-day replacement guarantee)

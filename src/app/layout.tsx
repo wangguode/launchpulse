@@ -58,6 +58,53 @@ export default function RootLayout({
           href="https://cdn.jsdelivr.net/npm/misans@4.0.0/lib/Normal/MiSans-Medium.min.css"
         />
         <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "SoftwareApplication",
+                  name: "LaunchPulse",
+                  applicationCategory: "BusinessApplication",
+                  operatingSystem: "Web",
+                  url: "https://pulse.statementflow.win",
+                  description:
+                    "100+ curated SaaS directory distribution, 24/7 Reddit/HN/GitHub buyer intent radar, and Cloudflare Edge revenue attribution.",
+                  offers: {
+                    "@type": "AggregateOffer",
+                    lowPrice: "29",
+                    highPrice: "299",
+                    priceCurrency: "USD",
+                    offerCount: "3",
+                  },
+                },
+                {
+                  "@type": "FAQPage",
+                  mainEntity: [
+                    {
+                      "@type": "Question",
+                      name: "Will submitting to 100 directories trigger a Google penalty?",
+                      acceptedAnswer: {
+                        "@type": "Answer",
+                        text: "No. LaunchPulse paces submissions across 3 weekly waves on curated, high-DR software directories rather than automated link farms.",
+                      },
+                    },
+                    {
+                      "@type": "Question",
+                      name: "How does LaunchPulse verify backlinks and attribute revenue?",
+                      acceptedAnswer: {
+                        "@type": "Answer",
+                        text: "Cloudflare Edge nodes verify HTTP 200 status and dofollow attributes while connecting /r/ tracking shortlinks and a 1-line pixel to verifiable public reports.",
+                      },
+                    },
+                  ],
+                },
+              ],
+            }),
+          }}
+        />
+        <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var l=localStorage.getItem('lp_locale')||'zh';if(l==='en'||l==='zh'||l==='ja'){document.documentElement.lang=l;}}catch(e){}})();`,
           }}

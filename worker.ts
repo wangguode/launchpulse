@@ -2050,7 +2050,7 @@ export default {
 
     if (url.pathname === "/api/scan" && request.method === "POST") {
       if (!checkRateLimit(request, 20)) return jsonResponse({ error: "Rate limit exceeded. Try again in 60s." }, 429);
-      return handleDeepLiveScan(request);
+      return handleDeepLiveScan(request, env);
     }
     if (url.pathname === "/api/track" && request.method === "POST") {
       if (!checkRateLimit(request, 60)) return jsonResponse({ ok: true, throttled: true }, 429);

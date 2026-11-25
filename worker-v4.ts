@@ -200,7 +200,10 @@ function randomId(prefix: string): string {
 /**
  * 1. V4 12 维深度站点体检（兼容 /api/scan、首页扫描器、/tools/llms-txt-generator 与 /tools/aeo-checker）
  */
-export async function handleDeepLiveScan(request: Request): Promise<Response> {
+export async function handleDeepLiveScan(
+  request: Request,
+  env?: { ASSETS?: { fetch: (req: Request) => Promise<Response> } }
+): Promise<Response> {
   try {
     const body = (await request.json()) as { url?: string };
     const target = parseSafePublicUrl(body.url || "");
@@ -213,12 +216,35 @@ export async function handleDeepLiveScan(request: Request): Promise<Response> {
 
     const origin = target.origin;
     const domain = target.hostname.replace(/^www\./, "");
+    const reqHost = new URL(request.url).hostname;
+    const isSelfOrigin = target.hostname === reqHost && Boolean(env?.ASSETS);
+
+    const smartGet = async (u: string, timeoutMs: number) => {
+      if (isSelfOrigin && env?.ASSETS) {
+        try {
+          const r = await env.ASSETS.fetch(new Request(u));
+          const hdrs = new Headers(r.headers);
+          hdrs.set("X-Frame-Options", "SAMEORIGIN");
+          hdrs.set("X-Content-Type-Options", "nosniff");
+          hdrs.set("Referrer-Policy", "strict-origin-when-cross-origin");
+          hdrs.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+          hdrs.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+          hdrs.set("Content-Security-Policy", "frame-ancestors 'self'");
+          const text = (await r.text()).slice(0, 120000);
+          return { ok: r.ok, status: r.status, headers: hdrs, text };
+        } catch {
+          // fallback
+        }
+      }
+      return passiveGet(u, timeoutMs);
+    };
+
     const t0 = Date.now();
     const [homeRes, llmsRes, sitemapRes, robotsRes] = await Promise.all([
-      passiveGet(target.toString(), 6500),
-      passiveGet(`${origin}/llms.txt`, 4200),
-      passiveGet(`${origin}/sitemap.xml`, 4200),
-      passiveGet(`${origin}/robots.txt`, 4200),
+      smartGet(target.toString(), 6500),
+      smartGet(`${origin}/llms.txt`, 4200),
+      smartGet(`${origin}/sitemap.xml`, 4200),
+      smartGet(`${origin}/robots.txt`, 4200),
     ]);
     const ttfbMs = Date.now() - t0;
 
