@@ -742,7 +742,21 @@ async function harvestDailyShowHnLaunches(
       if (!homeRes.status) continue;
 
       const html = homeRes.text;
-      const rawEmails: string[] = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+      let combinedContactCorpus = html;
+      // 若首页未直接暴露邮箱，自动并行穿透 /contact、/privacy 及 HN 创始人个人主页简介（大幅提升创始人公开邮箱命中率）
+      if (!/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(html)) {
+        const [contactRes, privacyRes, hnUserRes] = await Promise.all([
+          safeGet(`${origin}/contact`, 3000),
+          safeGet(`${origin}/privacy`, 3000),
+          hit.author
+            ? safeGet(`https://hacker-news.firebaseio.com/v0/user/${encodeURIComponent(hit.author)}.json`, 3000)
+            : Promise.resolve({ ok: false, status: 0, headers: new Headers(), text: "" }),
+        ]);
+        const decodedHnAbout = cleanEntities(hnUserRes.text || "");
+        combinedContactCorpus = `${html}\n${contactRes.text}\n${privacyRes.text}\n${decodedHnAbout}`;
+      }
+      const rawEmails: string[] =
+        combinedContactCorpus.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
       const cleanEmails: string[] = Array.from(
         new Set<string>(
           rawEmails
@@ -750,7 +764,7 @@ async function harvestDailyShowHnLaunches(
             .filter(
               (e: string) =>
                 !/\.(png|jpg|jpeg|gif|webp|svg|css|js|woff2?)$/i.test(e) &&
-                !/(sentry|example\.com|yourdomain|email\.com|wixpress|cloudflare|github\.com|noreply|no-reply)/i.test(e)
+                !/(sentry|example\.com|yourdomain|email\.com|wixpress|cloudflare|github\.com|noreply|no-reply|ycombinator\.com)/i.test(e)
             )
         )
       );
@@ -2930,7 +2944,7 @@ export default {
 
     // 4. 每日三系统统一全自动 CEO 经营日报（含当日自动捕获的 Show HN 新站创始人线索池）
     try {
-      const [lp24h, sf24h, hc24h, clicks24h, sfEvents24h] = await Promise.all([
+      const [lp24h, sf24h, hc24h, clicks24h, sfEvents24h, hcEvents24h] = await Promise.all([
         env.DB.prepare(
           `SELECT COUNT(*) as cnt, COALESCE(SUM(amount_usd), 0) as rev FROM customers_orders WHERE status = 'active' AND created_at >= datetime('now', '-24 hours')`
         )
@@ -2956,6 +2970,11 @@ export default {
         )
           .first<{ cnt: number }>()
           .catch(() => ({ cnt: 0 })),
+        env.DB.prepare(
+          `SELECT COUNT(*) as cnt FROM hc_funnel_events WHERE created_at >= datetime('now', '-24 hours')`
+        )
+          .first<{ cnt: number }>()
+          .catch(() => ({ cnt: 0 })),
       ]);
 
       const total24hOrders = Number(lp24h?.cnt || 0) + Number(sf24h?.cnt || 0) + Number(hc24h?.cnt || 0);
@@ -2973,7 +2992,7 @@ export default {
           ``,
           `1. Revenue & Paid Orders (Last 24h): $${total24hRev} USD (${total24hOrders} orders)`,
           `   • StatementFlow AI: ${Number(sf24h?.cnt || 0)} orders ($${Number(sf24h?.rev || 0)}) | ${Number(sfEvents24h?.cnt || 0)} funnel events`,
-          `   • HardCall B2B:     ${Number(hc24h?.cnt || 0)} orders ($${Number(hc24h?.rev || 0)})`,
+          `   • HardCall B2B:     ${Number(hc24h?.cnt || 0)} orders ($${Number(hc24h?.rev || 0)}) | ${Number(hcEvents24h?.cnt || 0)} funnel events`,
           `   • LaunchPulse:      ${Number(lp24h?.cnt || 0)} orders ($${Number(lp24h?.rev || 0)}) | ${Number(clicks24h?.cnt || 0)} tracked clicks`,
           ``,
           `2. Backlink Health Patrol:`,

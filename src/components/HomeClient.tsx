@@ -80,7 +80,10 @@ interface LiveScanPayload {
   score: number;
   leaksCount: number;
   leaks: Array<{ severity: string; category: string; title: string; evidence: string }>;
-  diagnostics?: { ttfbMs: number };
+  diagnostics?: {
+    ttfbMs: number;
+    llmsTxt?: { exists: boolean; wordCount: number; generatedPreview?: string };
+  };
 }
 
 /**
@@ -114,8 +117,15 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
   const [dirFilter, setDirFilter] = useState<"all" | "dr70" | "dofollow">("all");
   const [videoOpen, setVideoOpen] = useState(false);
   const [checkoutPlan, setCheckoutPlan] = useState<string | null>(null);
+  const [copiedLlms, setCopiedLlms] = useState(false);
 
   useEffect(() => {
+    fetch("/api/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: "lp-home", event: "view" }),
+      keepalive: true,
+    }).catch(() => {});
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -126,14 +136,15 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const handleRunScan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const raw = scanUrl.trim();
+  const executeScanForUrl = async (targetInput: string) => {
+    const raw = targetInput.trim();
     if (!raw) {
       scanInputRef.current?.focus();
       return;
     }
+    setScanUrl(raw);
     setScanning(true);
+    setCopiedLlms(false);
     try {
       const res = await fetch("/api/scan", {
         method: "POST",
@@ -145,6 +156,12 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
         toast.error(json.error || (isZh ? "诊断失败，请确认网址可公网访问" : "Could not inspect this URL"));
       } else {
         setScanResult(json);
+        fetch("/api/track", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug: "lp-home", event: "buyer_click" }),
+          keepalive: true,
+        }).catch(() => {});
         toast.success(isZh ? `${json.domain} 诊断完成：${json.score}/100` : `Audit complete: ${json.score}/100`);
       }
     } catch {
@@ -152,6 +169,11 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
     } finally {
       setScanning(false);
     }
+  };
+
+  const handleRunScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeScanForUrl(scanUrl);
   };
 
   const handleCheckout = async (plan: "blitz" | "radar" | "dfy") => {
@@ -291,6 +313,15 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
             <Link href="/tools/aeo-checker" className="hover:text-foreground transition-colors">
               {isZh ? "免费体检" : "Free Audit"}
             </Link>
+            <a
+              href="https://github.com/wangguode/launchpulse"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground transition-colors inline-flex items-center gap-1"
+            >
+              <span>GitHub</span>
+              <IconArrowUpRight className="size-3.5" />
+            </a>
           </nav>
 
           <div className="flex items-center gap-2">
@@ -353,6 +384,20 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
                   <IconArrowRight className="size-4" />
                 </Button>
               </div>
+              <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
+                <span>{isZh ? "免输入一键实测：" : "1-click live test:"}</span>
+                {["linear.app", "cal.com", "statementflow.win"].map((demoDomain) => (
+                  <button
+                    key={demoDomain}
+                    type="button"
+                    disabled={scanning}
+                    onClick={() => void executeScanForUrl(`https://${demoDomain}`)}
+                    className="lp-frost-pill rounded-full px-2.5 py-0.5 font-mono text-[11.5px] text-foreground/85 hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    {demoDomain}
+                  </button>
+                ))}
+              </div>
             </form>
 
             {scanResult && (
@@ -363,23 +408,64 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
                     {isZh ? `增长健康分 ${scanResult.score}/100 · 发现 ${scanResult.leaksCount} 项待优化` : `Score ${scanResult.score}/100 · ${scanResult.leaksCount} findings`}
                   </CardDescription>
                   <CardAction>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      render={<Link href={`/audit/live?url=${encodeURIComponent(scanResult.origin)}`} />}
-                    >
-                      {isZh ? "完整报告" : "Full Report"}
-                      <IconArrowUpRight className="size-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      {scanResult.diagnostics?.llmsTxt?.generatedPreview && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard
+                              .writeText(scanResult.diagnostics?.llmsTxt?.generatedPreview || "")
+                              .then(() => {
+                                setCopiedLlms(true);
+                                toast.success(isZh ? "已复制生成的 /llms.txt 清单" : "Copied ready-to-publish /llms.txt");
+                              })
+                              .catch(() => {});
+                          }}
+                        >
+                          {copiedLlms ? <IconCheck className="size-3.5 text-emerald-500" /> : <IconCopy className="size-3.5" />}
+                          {isZh ? "复制 /llms.txt" : "Copy /llms.txt"}
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        render={<Link href={`/audit/live?url=${encodeURIComponent(scanResult.origin)}`} />}
+                      >
+                        {isZh ? "完整报告" : "Full Report"}
+                        <IconArrowUpRight className="size-3.5" />
+                      </Button>
+                    </div>
                   </CardAction>
                 </CardHeader>
-                <CardContent className="grid sm:grid-cols-2 gap-2 pt-0 text-xs">
-                  {scanResult.leaks.slice(0, 4).map((lk, i) => (
-                    <div key={i} className="rounded-md border bg-muted/40 p-2.5">
-                      <p className="font-medium text-foreground">{lk.title}</p>
-                      <p className="text-muted-foreground line-clamp-1 mt-0.5">{lk.evidence}</p>
+                <CardContent className="space-y-3 pt-0 text-xs">
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {scanResult.leaks.slice(0, 4).map((lk, i) => (
+                      <div key={i} className="rounded-md border bg-muted/40 p-2.5">
+                        <p className="font-medium text-foreground">{lk.title}</p>
+                        <p className="text-muted-foreground line-clamp-1 mt-0.5">{lk.evidence}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] px-3.5 py-2.5">
+                    <div className="text-xs">
+                      <span className="font-semibold text-foreground">
+                        {isZh ? "快速拉升域名权重与 AI 引用率：" : "Fix authority & AI citation gaps:"}
+                      </span>{" "}
+                      <span className="text-muted-foreground">
+                        {isZh ? "按 3 周自然波次投放 30+ 高权目录并自动 HTTP 200 验活" : "Queue Wave 1 (30 Tier-1 directories) with live HTTP 200 verification"}
+                      </span>
                     </div>
-                  ))}
+                    <Button
+                      size="sm"
+                      className="shrink-0"
+                      disabled={checkoutPlan === "blitz"}
+                      onClick={() => void handleCheckout("blitz")}
+                    >
+                      {isZh ? "解锁 Wave 1 · $39" : "Unlock Wave 1 · $39"}
+                      <IconArrowRight className="size-3.5" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}
