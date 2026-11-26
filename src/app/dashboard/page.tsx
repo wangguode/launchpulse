@@ -171,6 +171,14 @@ export default function DashboardPage() {
       if (v && VALID_VIEWS.includes(v)) setView(v);
       const initCampId = Number(sp.get("campaignId") || 0);
       const checkoutId = (sp.get("checkout_id") || sp.get("checkoutId") || "").trim();
+      const incomingUrl = (sp.get("newUrl") || "").trim();
+      if (incomingUrl) {
+        setProjUrl(incomingUrl);
+        setNewProjectOpen(true);
+        sp.delete("newUrl");
+        const cleanQs = sp.toString();
+        window.history.replaceState({}, "", cleanQs ? `${window.location.pathname}?${cleanQs}` : window.location.pathname);
+      }
       if (sp.get("unlocked") === "1") {
         toast.success(
           isZh ? "付款已确认，方案权益已自动同步解锁！" : "Payment confirmed — workspace entitlements updated!"
@@ -651,7 +659,11 @@ export default function DashboardPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             campaignId: activeCampaign.id,
-            title: opts?.title || `${activeCampaign.product_name} · 增长归因战报`,
+            title:
+              opts?.title ||
+              (isZh
+                ? `${activeCampaign.product_name} · 增长归因战报`
+                : `${activeCampaign.product_name} · Growth & Attribution Report`),
             showRevenue: opts?.showRevenue ?? true,
           }),
         });

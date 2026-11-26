@@ -228,9 +228,37 @@ export default function DynamicLiveAuditPage() {
                     </div>
                   ))
                 )}
-                <Button className="w-full" render={<Link href="/login" />}>
-                  {isZh ? "免费注册并在控制台一键导入此站点" : "Create Free Workspace for This Site"}
-                </Button>
+                <div className="grid sm:grid-cols-2 gap-2.5 pt-1">
+                  <Button
+                    className="w-full"
+                    render={<Link href={`/login?url=${encodeURIComponent(instantScan.origin)}`} />}
+                  >
+                    {isZh ? "免费注册并导入此站点" : "Import Site to Console (Free)"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/checkout", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            plan: "blitz",
+                            slug: instantScan.domain,
+                            targetUrl: instantScan.origin,
+                          }),
+                        });
+                        const d = (await res.json()) as { checkoutUrl?: string };
+                        if (res.ok && d.checkoutUrl) window.location.href = d.checkoutUrl;
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                  >
+                    {isZh ? "直通启动包 · $39" : "Start 30-Dir Blitz · $39"}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>

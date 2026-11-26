@@ -5,8 +5,19 @@
   "compatibility_date": "2024-11-01",
   "assets": {
     "directory": "./out",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/r/*", "/report/*", "/directories"]
   },
+  "services": [
+    {
+      "binding": "STATEMENTFLOW_SVC",
+      "service": "statementflow-ai"
+    },
+    {
+      "binding": "HARDCALL_SVC",
+      "service": "hardcall"
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

@@ -41,6 +41,12 @@ interface Env {
   ASSETS: {
     fetch: (request: Request) => Promise<Response>;
   };
+  STATEMENTFLOW_SVC?: {
+    fetch: (request: Request) => Promise<Response>;
+  };
+  HARDCALL_SVC?: {
+    fetch: (request: Request) => Promise<Response>;
+  };
   DB?: D1Database;
   AI?: {
     run: (model: string, input: Record<string, unknown>) => Promise<unknown>;
@@ -80,9 +86,10 @@ const PLAN_CONFIG = {
 
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
-  "X-Frame-Options": "DENY",
+  "X-Frame-Options": "SAMEORIGIN",
   "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Content-Security-Policy": "frame-ancestors 'none'",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+  "Content-Security-Policy": "frame-ancestors 'self'",
 };
 
 /**
@@ -2026,6 +2033,14 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    if (url.pathname === "/api/health" && request.method === "GET") {
+      return jsonResponse({ ok: true, service: "launchpulse" });
+    }
+
+    if ((url.pathname === "/directories" || url.pathname === "/directories/") && request.method === "GET") {
+      return Response.redirect(`${url.origin}/tools/directory-finder`, 302);
+    }
+
     // V2 边缘追踪短链跳转（/r/:code）与转化像素
     if (url.pathname.startsWith("/r/") && (request.method === "GET" || request.method === "HEAD")) {
       const code = url.pathname.slice(3).split("/")[0];
@@ -2098,7 +2113,7 @@ export default {
       if (!checkRateLimit(request, 15)) return jsonResponse({ error: "Too many autofill requests. Wait 60s." }, 429);
       const user = await getSessionUser(request, env);
       if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-      return handleAutofillBrandKit(request);
+      return handleAutofillBrandKit(request, env);
     }
     if (url.pathname === "/api/dashboard/directory-pref" && request.method === "POST") {
       const user = await getSessionUser(request, env);
@@ -2436,9 +2451,9 @@ export default {
       });
     }
 
-    // V4 公开战报洁净短路径（/report/:shareId -> 静态渲染 /report.html）
+    // V4 公开战报洁净短路径（/report/:shareId -> 内部直读无后缀 /report，规避 Cloudflare Assets 307 去 .html 重定向丢参）
     if (/^\/report\/[a-zA-Z0-9-_]+$/.test(url.pathname) && request.method === "GET") {
-      const rewritten = new Request(new URL("/report.html", url.origin).toString(), request);
+      const rewritten = new Request(new URL("/report", url.origin).toString(), request);
       const rptResp = await env.ASSETS.fetch(rewritten);
       const rptHeaders = new Headers(rptResp.headers);
       for (const [k, v] of Object.entries(SECURITY_HEADERS)) {

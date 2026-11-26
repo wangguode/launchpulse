@@ -40,12 +40,12 @@ interface PublicReportData {
   };
 }
 
-function buildFallbackSampleReport(): PublicReportData {
+function buildFallbackSampleReport(isZh = false): PublicReportData {
   const sample = buildSampleOverview();
   const ledger = deriveConsoleLedger(sample, true);
   return {
     shareId: "demo-acmeflow",
-    title: "AcmeFlow · 30 天增长归因战报",
+    title: isZh ? "AcmeFlow · 30 天增长归因战报" : "AcmeFlow · 30-Day Growth & Attribution Report",
     productName: "AcmeFlow",
     targetUrl: "https://acmeflow.example",
     showRevenue: true,
@@ -115,7 +115,7 @@ export default function PublicGrowthReportPage() {
       })
       .then((json) => setData(json))
       .catch(() => {
-        if (shareId === "demo-acmeflow") setData(buildFallbackSampleReport());
+        if (shareId === "demo-acmeflow") setData(buildFallbackSampleReport(isZh));
         else setError(isZh ? "未找到对应的公开增长战报。" : "Report not found.");
       })
       .finally(() => setLoading(false));

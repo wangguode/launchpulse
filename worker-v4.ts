@@ -10,6 +10,15 @@
  */
 
 export interface V4Env {
+  ASSETS?: {
+    fetch: (request: Request) => Promise<Response>;
+  };
+  STATEMENTFLOW_SVC?: {
+    fetch: (request: Request) => Promise<Response>;
+  };
+  HARDCALL_SVC?: {
+    fetch: (request: Request) => Promise<Response>;
+  };
   DB?: {
     prepare: (sql: string) => {
       bind: (...args: unknown[]) => {
@@ -197,12 +206,81 @@ function randomId(prefix: string): string {
   return `${prefix}-${out}`;
 }
 
+async function smartPassiveGet(
+  url: string,
+  timeoutMs = 5500,
+  reqHost = "",
+  env?: Pick<V4Env, "ASSETS" | "STATEMENTFLOW_SVC" | "HARDCALL_SVC">
+) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+
+    // 1. 自身站点静态资源直读（零网络回环）
+    if (reqHost && host === reqHost && env?.ASSETS) {
+      const r = await env.ASSETS.fetch(new Request(url));
+      const hdrs = new Headers(r.headers);
+      hdrs.set("X-Frame-Options", "SAMEORIGIN");
+      hdrs.set("X-Content-Type-Options", "nosniff");
+      hdrs.set("Referrer-Policy", "strict-origin-when-cross-origin");
+      hdrs.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+      hdrs.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+      hdrs.set("Content-Security-Policy", "frame-ancestors 'self'");
+      const text = (await r.text()).slice(0, 120000);
+      return { ok: r.ok, status: r.status, headers: hdrs, text };
+    }
+
+    // 2. 同 Cloudflare Zone 兄弟 Worker（statementflow.win / hardcall.statementflow.win）走 Service Binding 零延迟内部直连，彻底绕开 CF 同域 522 回环拦截
+    const siblingSvc =
+      (host === "statementflow.win" || host === "www.statementflow.win")
+        ? env?.STATEMENTFLOW_SVC
+        : host === "hardcall.statementflow.win"
+        ? env?.HARDCALL_SVC
+        : undefined;
+
+    if (siblingSvc) {
+      const r = await siblingSvc.fetch(
+        new Request(url, {
+          method: "GET",
+          headers: {
+            "User-Agent": "Mozilla/5.0 (compatible; LaunchPulsePassiveAudit/4.0; +https://pulse.statementflow.win)",
+          },
+        })
+      );
+      const hdrs = new Headers(r.headers);
+      if (!hdrs.has("Strict-Transport-Security")) {
+        hdrs.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+      }
+      if (!hdrs.has("Content-Security-Policy")) {
+        hdrs.set("Content-Security-Policy", "frame-ancestors 'self'");
+      }
+      if (!hdrs.has("X-Frame-Options")) {
+        hdrs.set("X-Frame-Options", "SAMEORIGIN");
+      }
+      if (!hdrs.has("X-Content-Type-Options")) {
+        hdrs.set("X-Content-Type-Options", "nosniff");
+      }
+      if (!hdrs.has("Referrer-Policy")) {
+        hdrs.set("Referrer-Policy", "strict-origin-when-cross-origin");
+      }
+      if (!hdrs.has("Permissions-Policy")) {
+        hdrs.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+      }
+      const text = (await r.text()).slice(0, 120000);
+      return { ok: r.ok, status: r.status, headers: hdrs, text };
+    }
+  } catch {
+    // 内部绑定异常时优雅回退公网探测
+  }
+  return passiveGet(url, timeoutMs);
+}
+
 /**
  * 1. V4 12 维深度站点体检（兼容 /api/scan、首页扫描器、/tools/llms-txt-generator 与 /tools/aeo-checker）
  */
 export async function handleDeepLiveScan(
   request: Request,
-  env?: { ASSETS?: { fetch: (req: Request) => Promise<Response> } }
+  env?: Pick<V4Env, "ASSETS" | "STATEMENTFLOW_SVC" | "HARDCALL_SVC">
 ): Promise<Response> {
   try {
     const body = (await request.json()) as { url?: string };
@@ -216,28 +294,10 @@ export async function handleDeepLiveScan(
 
     const origin = target.origin;
     const domain = target.hostname.replace(/^www\./, "");
-    const reqHost = new URL(request.url).hostname;
-    const isSelfOrigin = target.hostname === reqHost && Boolean(env?.ASSETS);
+    const reqHost = new URL(request.url).hostname.toLowerCase();
 
-    const smartGet = async (u: string, timeoutMs: number) => {
-      if (isSelfOrigin && env?.ASSETS) {
-        try {
-          const r = await env.ASSETS.fetch(new Request(u));
-          const hdrs = new Headers(r.headers);
-          hdrs.set("X-Frame-Options", "SAMEORIGIN");
-          hdrs.set("X-Content-Type-Options", "nosniff");
-          hdrs.set("Referrer-Policy", "strict-origin-when-cross-origin");
-          hdrs.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
-          hdrs.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-          hdrs.set("Content-Security-Policy", "frame-ancestors 'self'");
-          const text = (await r.text()).slice(0, 120000);
-          return { ok: r.ok, status: r.status, headers: hdrs, text };
-        } catch {
-          // fallback
-        }
-      }
-      return passiveGet(u, timeoutMs);
-    };
+    const smartGet = (u: string, timeoutMs: number) =>
+      smartPassiveGet(u, timeoutMs, reqHost, env);
 
     const t0 = Date.now();
     const [homeRes, llmsRes, sitemapRes, robotsRes] = await Promise.all([
@@ -1108,7 +1168,10 @@ export async function handleSaveBrandKit(
 /**
  * 3.5 官网 URL 一键自动抓取并智能填充 Brand Launch Kit（零冷启动表单摩擦）
  */
-export async function handleAutofillBrandKit(request: Request): Promise<Response> {
+export async function handleAutofillBrandKit(
+  request: Request,
+  env?: Pick<V4Env, "ASSETS" | "STATEMENTFLOW_SVC" | "HARDCALL_SVC">
+): Promise<Response> {
   try {
     const body = (await request.json()) as { url?: string };
     const target = parseSafePublicUrl(body.url || "");
@@ -1121,7 +1184,8 @@ export async function handleAutofillBrandKit(request: Request): Promise<Response
 
     const origin = target.origin;
     const domain = target.hostname.replace(/^www\./, "");
-    const res = await passiveGet(target.toString(), 6500);
+    const reqHost = new URL(request.url).hostname.toLowerCase();
+    const res = await smartPassiveGet(target.toString(), 6500, reqHost, env);
     if (!res.status || !res.text) {
       return jsonRes(
         { error: `Could not reach ${origin} within 6.5s. Please verify the URL and retry.` },

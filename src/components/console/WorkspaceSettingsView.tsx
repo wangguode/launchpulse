@@ -105,9 +105,13 @@ export default function WorkspaceSettingsView({
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<DeepScanSummary | null>(null);
 
+  const defaultReportTitle = isZh
+    ? `${campaign?.product_name || "Your SaaS"} · 增长归因战报`
+    : `${campaign?.product_name || "Your SaaS"} · Growth & Attribution Report`;
+
   // 公开战报配置
   const [reportTitle, setReportTitle] = useState(
-    publicReport?.title || `${campaign?.product_name || "Your SaaS"} · 增长归因战报`
+    publicReport?.title || defaultReportTitle
   );
   const [showRevenue, setShowRevenue] = useState(publicReport ? Boolean(publicReport.show_revenue) : true);
 
@@ -125,9 +129,9 @@ export default function WorkspaceSettingsView({
     setEditUrl(campaign?.target_url || "");
     setEditTagline(campaign?.tagline || "");
     setEditCompetitors(campaign?.competitors || "");
-    setReportTitle(publicReport?.title || `${campaign?.product_name || "Your SaaS"} · 增长归因战报`);
+    setReportTitle(publicReport?.title || defaultReportTitle);
     setShowRevenue(publicReport ? Boolean(publicReport.show_revenue) : true);
-  }, [campaign, publicReport]);
+  }, [campaign, publicReport, defaultReportTitle]);
 
   const llmsDraft =
     scanResult?.diagnostics?.llmsTxt?.generatedPreview ||

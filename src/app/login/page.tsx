@@ -27,12 +27,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [prefillUrl, setPrefillUrl] = useState("");
 
   useEffect(() => {
+    const sp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const u = sp?.get("url")?.trim() || "";
+    if (u) setPrefillUrl(u);
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((d: { authenticated?: boolean }) => {
-        if (d.authenticated) router.replace("/dashboard");
+        if (d.authenticated) {
+          router.replace(u ? `/dashboard?newUrl=${encodeURIComponent(u)}` : "/dashboard");
+        }
       })
       .catch(() => {});
   }, [router]);
@@ -54,7 +60,7 @@ export default function LoginPage() {
         setError(data.error || (isZh ? "认证失败，请核对邮箱与密码。" : "Authentication failed."));
         return;
       }
-      router.push("/dashboard");
+      router.push(prefillUrl ? `/dashboard?newUrl=${encodeURIComponent(prefillUrl)}` : "/dashboard");
     } catch {
       setError(isZh ? "网络异常，请重试。" : "Network error.");
     } finally {
