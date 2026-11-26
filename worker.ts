@@ -661,9 +661,154 @@ async function ensureEmailOutboxTable(env: Env): Promise<void> {
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )`
     ).run();
+    await env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS show_hn_prospects (
+        domain TEXT PRIMARY KEY,
+        title TEXT NOT NULL DEFAULT '',
+        target_url TEXT NOT NULL,
+        hn_url TEXT NOT NULL DEFAULT '',
+        hn_author TEXT NOT NULL DEFAULT '',
+        founder_email TEXT NOT NULL DEFAULT '',
+        aeo_score INTEGER NOT NULL DEFAULT 60,
+        has_llms_txt INTEGER NOT NULL DEFAULT 0,
+        leaks_summary TEXT NOT NULL DEFAULT '',
+        audit_url TEXT NOT NULL DEFAULT '',
+        outreach_status TEXT NOT NULL DEFAULT 'queued',
+        discovered_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`
+    ).run();
+    try {
+      await env.DB.prepare(
+        `ALTER TABLE customers_orders ADD COLUMN email_sent INTEGER NOT NULL DEFAULT 0`
+      ).run();
+    } catch {
+      // 列已存在时安全忽略
+    }
   } catch {
     // ignore
   }
+}
+
+/**
+ * 每日自动监听最新 Show HN 首发 SaaS 项目 -> 被动扫描 /llms.txt 与 SEO 漏斗 -> 提取公开创始人联系邮箱入池
+ */
+async function harvestDailyShowHnLaunches(
+  env: Env,
+  maxProbes = 6
+): Promise<{ scanned: number; withEmail: number; items: Array<{ domain: string; email: string; score: number; auditUrl: string }> }> {
+  if (!env.DB) return { scanned: 0, withEmail: 0, items: [] };
+  await ensureEmailOutboxTable(env);
+  const items: Array<{ domain: string; email: string; score: number; auditUrl: string }> = [];
+  let scanned = 0;
+  let withEmail = 0;
+
+  try {
+    const cutoffSec = Math.floor(Date.now() / 1000) - 72 * 3600;
+    const hnRes = await fetch(
+      `https://hn.algolia.com/api/v1/search_by_date?tags=show_hn&numericFilters=created_at_i>${cutoffSec}&hitsPerPage=20`
+    );
+    if (!hnRes.ok) return { scanned: 0, withEmail: 0, items: [] };
+    const hnJson = (await hnRes.json()) as {
+      hits?: Array<{ objectID: string; title?: string; url?: string; author?: string }>;
+    };
+
+    const skipHosts =
+      /^(github\.com|gitlab\.com|youtube\.com|youtu\.be|medium\.com|substack\.com|arxiv\.org|npmjs\.com|pypi\.org|crates\.io|huggingface\.co|news\.ycombinator\.com|reddit\.com|x\.com|twitter\.com|docs\.google\.com)$/i;
+
+    for (const hit of hnJson.hits || []) {
+      if (scanned >= maxProbes) break;
+      if (!hit.url) continue;
+      const parsed = parseSafePublicHttpsUrl(hit.url);
+      if (!parsed) continue;
+      const domain = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+      if (skipHosts.test(domain) || domain.endsWith(".statementflow.win") || domain === "statementflow.win") {
+        continue;
+      }
+
+      const exists = await env.DB.prepare(
+        `SELECT domain FROM show_hn_prospects WHERE domain = ?1 LIMIT 1`
+      )
+        .bind(domain)
+        .first<{ domain: string }>();
+      if (exists) continue;
+
+      scanned += 1;
+      const origin = parsed.origin;
+      const [homeRes, llmsRes, sitemapRes] = await Promise.all([
+        safeGet(origin, 4500),
+        safeGet(`${origin}/llms.txt`, 3500),
+        safeGet(`${origin}/sitemap.xml`, 3500),
+      ]);
+      if (!homeRes.status) continue;
+
+      const html = homeRes.text;
+      const rawEmails: string[] = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+      const cleanEmails: string[] = Array.from(
+        new Set<string>(
+          rawEmails
+            .map((e: string) => e.toLowerCase())
+            .filter(
+              (e: string) =>
+                !/\.(png|jpg|jpeg|gif|webp|svg|css|js|woff2?)$/i.test(e) &&
+                !/(sentry|example\.com|yourdomain|email\.com|wixpress|cloudflare|github\.com|noreply|no-reply)/i.test(e)
+            )
+        )
+      );
+      const founderEmail: string = cleanEmails[0] || "";
+      if (founderEmail) withEmail += 1;
+
+      const hasLlms = llmsRes.ok && !/<!doctype html|<html[\s>]/i.test(llmsRes.text.slice(0, 300));
+      const hasSitemap = sitemapRes.ok && /<urlset|<sitemapindex/i.test(sitemapRes.text.slice(0, 500));
+      const hasJsonLd = /application\/ld\+json/i.test(html);
+      const hasCsp = Boolean(homeRes.headers.get("content-security-policy") || homeRes.headers.get("x-frame-options"));
+
+      const leakTags: string[] = [];
+      let score = 96;
+      if (!hasLlms) {
+        leakTags.push("missing /llms.txt");
+        score -= 18;
+      }
+      if (!hasJsonLd) {
+        leakTags.push("no JSON-LD schema");
+        score -= 12;
+      }
+      if (!hasSitemap) {
+        leakTags.push("missing sitemap.xml");
+        score -= 10;
+      }
+      if (!hasCsp) {
+        leakTags.push("missing CSP/XFO headers");
+        score -= 8;
+      }
+
+      const auditUrl = `https://pulse.statementflow.win/audit/live?url=${encodeURIComponent(origin)}`;
+      const hnTitle = cleanEntities(hit.title || domain).replace(/^Show HN:\s*/i, "").slice(0, 140);
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO show_hn_prospects (
+           domain, title, target_url, hn_url, hn_author, founder_email, aeo_score, has_llms_txt, leaks_summary, audit_url
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`
+      )
+        .bind(
+          domain,
+          hnTitle,
+          origin,
+          `https://news.ycombinator.com/item?id=${hit.objectID}`,
+          hit.author || "",
+          founderEmail,
+          score,
+          hasLlms ? 1 : 0,
+          leakTags.join(", ") || "minor directory gap",
+          auditUrl
+        )
+        .run();
+
+      items.push({ domain, email: founderEmail, score, auditUrl });
+    }
+  } catch {
+    // 单次抓取异常不影响主流程
+  }
+
+  return { scanned, withEmail, items };
 }
 
 async function flushSharedEmailOutbox(env: Env, limit = 15): Promise<number> {
@@ -772,6 +917,7 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
             .bind(/refund|dispute/.test(evt) ? "refunded" : "canceled", orderId, email)
             .run();
         } else {
+          await ensureEmailOutboxTable(env);
           const expiresAt = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
           await env.DB.prepare(
             `INSERT INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token, token_expires_at)
@@ -789,42 +935,8 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
               .run();
           }
 
-          const origin = new URL(request.url).origin;
-          const portalLink = `${origin}/portal?token=${magicToken}`;
-          const warRoomLink = slug ? `${origin}/audit/${slug}?token=${magicToken}` : portalLink;
-
-          const planDisplayName =
-            plan === "dfy"
-              ? "Done-For-You Growth Sprint ($299)"
-              : plan === "blitz" || plan === "fixpack"
-              ? "50+ Directory Distribution Blitz ($39)"
-              : "24/7 Buyer Intent Radar Pro ($29/mo)";
-
-          await sendResendEmail(env, {
-            to: email,
-            subject: `Your LaunchPulse ${planDisplayName} is unlocked`,
-            text: [
-              "Welcome to LaunchPulse!",
-              "",
-              "Your payment is confirmed and your workspace is unlocked immediately (no password needed).",
-              "",
-              `• Customer Portal (100+ Directory Tracker, Bonus /llms.txt, Re-Scan & Buyer Feed): ${portalLink}`,
-              slug ? `• Unlocked War-Room Report: ${warRoomLink}` : "",
-              plan === "dfy"
-                ? "• Done-For-You Sprint Auto-Queued: Please verify your Brand Launch Kit in the console; Wave 1 (Top 30 high-DR directories) starts within 24 hours."
-                : "",
-              "",
-              "Need anything? Simply reply to this email (hello@statementflow.win).",
-              "",
-              "— LaunchPulse Team",
-            ]
-              .filter(Boolean)
-              .join("\n"),
-          });
-
-          // 若为 $299 DFY 旗舰代投单，自动入队 dfy_fulfillment_jobs，供自动化投递流水线拉取履约
+          // 若为 $299 DFY 旗舰代投单，幂等入队 dfy_fulfillment_jobs
           if (plan === "dfy") {
-            await ensureEmailOutboxTable(env);
             await env.DB.prepare(
               `INSERT INTO dfy_fulfillment_jobs (order_id, customer_email, target_url, slug, status, updated_at)
                VALUES (?1, ?2, ?3, ?4, 'queued_wave1', datetime('now'))
@@ -834,20 +946,66 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
               .run();
           }
 
-          // 实时向创始人主邮箱发送新订单入账与履约提醒（自动经 Cloudflare Email Routing 投递至 Gmail）
-          await sendResendEmail(env, {
-            to: "hello@statementflow.win",
-            subject: `💰 [LaunchPulse Paid] $${amountUsd} (${plan.toUpperCase()}) from ${email}`,
-            text: [
-              `New Paid Order on LaunchPulse!`,
-              `- Order ID: ${orderId}`,
-              `- Customer: ${email}`,
-              `- Plan: ${planDisplayName} ($${amountUsd})`,
-              `- Target URL: ${targetUrl || slug || "N/A"}`,
-              `- Auto-Unlock Status: Active & Magic Link Sent`,
-              plan === "dfy" ? `- Action: Added to /api/admin/dfy-queue for Wave 1 fulfillment.` : `- Action: 100% Self-Serve Automated (Zero manual action required).`,
-            ].join("\n"),
-          });
+          // 读取库内真实持久化 magic_token（兼容客户端 /api/checkout/claim 先落库场景）并校验 email_sent 防重发
+          const savedOrder = await env.DB.prepare(
+            `SELECT magic_token, email_sent FROM customers_orders WHERE order_id = ?1 LIMIT 1`
+          )
+            .bind(orderId)
+            .first<{ magic_token: string; email_sent?: number }>();
+
+          if (!savedOrder || Number(savedOrder.email_sent || 0) === 0) {
+            await env.DB.prepare(`UPDATE customers_orders SET email_sent = 1 WHERE order_id = ?1`)
+              .bind(orderId)
+              .run();
+            const activeMagicToken = savedOrder?.magic_token || magicToken;
+            const origin = new URL(request.url).origin;
+            const portalLink = `${origin}/portal?token=${activeMagicToken}`;
+            const warRoomLink = slug ? `${origin}/audit/${slug}?token=${activeMagicToken}` : portalLink;
+
+            const planDisplayName =
+              plan === "dfy"
+                ? "Done-For-You Growth Sprint ($299)"
+                : plan === "blitz" || plan === "fixpack"
+                ? "50+ Directory Distribution Blitz ($39)"
+                : "24/7 Buyer Intent Radar Pro ($29/mo)";
+
+            await sendResendEmail(env, {
+              to: email,
+              subject: `Your LaunchPulse ${planDisplayName} is unlocked`,
+              text: [
+                "Welcome to LaunchPulse!",
+                "",
+                "Your payment is confirmed and your workspace is unlocked immediately (no password needed).",
+                "",
+                `• Customer Portal (100+ Directory Tracker, Bonus /llms.txt, Re-Scan & Buyer Feed): ${portalLink}`,
+                slug ? `• Unlocked War-Room Report: ${warRoomLink}` : "",
+                plan === "dfy"
+                  ? "• Done-For-You Sprint Auto-Queued: Please verify your Brand Launch Kit in the console; Wave 1 (Top 30 high-DR directories) starts within 24 hours."
+                  : "",
+                "",
+                "Need anything? Simply reply to this email (hello@statementflow.win).",
+                "",
+                "— LaunchPulse Team",
+              ]
+                .filter(Boolean)
+                .join("\n"),
+            });
+
+            // 实时向创始人主邮箱发送新订单入账与履约提醒
+            await sendResendEmail(env, {
+              to: "hello@statementflow.win",
+              subject: `💰 [LaunchPulse Paid] $${amountUsd} (${plan.toUpperCase()}) from ${email}`,
+              text: [
+                `New Paid Order on LaunchPulse!`,
+                `- Order ID: ${orderId}`,
+                `- Customer: ${email}`,
+                `- Plan: ${planDisplayName} ($${amountUsd})`,
+                `- Target URL: ${targetUrl || slug || "N/A"}`,
+                `- Auto-Unlock Status: Active & Magic Link Sent`,
+                plan === "dfy" ? `- Action: Added to /api/admin/dfy-queue for Wave 1 fulfillment.` : `- Action: 100% Self-Serve Automated (Zero manual action required).`,
+              ].join("\n"),
+            });
+          }
         }
       }
     } catch {
@@ -2185,6 +2343,23 @@ export default {
       return jsonResponse({ ok: true, jobs: jobs.results || [] });
     }
 
+    // Show HN 每日自动拓客池管理接口（受 ADMIN_API_KEY 保护，支持手动触发与拉取创始人邮箱线索）
+    if (url.pathname === "/api/admin/show-hn-leads" && (request.method === "GET" || request.method === "POST")) {
+      if (!(await isAdminAuthorized(request, env))) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      if (!env.DB) return jsonResponse({ leads: [] });
+      await ensureEmailOutboxTable(env);
+      let harvestResult = { scanned: 0, withEmail: 0, items: [] as unknown[] };
+      if (request.method === "POST") {
+        harvestResult = await harvestDailyShowHnLaunches(env, 8);
+      }
+      const rows = await env.DB.prepare(
+        `SELECT * FROM show_hn_prospects ORDER BY discovered_at DESC LIMIT 50`
+      ).all();
+      return jsonResponse({ ok: true, harvestResult, leads: rows.results || [] });
+    }
+
     if ((url.pathname === "/directories" || url.pathname === "/directories/") && request.method === "GET") {
       return Response.redirect(`${url.origin}/tools/directory-finder`, 302);
     }
@@ -2646,83 +2821,114 @@ export default {
     } catch {
       // 单次验活失败不影响后续任务
     }
+    // 3. 扫描所有开启每日监控的 radar_monitors（真实读取配置的 keywords_json 与 competitors_json）及付费订阅客户
     try {
-      const subs = await env.DB.prepare(
-        `SELECT customer_email, slug, target_url, magic_token FROM customers_orders WHERE plan = 'radar' AND status = 'active' LIMIT 50`
-      ).all<{ customer_email: string; slug: string; target_url: string; magic_token: string }>();
+      const monitors = await env.DB.prepare(
+        `SELECT m.campaign_id, m.user_email, m.keywords_json, m.competitors_json, c.slug, o.magic_token
+         FROM radar_monitors m
+         JOIN campaigns c ON c.id = m.campaign_id
+         LEFT JOIN customers_orders o ON o.customer_email = m.user_email AND o.status = 'active'
+         WHERE m.daily_digest_enabled = 1
+         LIMIT 40`
+      ).all<{
+        campaign_id: number;
+        user_email: string;
+        keywords_json: string;
+        competitors_json: string;
+        slug: string;
+        magic_token: string | null;
+      }>();
 
-      for (const sub of subs.results || []) {
-        const keyword = (sub.slug || sub.target_url.replace(/^https?:\/\//, "").split(".")[0] || "").trim();
-        if (!keyword) continue;
+      for (const mon of monitors.results || []) {
+        let kwList: string[] = [];
         try {
-          const cutoffSec = Math.floor(Date.now() / 1000) - 48 * 3600;
-          const hnRes = await fetch(
-            `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(
-              keyword
-            )}&tags=comment&numericFilters=created_at_i>${cutoffSec}&hitsPerPage=6`
-          );
-          if (!hnRes.ok) continue;
-          const hnData = (await hnRes.json()) as {
-            hits?: Array<{
-              objectID: string;
-              story_title?: string;
-              title?: string;
-              comment_text?: string;
-            }>;
-          };
-          const activeCamp = await env.DB.prepare(
-            `SELECT id FROM campaigns WHERE user_email = ?1 ORDER BY id DESC LIMIT 1`
-          )
-            .bind(sub.customer_email)
-            .first<{ id: number }>();
+          const parsedKw = JSON.parse(mon.keywords_json || "[]");
+          const parsedComp = JSON.parse(mon.competitors_json || "[]");
+          kwList = [...(Array.isArray(parsedKw) ? parsedKw : []), ...(Array.isArray(parsedComp) ? parsedComp : [])]
+            .map((s) => String(s).trim())
+            .filter(Boolean)
+            .slice(0, 3);
+        } catch {
+          kwList = [];
+        }
+        if (kwList.length === 0 && mon.slug) kwList = [mon.slug.split("-")[0]];
+        if (kwList.length === 0) continue;
 
-          const freshLines: string[] = [];
-          for (const hit of hnData.hits || []) {
-            const title = cleanEntities(hit.story_title || hit.title || "");
-            if (!title || /^\[dead\]|^show hn:|who is hiring/i.test(title)) continue;
-            const leadUrl = `https://news.ycombinator.com/item?id=${hit.objectID}`;
-            const excerpt = cleanEntities(hit.comment_text || title).slice(0, 150);
-            await env.DB.prepare(
-              `INSERT OR IGNORE INTO radar_deliveries (customer_email, slug, lead_id, source, community, title, excerpt, url, lead_status)
-               VALUES (?1, ?2, ?3, 'Hacker News', 'HN Daily Radar', ?4, ?5, ?6, 'new')`
-            )
-              .bind(sub.customer_email, sub.slug, `hn-${hit.objectID}`, title.slice(0, 120), excerpt, leadUrl)
-              .run();
-            // 同步写入 radar_leads，让定时任务扫到的线索直接出现在 /dashboard 买家收件箱里
-            if (activeCamp?.id) {
+        const freshLines: string[] = [];
+        const cutoffSec = Math.floor(Date.now() / 1000) - 48 * 3600;
+        for (const kw of kwList) {
+          try {
+            const hnRes = await fetch(
+              `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(
+                kw
+              )}&tags=comment&numericFilters=created_at_i>${cutoffSec}&hitsPerPage=4`
+            );
+            if (!hnRes.ok) continue;
+            const hnData = (await hnRes.json()) as {
+              hits?: Array<{
+                objectID: string;
+                author?: string;
+                story_title?: string;
+                title?: string;
+                comment_text?: string;
+              }>;
+            };
+            for (const hit of hnData.hits || []) {
+              const title = cleanEntities(hit.story_title || hit.title || "");
+              if (!title || /^\[dead\]|^show hn:|who is hiring/i.test(title)) continue;
+              const leadUrl = `https://news.ycombinator.com/item?id=${hit.objectID}`;
+              const excerpt = cleanEntities(hit.comment_text || title).slice(0, 150);
+              await env.DB.prepare(
+                `INSERT OR IGNORE INTO radar_deliveries (customer_email, slug, lead_id, source, community, title, excerpt, url, lead_status)
+                 VALUES (?1, ?2, ?3, 'Hacker News', 'HN Daily Radar', ?4, ?5, ?6, 'new')`
+              )
+                .bind(mon.user_email, mon.slug, `hn-${hit.objectID}`, title.slice(0, 120), excerpt, leadUrl)
+                .run();
               await env.DB.prepare(
                 `INSERT OR IGNORE INTO radar_leads (
                    campaign_id, user_email, external_id, source, community, author, title, excerpt, url,
                    intent_type, intent_score, status, posted_at
-                 ) VALUES (?1, ?2, ?3, 'Hacker News', 'HN Daily Radar', '@hn_dev', ?4, ?5, ?6, 'buying', 91, 'new', date('now'))`
+                 ) VALUES (?1, ?2, ?3, 'Hacker News', 'HN Daily Radar', ?4, ?5, ?6, ?7, 'buying', 90, 'new', date('now'))`
               )
-                .bind(activeCamp.id, sub.customer_email, `hn-${hit.objectID}`, title.slice(0, 140), excerpt, leadUrl)
+                .bind(mon.campaign_id, mon.user_email, `hn-${hit.objectID}`, `@${hit.author || "hn_dev"}`, title.slice(0, 140), excerpt, leadUrl)
                 .run();
+              freshLines.push(`• [${kw}] ${title}\n  ${leadUrl}`);
             }
-            freshLines.push(`• ${title}\n  ${leadUrl}`);
+          } catch {
+            // ignore single keyword timeout
           }
-          if (freshLines.length > 0) {
-            await sendResendEmail(env, {
-              to: sub.customer_email,
-              subject: `LaunchPulse Daily Radar: ${freshLines.length} fresh buyer threads for ${keyword}`,
-              text: [
-                `Here are today's latest developer discussions matching ${keyword}:`,
-                "",
-                ...freshLines,
-                "",
-                `Open your portal: https://pulse.statementflow.win/portal?token=${sub.magic_token}`,
-              ].join("\n"),
-            });
-          }
-        } catch {
-          // 单客户异常不影响其余订阅客户
+        }
+        await env.DB.prepare(`UPDATE radar_monitors SET last_scanned_at = datetime('now') WHERE campaign_id = ?1`)
+          .bind(mon.campaign_id)
+          .run();
+
+        if (freshLines.length > 0 && mon.magic_token) {
+          await sendResendEmail(env, {
+            to: mon.user_email,
+            subject: `LaunchPulse Daily Radar: ${freshLines.length} fresh buyer threads for ${mon.slug}`,
+            text: [
+              `Here are today's latest developer discussions matching your monitored keywords:`,
+              "",
+              ...freshLines.slice(0, 8),
+              "",
+              `Open your workspace: https://pulse.statementflow.win/dashboard`,
+            ].join("\n"),
+          });
         }
       }
     } catch {
       // ignore
     }
 
-    // 4. 每日三系统统一全自动 CEO 经营日报（仅当过去 24h 有真实订单、漏斗事件或外链巡检时发送简报）
+    // 3.5 自动抓取当日最新 Show HN 首发 SaaS 站点、被动体检 /llms.txt 并提取公开创始人邮箱入池（复刻 Submi.io 获客引擎）
+    let hnHarvest = { scanned: 0, withEmail: 0, items: [] as Array<{ domain: string; email: string; score: number; auditUrl: string }> };
+    try {
+      hnHarvest = await harvestDailyShowHnLaunches(env, 6);
+    } catch {
+      // ignore
+    }
+
+    // 4. 每日三系统统一全自动 CEO 经营日报（含当日自动捕获的 Show HN 新站创始人线索池）
     try {
       const [lp24h, sf24h, hc24h, clicks24h, sfEvents24h] = await Promise.all([
         env.DB.prepare(
@@ -2754,11 +2960,14 @@ export default {
 
       const total24hOrders = Number(lp24h?.cnt || 0) + Number(sf24h?.cnt || 0) + Number(hc24h?.cnt || 0);
       const total24hRev = Number(lp24h?.rev || 0) + Number(sf24h?.rev || 0) + Number(hc24h?.rev || 0);
+      const hnLeadLines = hnHarvest.items.map(
+        (it) => `   • ${it.domain} (Score ${it.score}/100 | Email: ${it.email || "none"}) -> ${it.auditUrl}`
+      );
 
       await sendResendEmail(env, {
         to: "hello@statementflow.win",
         fromLabel: "Overseas Growth OS",
-        subject: `📊 Daily Auto-Digest: $${total24hRev} (24h) · ${total24hOrders} Orders · ${Number(clicks24h?.cnt || 0)} Clicks`,
+        subject: `📊 Daily Auto-Digest: $${total24hRev} (24h) · ${total24hOrders} Orders · ${Number(clicks24h?.cnt || 0)} Clicks · +${hnHarvest.withEmail} ShowHN Emails`,
         text: [
           `Automated 24-Hour Operating Digest (${new Date().toISOString().slice(0, 10)}):`,
           ``,
@@ -2769,6 +2978,9 @@ export default {
           ``,
           `2. Backlink Health Patrol:`,
           `   • Checked: ${backlinkSummary.checked} | Live HTTP 200: ${backlinkSummary.verifiedLive} | Dofollow: ${backlinkSummary.dofollowCount}`,
+          ``,
+          `3. Auto-Harvested Show HN Founder Leads (Today: ${hnHarvest.scanned} scanned, ${hnHarvest.withEmail} with public email):`,
+          ...(hnLeadLines.length > 0 ? hnLeadLines : [`   • No new un-scanned Show HN domains in this window.`]),
           ``,
           `Admin Console: https://pulse.statementflow.win/admin`,
         ].join("\n"),

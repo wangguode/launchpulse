@@ -708,20 +708,38 @@ export async function handleV4DashboardOverview(
             conversions_count: number;
             created_at: string;
           }>(),
-    env.DB.prepare(
-      `SELECT directory_id, directory_name, directory_url, dr, category, status, live_backlink_url, updated_at FROM directory_submissions WHERE customer_email = ?1 ORDER BY dr DESC`
-    )
-      .bind(user.email)
-      .all<{
-        directory_id: string;
-        directory_name: string;
-        directory_url: string;
-        dr: number;
-        category: string;
-        status: string;
-        live_backlink_url: string;
-        updated_at: string;
-      }>(),
+    activeCampaign?.slug
+      ? env.DB.prepare(
+          `SELECT directory_id, directory_name, directory_url, dr, category, status, live_backlink_url, updated_at
+           FROM directory_submissions
+           WHERE customer_email = ?1 AND (slug = ?2 OR slug = '')
+           ORDER BY dr DESC`
+        )
+          .bind(user.email, activeCampaign.slug)
+          .all<{
+            directory_id: string;
+            directory_name: string;
+            directory_url: string;
+            dr: number;
+            category: string;
+            status: string;
+            live_backlink_url: string;
+            updated_at: string;
+          }>()
+      : env.DB.prepare(
+          `SELECT directory_id, directory_name, directory_url, dr, category, status, live_backlink_url, updated_at FROM directory_submissions WHERE customer_email = ?1 ORDER BY dr DESC`
+        )
+          .bind(user.email)
+          .all<{
+            directory_id: string;
+            directory_name: string;
+            directory_url: string;
+            dr: number;
+            category: string;
+            status: string;
+            live_backlink_url: string;
+            updated_at: string;
+          }>(),
     activeId
       ? env.DB.prepare(
           `SELECT directory_id, campaign_id, moderation_state, scheduled_wave, proof_screenshot_url, last_http_status, is_dofollow_verified, last_checked_at
@@ -1473,7 +1491,7 @@ export async function runBacklinkHealthCheck(
     ? await env.DB.prepare(
         `SELECT ds.customer_email, ds.directory_id, ds.live_backlink_url, c.id as campaign_id, c.target_url
          FROM directory_submissions ds
-         LEFT JOIN campaigns c ON c.user_email = ds.customer_email
+         LEFT JOIN campaigns c ON c.user_email = ds.customer_email AND (ds.slug = '' OR c.slug = ds.slug)
          WHERE ds.customer_email = ?1 AND ds.status = 'live' AND ds.live_backlink_url != ''
          ORDER BY ds.updated_at DESC LIMIT ?2`
       )
@@ -1488,7 +1506,7 @@ export async function runBacklinkHealthCheck(
     : await env.DB.prepare(
         `SELECT ds.customer_email, ds.directory_id, ds.live_backlink_url, c.id as campaign_id, c.target_url
          FROM directory_submissions ds
-         LEFT JOIN campaigns c ON c.user_email = ds.customer_email
+         LEFT JOIN campaigns c ON c.user_email = ds.customer_email AND (ds.slug = '' OR c.slug = ds.slug)
          WHERE ds.status = 'live' AND ds.live_backlink_url != ''
          ORDER BY ds.updated_at DESC LIMIT ?1`
       )
