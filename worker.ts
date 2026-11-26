@@ -594,7 +594,9 @@ async function sendResendEmail(
 ): Promise<boolean> {
   const apiKey = env.RESEND_API_KEY?.trim();
   if (!apiKey || !params.to) return false;
-  const from = env.RESEND_FROM_EMAIL?.trim() || "LaunchPulse <hello@statementflow.win>";
+  const rawFrom = env.RESEND_FROM_EMAIL?.trim() || "LaunchPulse <hello@mail.statementflow.win>";
+  // 确保发信子域对齐 Resend 已完成 DKIM 认证的 mail.statementflow.win，同时保留 reply_to 指向主域邮箱
+  const from = rawFrom.replace(/@statementflow\.win\b/i, "@mail.statementflow.win");
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -604,6 +606,7 @@ async function sendResendEmail(
       },
       body: JSON.stringify({
         from,
+        reply_to: "hello@statementflow.win",
         to: [params.to],
         subject: params.subject,
         text: params.text,
