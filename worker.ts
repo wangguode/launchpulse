@@ -597,13 +597,17 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
  */
 async function sendResendEmail(
   env: Env,
-  params: { to: string; subject: string; text: string }
+  params: { to: string; subject: string; text: string; fromLabel?: string }
 ): Promise<boolean> {
   const apiKey = env.RESEND_API_KEY?.trim();
   if (!apiKey || !params.to) return false;
-  const rawFrom = env.RESEND_FROM_EMAIL?.trim() || "LaunchPulse <hello@mail.statementflow.win>";
-  // 确保发信子域对齐 Resend 已完成 DKIM 认证的 mail.statementflow.win，同时保留 reply_to 指向主域邮箱
-  const from = rawFrom.replace(/@statementflow\.win\b/i, "@mail.statementflow.win");
+  const label = params.fromLabel || "LaunchPulse";
+  const rawFrom = env.RESEND_FROM_EMAIL?.trim() || `${label} <hello@mail.statementflow.win>`;
+  // 确保发信子域对齐 Resend 已完成 DKIM 认证的 mail.statementflow.win，并允许按子品牌替换发件人名称
+  const normalizedAddr = rawFrom.replace(/@statementflow\.win\b/i, "@mail.statementflow.win");
+  const from = params.fromLabel
+    ? `${params.fromLabel} <hello@mail.statementflow.win>`
+    : normalizedAddr;
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -623,6 +627,86 @@ async function sendResendEmail(
   } catch {
     return false;
   }
+}
+
+/**
+ * 三系统共享 D1 邮件发信队列（email_outbox）：
+ * 让同库绑定的 StatementFlow AI 与 HardCall 无需重复维护 RESEND_API_KEY，
+ * 写入 email_outbox 后触发 /api/internal/flush-outbox 秒级发出，并由每日 Cron 兜底重试。
+ */
+async function ensureEmailOutboxTable(env: Env): Promise<void> {
+  if (!env.DB) return;
+  try {
+    await env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS email_outbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        from_label TEXT NOT NULL DEFAULT 'StatementFlow',
+        to_email TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        body_text TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        sent_at TEXT NOT NULL DEFAULT ''
+      )`
+    ).run();
+    await env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS dfy_fulfillment_jobs (
+        order_id TEXT PRIMARY KEY,
+        customer_email TEXT NOT NULL,
+        target_url TEXT NOT NULL DEFAULT '',
+        slug TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'queued_wave1',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`
+    ).run();
+  } catch {
+    // ignore
+  }
+}
+
+async function flushSharedEmailOutbox(env: Env, limit = 15): Promise<number> {
+  if (!env.DB || !env.RESEND_API_KEY?.trim()) return 0;
+  await ensureEmailOutboxTable(env);
+  const pending = await env.DB.prepare(
+    `SELECT id, from_label, to_email, subject, body_text, attempts
+     FROM email_outbox WHERE status = 'pending' AND attempts < 3 ORDER BY id ASC LIMIT ?1`
+  )
+    .bind(limit)
+    .all<{
+      id: number;
+      from_label: string;
+      to_email: string;
+      subject: string;
+      body_text: string;
+      attempts: number;
+    }>();
+
+  let sentCount = 0;
+  for (const row of pending.results || []) {
+    const ok = await sendResendEmail(env, {
+      to: row.to_email,
+      subject: row.subject,
+      text: row.body_text,
+      fromLabel: row.from_label || "StatementFlow",
+    });
+    if (ok) {
+      sentCount += 1;
+      await env.DB.prepare(
+        `UPDATE email_outbox SET status = 'sent', attempts = attempts + 1, sent_at = datetime('now') WHERE id = ?1`
+      )
+        .bind(row.id)
+        .run();
+    } else {
+      await env.DB.prepare(
+        `UPDATE email_outbox SET attempts = attempts + 1, status = CASE WHEN attempts + 1 >= 3 THEN 'failed' ELSE 'pending' END WHERE id = ?1`
+      )
+        .bind(row.id)
+        .run();
+    }
+  }
+  return sentCount;
 }
 
 /**
@@ -724,8 +808,11 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
               "",
               "Your payment is confirmed and your workspace is unlocked immediately (no password needed).",
               "",
-              `• Customer Portal (50+ Directory Tracker, Bonus /llms.txt, Re-Scan & Buyer Feed): ${portalLink}`,
+              `• Customer Portal (100+ Directory Tracker, Bonus /llms.txt, Re-Scan & Buyer Feed): ${portalLink}`,
               slug ? `• Unlocked War-Room Report: ${warRoomLink}` : "",
+              plan === "dfy"
+                ? "• Done-For-You Sprint Auto-Queued: Please verify your Brand Launch Kit in the console; Wave 1 (Top 30 high-DR directories) starts within 24 hours."
+                : "",
               "",
               "Need anything? Simply reply to this email (hello@statementflow.win).",
               "",
@@ -733,6 +820,33 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
             ]
               .filter(Boolean)
               .join("\n"),
+          });
+
+          // 若为 $299 DFY 旗舰代投单，自动入队 dfy_fulfillment_jobs，供自动化投递流水线拉取履约
+          if (plan === "dfy") {
+            await ensureEmailOutboxTable(env);
+            await env.DB.prepare(
+              `INSERT INTO dfy_fulfillment_jobs (order_id, customer_email, target_url, slug, status, updated_at)
+               VALUES (?1, ?2, ?3, ?4, 'queued_wave1', datetime('now'))
+               ON CONFLICT(order_id) DO UPDATE SET updated_at = datetime('now')`
+            )
+              .bind(orderId, email, targetUrl, slug)
+              .run();
+          }
+
+          // 实时向创始人主邮箱发送新订单入账与履约提醒（自动经 Cloudflare Email Routing 投递至 Gmail）
+          await sendResendEmail(env, {
+            to: "hello@statementflow.win",
+            subject: `💰 [LaunchPulse Paid] $${amountUsd} (${plan.toUpperCase()}) from ${email}`,
+            text: [
+              `New Paid Order on LaunchPulse!`,
+              `- Order ID: ${orderId}`,
+              `- Customer: ${email}`,
+              `- Plan: ${planDisplayName} ($${amountUsd})`,
+              `- Target URL: ${targetUrl || slug || "N/A"}`,
+              `- Auto-Unlock Status: Active & Magic Link Sent`,
+              plan === "dfy" ? `- Action: Added to /api/admin/dfy-queue for Wave 1 fulfillment.` : `- Action: 100% Self-Serve Automated (Zero manual action required).`,
+            ].join("\n"),
           });
         }
       }
@@ -1754,6 +1868,15 @@ async function handleCheckoutClaim(request: Request, env: Env): Promise<Response
       .bind(orderId, email, slug === "public" ? "" : slug, targetUrl, plan, amountUsd, magicToken, tokenExpiry)
       .run();
 
+    if (plan === "dfy") {
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO dfy_fulfillment_jobs (order_id, customer_email, target_url, slug, status)
+         VALUES (?1, ?2, ?3, ?4, 'queued')`
+      )
+        .bind(orderId, email, targetUrl, slug === "public" ? "" : slug)
+        .run();
+    }
+
     let user = await env.DB.prepare(`SELECT id, email, name, role FROM users WHERE email = ?1 LIMIT 1`)
       .bind(email)
       .first<{ id: number; email: string; name: string; role: string }>();
@@ -1786,6 +1909,7 @@ async function handleCheckoutClaim(request: Request, env: Env): Promise<Response
         ok: true,
         unlocked: true,
         plan,
+        amountUsd,
         magicToken,
         user,
         redirectTo: "/dashboard?unlocked=1",
@@ -2035,6 +2159,30 @@ export default {
 
     if (url.pathname === "/api/health" && request.method === "GET") {
       return jsonResponse({ ok: true, service: "launchpulse" });
+    }
+
+    // 内部共享发信队列刷新端点（仅消费 D1 已入库的 email_outbox 待发记录，外部无法伪造收件人与正文）
+    if (url.pathname === "/api/internal/flush-outbox" && request.method === "POST") {
+      if (!checkRateLimit(request, 30)) return jsonResponse({ ok: false }, 429);
+      const sent = await flushSharedEmailOutbox(env, 10);
+      return jsonResponse({ ok: true, sent });
+    }
+
+    // DFY 自动化代投队列拉取接口（受 ADMIN_API_KEY 保护，供 opencli 投递流水线自动消费）
+    if (url.pathname === "/api/admin/dfy-queue" && request.method === "GET") {
+      if (!(await isAdminAuthorized(request, env))) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      if (!env.DB) return jsonResponse({ jobs: [] });
+      await ensureEmailOutboxTable(env);
+      const jobs = await env.DB.prepare(
+        `SELECT j.*, b.logo_url, b.short_tagline, b.medium_pitch, b.long_description, b.categories_json
+         FROM dfy_fulfillment_jobs j
+         LEFT JOIN campaigns c ON c.user_email = j.customer_email
+         LEFT JOIN brand_kits b ON b.campaign_id = c.id
+         ORDER BY j.created_at DESC LIMIT 50`
+      ).all();
+      return jsonResponse({ ok: true, jobs: jobs.results || [] });
     }
 
     if ((url.pathname === "/directories" || url.pathname === "/directories/") && request.method === "GET") {
@@ -2479,16 +2627,24 @@ export default {
   },
 
   /**
-   * 每日 UTC 13:00 自动执行：
-   * 1. 已收录外链 HTTP 200 & dofollow 自动验活巡检
-   * 2. 为所有 $29/月 Radar Pro 活跃订阅客户抓取最新高意图买家线索并发送日报
+   * 每日 UTC 13:00（北京时间 21:00）全自动闭环巡检：
+   * 1. 消费并发送三站共享 D1 email_outbox 队列邮件
+   * 2. 对已收录外链执行 HTTP 200 & dofollow 自动验活巡检
+   * 3. 对所有活跃订阅者与监控项目自动抓取最新买家求购线索并发送日报
+   * 4. 聚合三大系统（StatementFlow + HardCall + LaunchPulse）当日营收、漏斗与待办，发送 CEO 自动经营日报
    */
   async scheduled(_event: unknown, env: Env): Promise<void> {
     if (!env.DB) return;
     try {
-      await runBacklinkHealthCheck(env, "", 20);
+      await flushSharedEmailOutbox(env, 25);
     } catch {
-      // 单次验活失败不影响买家雷达发送
+      // ignore
+    }
+    let backlinkSummary = { checked: 0, verifiedLive: 0, dofollowCount: 0 };
+    try {
+      backlinkSummary = await runBacklinkHealthCheck(env, "", 25);
+    } catch {
+      // 单次验活失败不影响后续任务
     }
     try {
       const subs = await env.DB.prepare(
@@ -2562,6 +2718,61 @@ export default {
           // 单客户异常不影响其余订阅客户
         }
       }
+    } catch {
+      // ignore
+    }
+
+    // 4. 每日三系统统一全自动 CEO 经营日报（仅当过去 24h 有真实订单、漏斗事件或外链巡检时发送简报）
+    try {
+      const [lp24h, sf24h, hc24h, clicks24h, sfEvents24h] = await Promise.all([
+        env.DB.prepare(
+          `SELECT COUNT(*) as cnt, COALESCE(SUM(amount_usd), 0) as rev FROM customers_orders WHERE status = 'active' AND created_at >= datetime('now', '-24 hours')`
+        )
+          .first<{ cnt: number; rev: number }>()
+          .catch(() => ({ cnt: 0, rev: 0 })),
+        env.DB.prepare(
+          `SELECT COUNT(*) as cnt, COALESCE(SUM(amount_usd), 0) as rev FROM sf_orders WHERE status = 'completed' AND created_at >= datetime('now', '-24 hours')`
+        )
+          .first<{ cnt: number; rev: number }>()
+          .catch(() => ({ cnt: 0, rev: 0 })),
+        env.DB.prepare(
+          `SELECT COUNT(*) as cnt, COALESCE(SUM(amount_usd), 0) as rev FROM hc_orders WHERE status = 'completed' AND created_at >= datetime('now', '-24 hours')`
+        )
+          .first<{ cnt: number; rev: number }>()
+          .catch(() => ({ cnt: 0, rev: 0 })),
+        env.DB.prepare(
+          `SELECT COUNT(*) as cnt FROM link_clicks WHERE clicked_at >= datetime('now', '-24 hours')`
+        )
+          .first<{ cnt: number }>()
+          .catch(() => ({ cnt: 0 })),
+        env.DB.prepare(
+          `SELECT COUNT(*) as cnt FROM sf_funnel_events WHERE created_at >= datetime('now', '-24 hours')`
+        )
+          .first<{ cnt: number }>()
+          .catch(() => ({ cnt: 0 })),
+      ]);
+
+      const total24hOrders = Number(lp24h?.cnt || 0) + Number(sf24h?.cnt || 0) + Number(hc24h?.cnt || 0);
+      const total24hRev = Number(lp24h?.rev || 0) + Number(sf24h?.rev || 0) + Number(hc24h?.rev || 0);
+
+      await sendResendEmail(env, {
+        to: "hello@statementflow.win",
+        fromLabel: "Overseas Growth OS",
+        subject: `📊 Daily Auto-Digest: $${total24hRev} (24h) · ${total24hOrders} Orders · ${Number(clicks24h?.cnt || 0)} Clicks`,
+        text: [
+          `Automated 24-Hour Operating Digest (${new Date().toISOString().slice(0, 10)}):`,
+          ``,
+          `1. Revenue & Paid Orders (Last 24h): $${total24hRev} USD (${total24hOrders} orders)`,
+          `   • StatementFlow AI: ${Number(sf24h?.cnt || 0)} orders ($${Number(sf24h?.rev || 0)}) | ${Number(sfEvents24h?.cnt || 0)} funnel events`,
+          `   • HardCall B2B:     ${Number(hc24h?.cnt || 0)} orders ($${Number(hc24h?.rev || 0)})`,
+          `   • LaunchPulse:      ${Number(lp24h?.cnt || 0)} orders ($${Number(lp24h?.rev || 0)}) | ${Number(clicks24h?.cnt || 0)} tracked clicks`,
+          ``,
+          `2. Backlink Health Patrol:`,
+          `   • Checked: ${backlinkSummary.checked} | Live HTTP 200: ${backlinkSummary.verifiedLive} | Dofollow: ${backlinkSummary.dofollowCount}`,
+          ``,
+          `Admin Console: https://pulse.statementflow.win/admin`,
+        ].join("\n"),
+      });
     } catch {
       // ignore
     }

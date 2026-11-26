@@ -197,6 +197,17 @@ export default function DashboardPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ checkoutId }),
         })
+          .then((r) => r.json().catch(() => null))
+          .then((claimed: { unlocked?: boolean; amountUsd?: number } | null) => {
+            if (claimed?.unlocked && typeof window !== "undefined") {
+              try {
+                const w = window as Window & { lpConvert?: (t: string, a: number) => void };
+                w.lpConvert?.("purchase", Number(claimed.amountUsd || 39));
+              } catch {
+                // 忽略归因像素异常
+              }
+            }
+          })
           .catch(() => {})
           .finally(() => {
             void loadOverview(initCampId > 0 ? initCampId : undefined);

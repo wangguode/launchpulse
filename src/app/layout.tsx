@@ -123,6 +123,7 @@ export default function RootLayout({
             __html: `(function(){try{var s=localStorage.getItem('lp_locale');var n=(navigator.language||'').toLowerCase();var l=(s==='en'||s==='zh'||s==='ja')?s:(n.indexOf('zh')===0?'zh':n.indexOf('ja')===0?'ja':'en');document.documentElement.lang=l;}catch(e){}})();`,
           }}
         />
+        <script src="/api/pixel.js" defer />
       </head>
       <body className="bg-background text-foreground antialiased relative min-h-screen">
         <ThemeProvider>
