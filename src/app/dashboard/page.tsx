@@ -170,6 +170,7 @@ export default function DashboardPage() {
       const v = sp.get("view") as CoreView | null;
       if (v && VALID_VIEWS.includes(v)) setView(v);
       const initCampId = Number(sp.get("campaignId") || 0);
+      const checkoutId = (sp.get("checkout_id") || sp.get("checkoutId") || "").trim();
       if (sp.get("unlocked") === "1") {
         toast.success(
           isZh ? "付款已确认，方案权益已自动同步解锁！" : "Payment confirmed — workspace entitlements updated!"
@@ -180,6 +181,18 @@ export default function DashboardPage() {
         setData(buildSampleOverview());
         setSelectedCampaignId(1);
         setLoading(false);
+        return;
+      }
+      if (checkoutId) {
+        fetch("/api/checkout/claim", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ checkoutId }),
+        })
+          .catch(() => {})
+          .finally(() => {
+            void loadOverview(initCampId > 0 ? initCampId : undefined);
+          });
         return;
       }
       void loadOverview(initCampId > 0 ? initCampId : undefined);

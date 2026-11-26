@@ -70,7 +70,23 @@ export default function WarRoomClient({ report }: Props) {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const token = params.get("token")?.trim();
-      if (params.get("unlocked") === "1" && !token) {
+      const checkoutId = (params.get("checkout_id") || params.get("checkoutId") || "").trim();
+      if (checkoutId) {
+        fetch("/api/checkout/claim", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ checkoutId }),
+        })
+          .then((r) => r.json())
+          .then((d: { unlocked?: boolean; plan?: string }) => {
+            if (d.unlocked) {
+              setIsUnlocked(true);
+              setUnlockedPlan(d.plan || "radar");
+              setPostCheckoutPrompt(false);
+            }
+          })
+          .catch(() => {});
+      } else if (params.get("unlocked") === "1" && !token) {
         setPostCheckoutPrompt(true);
       }
       if (token) {

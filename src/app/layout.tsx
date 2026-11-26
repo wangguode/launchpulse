@@ -19,19 +19,33 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://pulse.statementflow.win"),
-  title: "LaunchPulse — 海外精选目录分发、高意向买家雷达与美元归因平台",
+  title: "LaunchPulse — 3-Wave SaaS Directory Distribution, Buyer Radar & Edge Attribution",
   description:
-    "专为出海 SaaS 与独立开发者打造的增长与归因工作台：100+ 海外高权重目录节奏分发、24/7 Reddit/HN/GitHub 买家意图捕手、边缘归因短链与可核验公开战报。",
+    "Post-launch distribution & revenue attribution workspace for SaaS founders: staggered 3-wave pacing across 100+ vetted directories, live HTTP 200 & dofollow verification, 24/7 Reddit/HN/GitHub buyer radar, and sub-10ms Cloudflare Edge shortlinks.",
   robots: { index: true, follow: true },
   alternates: { canonical: "https://pulse.statementflow.win" },
   openGraph: {
-    title: "LaunchPulse — 海外精选目录分发与美元归因增长平台",
+    title: "LaunchPulse — 3-Wave SaaS Directory Distribution & Edge Attribution",
     description:
-      "100+ 精选海外高权重目录分发、24/7 买家求购收件箱、边缘归因短链与可核验公开战报。",
+      "Turn 100+ curated SaaS directories and buyer-intent threads into verifiable revenue with 3-wave pacing, live backlink checks, and sub-10ms /r/ edge shortlinks.",
     url: "https://pulse.statementflow.win",
     siteName: "LaunchPulse",
-    images: [{ url: "/teardowns/certnudge-poster.png", width: 1280, height: 720, alt: "LaunchPulse" }],
+    images: [
+      {
+        url: "/og-launchpulse-v8.png",
+        width: 1440,
+        height: 900,
+        alt: "LaunchPulse V8 — SaaS Distribution & Revenue Attribution Workspace",
+      },
+    ],
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "LaunchPulse — 3-Wave SaaS Directory Distribution & Edge Attribution",
+    description:
+      "100+ curated SaaS directories paced across 3 waves, live HTTP 200 + dofollow verification, 12-point AEO scanner, and sub-10ms edge attribution.",
+    images: ["/og-launchpulse-v8.png"],
   },
 };
 
@@ -42,7 +56,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="zh"
+      lang="en"
       data-theme="launchpulse"
       suppressHydrationWarning
       className={`${plusJakarta.variable} ${jetbrainsMono.variable}`}
@@ -106,7 +120,7 @@ export default function RootLayout({
         />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var l=localStorage.getItem('lp_locale')||'zh';if(l==='en'||l==='zh'||l==='ja'){document.documentElement.lang=l;}}catch(e){}})();`,
+            __html: `(function(){try{var s=localStorage.getItem('lp_locale');var n=(navigator.language||'').toLowerCase();var l=(s==='en'||s==='zh'||s==='ja')?s:(n.indexOf('zh')===0?'zh':n.indexOf('ja')===0?'ja':'en');document.documentElement.lang=l;}catch(e){}})();`,
           }}
         />
       </head>

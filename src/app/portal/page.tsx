@@ -54,9 +54,32 @@ export default function PortalBridgePage() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token")?.trim();
+    const checkoutId = (params.get("checkout_id") || params.get("checkoutId") || "").trim();
     const demo = params.get("demo");
     if (demo) {
       router.replace("/dashboard?sample=1");
+      return;
+    }
+    if (checkoutId) {
+      setExchanging(true);
+      fetch("/api/checkout/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkoutId }),
+      })
+        .then((r) => r.json())
+        .then((d: { ok?: boolean; redirectTo?: string; error?: string }) => {
+          if (d.ok) {
+            router.replace(d.redirectTo || "/dashboard?unlocked=1");
+            return;
+          }
+          setError(d.error || t.portal.lookupError);
+          setExchanging(false);
+        })
+        .catch(() => {
+          setError(t.portal.lookupError);
+          setExchanging(false);
+        });
       return;
     }
     if (token) {

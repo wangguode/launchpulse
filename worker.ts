@@ -1677,6 +1677,124 @@ async function handleMagicExchange(request: Request, env: Env): Promise<Response
 }
 
 /**
+ * Creem 支付回跳直通核验（/api/checkout/claim）：
+ * 凭回跳 URL 中的 checkout_id 直接向 Creem API 服务端验真，幂等入账 D1 并下发 HttpOnly 登录会话，
+ * 彻底消除「Webhook 延迟」或「Resend 邮件未送达」导致付费客户无法进入工作台的单点故障。
+ */
+async function handleCheckoutClaim(request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
+  const creemApiKey = env.CREEM_API_KEY?.trim();
+  if (!creemApiKey) return jsonResponse({ error: "Checkout verification unavailable" }, 503);
+
+  try {
+    const body = (await request.json()) as { checkoutId?: string };
+    const checkoutId = (body.checkoutId || "").trim();
+    if (!checkoutId || checkoutId.length < 4 || checkoutId.length > 96) {
+      return jsonResponse({ ok: false, error: "Invalid checkout_id" }, 400);
+    }
+
+    const res = await fetch(
+      `https://api.creem.io/v1/checkouts?checkout_id=${encodeURIComponent(checkoutId)}`,
+      { headers: { "x-api-key": creemApiKey } }
+    );
+    if (!res.ok) {
+      return jsonResponse({ ok: false, unlocked: false, error: "Checkout session not verified" }, 402);
+    }
+
+    const data = (await res.json()) as {
+      id?: string;
+      status?: string;
+      customer?: { email?: string };
+      order?: { id?: string; amount?: number };
+      metadata?: { plan?: string; slug?: string; targetUrl?: string };
+    };
+
+    if (data.status !== "completed") {
+      return jsonResponse({ ok: false, unlocked: false, status: data.status || "pending" }, 402);
+    }
+
+    const sessionUser = await getSessionUser(request, env);
+    const email = (data.customer?.email || sessionUser?.email || "").trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      return jsonResponse({ ok: false, error: "Customer email missing on checkout" }, 400);
+    }
+
+    const rawPlan = (data.metadata?.plan || "blitz").toLowerCase();
+    const plan = rawPlan === "dfy" ? "dfy" : rawPlan === "radar" ? "radar" : "blitz";
+    const slug = (data.metadata?.slug || "").trim();
+    const targetUrl = (data.metadata?.targetUrl || "").trim();
+    const orderId = data.order?.id || data.id || checkoutId;
+    const fallbackCents = plan === "dfy" ? 29900 : plan === "blitz" ? 3900 : 2900;
+    const amountUsd = Math.round((data.order?.amount || fallbackCents) / 100);
+
+    const existingOrder = await env.DB.prepare(
+      `SELECT magic_token FROM customers_orders WHERE order_id = ?1 LIMIT 1`
+    )
+      .bind(orderId)
+      .first<{ magic_token: string }>();
+
+    const magicToken = existingOrder?.magic_token || crypto.randomUUID().replace(/-/g, "");
+    const tokenExpiry = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
+
+    await env.DB.prepare(
+      `INSERT INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token, token_expires_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', ?7, ?8)
+       ON CONFLICT(order_id) DO UPDATE SET status = 'active', token_expires_at = ?8`
+    )
+      .bind(orderId, email, slug === "public" ? "" : slug, targetUrl, plan, amountUsd, magicToken, tokenExpiry)
+      .run();
+
+    let user = await env.DB.prepare(`SELECT id, email, name, role FROM users WHERE email = ?1 LIMIT 1`)
+      .bind(email)
+      .first<{ id: number; email: string; name: string; role: string }>();
+
+    if (!user) {
+      const randPass = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+      const { hash, salt } = await hashPassword(randPass);
+      const displayName = email.split("@")[0];
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO users (email, name, password_hash, password_salt, role) VALUES (?1, ?2, ?3, ?4, 'customer')`
+      )
+        .bind(email, displayName, hash, salt)
+        .run();
+      user = await env.DB.prepare(`SELECT id, email, name, role FROM users WHERE email = ?1 LIMIT 1`)
+        .bind(email)
+        .first<{ id: number; email: string; name: string; role: string }>();
+    }
+    if (!user) return jsonResponse({ ok: false, error: "Account provisioning failed" }, 500);
+
+    const sessionToken = bytesToHex(crypto.getRandomValues(new Uint8Array(24)));
+    const sessionExpiry = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
+    await env.DB.prepare(
+      `INSERT INTO sessions (token, user_id, email, expires_at) VALUES (?1, ?2, ?3, ?4)`
+    )
+      .bind(sessionToken, user.id, user.email, sessionExpiry)
+      .run();
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        unlocked: true,
+        plan,
+        magicToken,
+        user,
+        redirectTo: "/dashboard?unlocked=1",
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Set-Cookie": makeSessionCookie(sessionToken),
+          ...SECURITY_HEADERS,
+        },
+      }
+    );
+  } catch {
+    return jsonResponse({ ok: false, error: "Invalid checkout claim payload" }, 400);
+  }
+}
+
+/**
  * 在线可视化管理台聚合接口（支持 HttpOnly Admin Cookie 或 x-admin-key）
  */
 async function handleAdminDashboard(request: Request, env: Env): Promise<Response> {
@@ -2060,6 +2178,10 @@ export default {
       if (!checkRateLimit(request, 15)) return jsonResponse({ error: "Too many checkout attempts." }, 429);
       return handleCheckout(request, env);
     }
+    if (url.pathname === "/api/checkout/claim" && request.method === "POST") {
+      if (!checkRateLimit(request, 15)) return jsonResponse({ error: "Too many verification attempts." }, 429);
+      return handleCheckoutClaim(request, env);
+    }
     if (url.pathname === "/api/webhook" && request.method === "POST") {
       return handleWebhook(request, env);
     }
@@ -2068,23 +2190,29 @@ export default {
       return handlePortalLookup(request, env);
     }
     if (url.pathname === "/api/portal/verify-unlock" && request.method === "POST") {
+      if (!checkRateLimit(request, 20)) return jsonResponse({ unlocked: false, error: "Too many attempts." }, 429);
       if (!env.DB) return jsonResponse({ unlocked: false });
       try {
-        const body = (await request.json()) as { token?: string; email?: string; slug?: string };
+        const body = (await request.json()) as { token?: string; slug?: string };
         const token = (body.token || "").trim();
-        const email = (body.email || "").trim().toLowerCase();
-        if (!token && !email) return jsonResponse({ unlocked: false });
-        const row = token
-          ? await env.DB.prepare(
-              `SELECT plan FROM customers_orders WHERE magic_token = ?1 AND status = 'active' LIMIT 1`
-            )
-              .bind(token)
-              .first<{ plan: string }>()
-          : await env.DB.prepare(
-              `SELECT plan FROM customers_orders WHERE customer_email = ?1 AND status = 'active' LIMIT 1`
-            )
-              .bind(email)
-              .first<{ plan: string }>();
+        if (token) {
+          const row = await env.DB.prepare(
+            `SELECT plan, token_expires_at FROM customers_orders WHERE magic_token = ?1 AND status = 'active' LIMIT 1`
+          )
+            .bind(token)
+            .first<{ plan: string; token_expires_at?: string }>();
+          const expired = Boolean(row?.token_expires_at) && new Date(row!.token_expires_at!).getTime() < Date.now();
+          if (!row || expired) return jsonResponse({ unlocked: false, plan: null });
+          return jsonResponse({ unlocked: true, plan: row.plan });
+        }
+        // 严禁凭裸邮箱枚举订单：无 Magic Token 时仅允许已登录本人会话校验
+        const sessionUser = await getSessionUser(request, env);
+        if (!sessionUser) return jsonResponse({ unlocked: false, plan: null });
+        const row = await env.DB.prepare(
+          `SELECT plan FROM customers_orders WHERE customer_email = ?1 AND status = 'active' ORDER BY id DESC LIMIT 1`
+        )
+          .bind(sessionUser.email)
+          .first<{ plan: string }>();
         return jsonResponse({ unlocked: Boolean(row), plan: row?.plan || null });
       } catch {
         return jsonResponse({ unlocked: false }, 400);

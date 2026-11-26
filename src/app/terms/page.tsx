@@ -10,11 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export default function TermsPage() {
   const { t } = useI18n();
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 h-14 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-full max-w-4xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 font-semibold text-sm tracking-tight">
-            <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+    <div className="min-h-screen bg-transparent text-foreground">
+      <div className="sticky top-0 z-40 px-4 pt-3 sm:px-6">
+        <header className="lp-frosted-topbar mx-auto flex h-14 max-w-4xl items-center justify-between rounded-2xl px-4 sm:px-5">
+          <Link href="/" className="flex items-center gap-2.5 font-semibold text-[15px] tracking-tight">
+            <div className="lp-btn-bevel flex size-8 items-center justify-center rounded-[10px]">
               <BrandMark className="size-4" tone="light" />
             </div>
             <span>LaunchPulse</span>
@@ -23,9 +23,9 @@ export default function TermsPage() {
             <LangSwitcher />
             <ThemeModeToggle />
           </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-4xl px-4 sm:px-6 py-12 space-y-6">
+        </header>
+      </div>
+      <main className="mx-auto max-w-4xl px-4 sm:px-6 py-10 space-y-6">
         <Link href="/" className="text-xs text-primary hover:underline">
           {t.common.backToHome}
         </Link>

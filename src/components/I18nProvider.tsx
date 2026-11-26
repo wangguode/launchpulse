@@ -9,15 +9,15 @@ interface I18nContextValue {
   t: Dictionary;
 }
 
-// V5 默认面向中国出海开发者母语中文优先，支持一键切换纯正海外英文
+// SSR / 搜索引擎与海外买家默认英文优先，客户端首次挂载按浏览器系统语言智能自适应（zh -> 简体中文，ja -> 日语，其余 -> 英文）
 const I18nContext = createContext<I18nContextValue>({
-  locale: "zh",
+  locale: "en",
   setLocale: () => {},
-  t: DICTIONARIES.zh,
+  t: DICTIONARIES.en,
 });
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("zh");
+  const [locale, setLocaleState] = useState<Locale>("en");
 
   useEffect(() => {
     try {
@@ -25,9 +25,16 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       if (saved === "en" || saved === "zh" || saved === "ja") {
         setLocaleState(saved);
         document.documentElement.lang = saved;
-      } else {
-        document.documentElement.lang = "zh";
+        return;
       }
+      const navLang = (navigator.language || "").toLowerCase();
+      const detected: Locale = navLang.startsWith("zh")
+        ? "zh"
+        : navLang.startsWith("ja")
+        ? "ja"
+        : "en";
+      setLocaleState(detected);
+      document.documentElement.lang = detected;
     } catch {
       // ignore
     }
