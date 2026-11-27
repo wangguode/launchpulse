@@ -696,8 +696,77 @@ async function ensureEmailOutboxTable(env: Env): Promise<void> {
     } catch {
       // 列已存在时安全忽略
     }
+    try {
+      await env.DB.prepare(
+        `ALTER TABLE show_hn_prospects ADD COLUMN buyer_threads_json TEXT NOT NULL DEFAULT '[]'`
+      ).run();
+    } catch {
+      // 列已存在时安全忽略
+    }
   } catch {
     // ignore
+  }
+}
+
+/**
+ * B 计划核心差异化武器：根据 Show HN 项目的标题关键词，自动从 Hacker News 实时抓取 2-3 条
+ * 正在痛点求助/寻找替代方案的真实买家讨论原帖（先给创始人送真买家，碾压普通目录代投垃圾邮件）
+ */
+async function findRealBuyerThreadsForTitle(
+  hnTitle: string,
+  domain: string
+): Promise<Array<{ source: string; title: string; author: string; url: string; snippet: string }>> {
+  const stopWords = new Set([
+    "show", "hn", "the", "and", "for", "with", "that", "this", "from", "your", "into",
+    "open", "source", "free", "tool", "app", "built", "made", "simple", "fast", "new",
+    "using", "without", "based", "web", "online", "platform", "service", "system", "local",
+  ]);
+  const tokens = hnTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !stopWords.has(w))
+    .slice(0, 3);
+  const query = tokens.slice(0, 2).join(" ") || domain.split(".")[0];
+  if (!query) return [];
+
+  try {
+    const cutoffSec = Math.floor(Date.now() / 1000) - 21 * 86400;
+    const res = await fetch(
+      `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(
+        query
+      )}&tags=comment&numericFilters=created_at_i>${cutoffSec}&hitsPerPage=12`
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      hits?: Array<{
+        objectID: string;
+        author?: string;
+        story_title?: string;
+        title?: string;
+        comment_text?: string;
+      }>;
+    };
+    const out: Array<{ source: string; title: string; author: string; url: string; snippet: string }> = [];
+    const seen = new Set<string>();
+    for (const hit of data.hits || []) {
+      if (out.length >= 3) break;
+      const st = cleanEntities(hit.story_title || hit.title || "").trim();
+      const body = cleanEntities(hit.comment_text || "").trim();
+      if (!st || /^\[dead\]|^show hn:|who is hiring/i.test(st)) continue;
+      if (st.toLowerCase().includes(domain.toLowerCase()) || seen.has(st)) continue;
+      seen.add(st);
+      out.push({
+        source: "Hacker News",
+        title: st.slice(0, 120),
+        author: `@${hit.author || "hn_user"}`,
+        url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
+        snippet: body.slice(0, 150),
+      });
+    }
+    return out;
+  } catch {
+    return [];
   }
 }
 
@@ -809,10 +878,11 @@ async function harvestDailyShowHnLaunches(
 
       const auditUrl = `https://pulse.statementflow.win/audit/live?url=${encodeURIComponent(origin)}`;
       const hnTitle = cleanEntities(hit.title || domain).replace(/^Show HN:\s*/i, "").slice(0, 140);
+      const buyerThreads = await findRealBuyerThreadsForTitle(hnTitle, domain);
       await env.DB.prepare(
         `INSERT OR IGNORE INTO show_hn_prospects (
-           domain, title, target_url, hn_url, hn_author, founder_email, aeo_score, has_llms_txt, leaks_summary, audit_url
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`
+           domain, title, target_url, hn_url, hn_author, founder_email, aeo_score, has_llms_txt, leaks_summary, audit_url, buyer_threads_json
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`
       )
         .bind(
           domain,
@@ -824,7 +894,8 @@ async function harvestDailyShowHnLaunches(
           score,
           hasLlms ? 1 : 0,
           leakTags.join(", ") || "minor directory gap",
-          auditUrl
+          auditUrl,
+          JSON.stringify(buyerThreads)
         )
         .run();
 
@@ -2384,6 +2455,56 @@ export default {
         `SELECT * FROM show_hn_prospects ORDER BY discovered_at DESC LIMIT 50`
       ).all();
       return jsonResponse({ ok: true, harvestResult, leads: rows.results || [] });
+    }
+
+    // 企业域名专业发信接口（基于 Resend DKIM/SPF 认证域 hello@mail.statementflow.win，彻底取代免费 Gmail 发 B2B 开发信）
+    if (url.pathname === "/api/admin/send-outreach" && request.method === "POST") {
+      if (!(await isAdminAuthorized(request, env))) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      try {
+        const body = (await request.json()) as {
+          to?: string;
+          subject?: string;
+          text?: string;
+          fromLabel?: string;
+          slug?: string;
+          channelTag?: string;
+          showHnDomain?: string;
+        };
+        const to = (body.to || "").trim().toLowerCase();
+        const subject = (body.subject || "").trim().slice(0, 180);
+        const text = (body.text || "").trim().slice(0, 4000);
+        const fromLabel = (body.fromLabel || "Wang Guo · LaunchPulse").trim().slice(0, 60);
+        if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) || !subject || !text) {
+          return jsonResponse({ ok: false, error: "Missing valid to, subject, or text." }, 400);
+        }
+        const ok = await sendResendEmail(env, { to, subject, text, fromLabel });
+        if (!ok) {
+          return jsonResponse({ ok: false, error: "Resend delivery failed. Check RESEND_API_KEY." }, 502);
+        }
+        if (env.DB) {
+          await ensureEmailOutboxTable(env);
+          const slug = (body.slug || to.split("@")[1] || `lead-${Date.now()}`).toLowerCase().replace(/[^a-z0-9-_]/g, "-").slice(0, 64);
+          await env.DB.prepare(
+            `INSERT INTO outreach_logs (slug, recipient_email, channel, sent_at, last_event_at, last_event_type, follow_up_status)
+             VALUES (?1, ?2, 'resend_domain', datetime('now'), datetime('now'), ?3, 'pending')
+             ON CONFLICT(slug) DO UPDATE SET last_event_at = datetime('now'), last_event_type = ?3`
+          )
+            .bind(slug, to, (body.channelTag || "domain_outreach").slice(0, 40))
+            .run();
+          if (body.showHnDomain) {
+            await env.DB.prepare(
+              `UPDATE show_hn_prospects SET outreach_status = 'emailed' WHERE domain = ?1`
+            )
+              .bind(body.showHnDomain.trim().toLowerCase())
+              .run();
+          }
+        }
+        return jsonResponse({ ok: true, to, from: `${fromLabel} <hello@mail.statementflow.win>` });
+      } catch {
+        return jsonResponse({ ok: false, error: "Invalid outreach payload." }, 400);
+      }
     }
 
     if ((url.pathname === "/directories" || url.pathname === "/directories/") && request.method === "GET") {

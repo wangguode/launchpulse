@@ -603,15 +603,21 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
             <WaveTelemetryMatrix directories={SAMPLE_LEDGER.directories} isZh={isZh} />
 
             <Card className="overflow-hidden">
-              <div className="flex items-center justify-between border-b border-border/70 bg-[var(--frost-well)] px-5 py-3 text-[13px]">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 bg-[var(--frost-well)] px-5 py-3 text-[13px]">
                 <div className="flex items-center gap-2.5 font-medium">
                   <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>{isZh ? "LaunchPulse 增长指挥台 · AcmeFlow 30 天真实归因账本" : "LaunchPulse Command Center · Live Attribution Stage"}</span>
+                  <span>{isZh ? "LaunchPulse 增长指挥台 · 公开可核验实盘战报与归因沙盒" : "LaunchPulse Command Center · Verifiable Public Proof & Sandbox"}</span>
                 </div>
-                <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/dashboard?sample=1" />}>
-                  {isZh ? "进入完整交互沙盒" : "Open Live Sandbox"}
-                  <IconArrowUpRight className="size-3.5" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" className="h-7 text-xs" render={<Link href="/report/rpt-7pwk585y" />}>
+                    {isZh ? "查验 StatementFlow 实盘战报" : "Live Case: StatementFlow AI"}
+                    <IconExternalLink className="size-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/dashboard?sample=1" />}>
+                    {isZh ? "进入交互沙盒" : "Open Sandbox"}
+                    <IconArrowUpRight className="size-3.5" />
+                  </Button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 divide-y border-border/60 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
