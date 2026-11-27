@@ -3102,10 +3102,118 @@ export default {
       // ignore
     }
 
-    // 3.5 自动抓取当日最新 Show HN 首发 SaaS 站点、被动体检 /llms.txt 并提取公开创始人邮箱入池（复刻 Submi.io 获客引擎）
+    // 3.5 自动抓取当日最新 Show HN 首发 SaaS 站点、被动体检 /llms.txt 并提取公开创始人邮箱入池
     let hnHarvest = { scanned: 0, withEmail: 0, items: [] as Array<{ domain: string; email: string; score: number; auditUrl: string }> };
     try {
       hnHarvest = await harvestDailyShowHnLaunches(env, 6);
+    } catch {
+      // ignore
+    }
+
+    // 3.6 黄金首发窗口全自动精准触达：对刚捕获到公开创始人邮箱的 Show HN 新站，先免费送上真实买家讨论帖 + 专属 /llms.txt 报告（每日限额 3 封，严防重复）
+    let autoOutreachSent = 0;
+    try {
+      const candidates = await env.DB.prepare(
+        `SELECT domain, target_url, title, founder_email, aeo_score, has_llms_txt, buyer_threads_json
+         FROM show_hn_prospects
+         WHERE outreach_status = 'queued' AND founder_email != ''
+         ORDER BY discovered_at DESC LIMIT 4`
+      ).all<{
+        domain: string;
+        target_url: string;
+        title: string;
+        founder_email: string;
+        aeo_score: number;
+        has_llms_txt: number;
+        buyer_threads_json?: string;
+      }>();
+
+      for (const row of candidates.results || []) {
+        if (autoOutreachSent >= 3) break;
+        const email = (row.founder_email || "").trim().toLowerCase();
+        if (
+          !email ||
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+          /^(noreply|no-reply|donotreply|privacy|security|abuse|legal|dmca)@/i.test(email) ||
+          /example\.com|sentry\.io|github\.com/i.test(email)
+        ) {
+          await env.DB.prepare(`UPDATE show_hn_prospects SET outreach_status = 'skipped' WHERE domain = ?1`)
+            .bind(row.domain)
+            .run();
+          continue;
+        }
+        const alreadySent = await env.DB.prepare(
+          `SELECT 1 FROM outreach_logs WHERE LOWER(recipient_email) = ?1 LIMIT 1`
+        )
+          .bind(email)
+          .first();
+        if (alreadySent) {
+          await env.DB.prepare(`UPDATE show_hn_prospects SET outreach_status = 'emailed' WHERE domain = ?1`)
+            .bind(row.domain)
+            .run();
+          continue;
+        }
+
+        let threads: Array<{ title: string; url: string }> = [];
+        try {
+          threads = JSON.parse(row.buyer_threads_json || "[]") as Array<{ title: string; url: string }>;
+        } catch {
+          threads = [];
+        }
+        if (threads.length === 0 && row.title) {
+          threads = await findRealBuyerThreadsForTitle(row.title, row.domain).catch(() => []);
+        }
+
+        const auditLink = `https://pulse.statementflow.win/audit/live?url=${encodeURIComponent(`https://${row.domain}`)}`;
+        const threadBlock =
+          threads.length > 0
+            ? [
+                `While indexing today's Show HN launches, our radar also surfaced ${threads.length} active developer discussion(s) around this space where your perspective might help:`,
+                ...threads.slice(0, 2).map((t) => `• ${t.title}\n  ${t.url}`),
+                ``,
+              ]
+            : [];
+
+        const llmsLine = row.has_llms_txt
+          ? `Your site already serves /llms.txt (nice work — Readiness Score: ${row.aeo_score}/100). We generated an updated 12-point AEO & directory authority snapshot for ${row.domain} here:`
+          : `One quick win from our passive scan (${row.aeo_score}/100): ${row.domain} doesn't have a /llms.txt manifest yet for ChatGPT Search & Perplexity citations. We generated a ready-to-drop /llms.txt file for you free (zero signup):`;
+
+        const sentOk = await sendResendEmail(env, {
+          to: email,
+          fromLabel: "Wang Guo · LaunchPulse",
+          subject: `Congrats on the Show HN for ${row.domain} (+ free /llms.txt & launch notes)`,
+          text: [
+            `Hi there,`,
+            ``,
+            `Saw ${row.domain} on Show HN — congrats on shipping!`,
+            ``,
+            ...threadBlock,
+            llmsLine,
+            auditLink,
+            ``,
+            `If you ever want to skip ~25 hours of manual directory forms after HN traffic cools down, we also maintain 100+ verified DR 70+ SaaS/AI submit links there. Either way, hope the free /llms.txt helps!`,
+            ``,
+            `Best,`,
+            `Wang Guo`,
+            `Founder, LaunchPulse (https://pulse.statementflow.win)`,
+          ].join("\n"),
+        });
+
+        if (sentOk) {
+          autoOutreachSent += 1;
+          const slug = `showhn-${row.domain.replace(/[^a-z0-9-]/gi, "-").toLowerCase()}`.slice(0, 64);
+          await env.DB.prepare(`UPDATE show_hn_prospects SET outreach_status = 'auto_emailed' WHERE domain = ?1`)
+            .bind(row.domain)
+            .run();
+          await env.DB.prepare(
+            `INSERT INTO outreach_logs (slug, recipient_email, channel, sent_at, last_event_at, last_event_type, follow_up_status)
+             VALUES (?1, ?2, 'resend_cron_showhn', datetime('now'), datetime('now'), 'auto_showhn_outreach', 'pending')
+             ON CONFLICT(slug) DO UPDATE SET last_event_at = datetime('now'), last_event_type = 'auto_showhn_outreach'`
+          )
+            .bind(slug, email)
+            .run();
+        }
+      }
     } catch {
       // ignore
     }
@@ -3154,7 +3262,7 @@ export default {
       await sendResendEmail(env, {
         to: "hello@statementflow.win",
         fromLabel: "Overseas Growth OS",
-        subject: `📊 Daily Auto-Digest: $${total24hRev} (24h) · ${total24hOrders} Orders · ${Number(clicks24h?.cnt || 0)} Clicks · +${hnHarvest.withEmail} ShowHN Emails`,
+        subject: `📊 Daily Auto-Digest: $${total24hRev} (24h) · ${total24hOrders} Orders · ${Number(clicks24h?.cnt || 0)} Clicks · +${autoOutreachSent} Auto-Emailed`,
         text: [
           `Automated 24-Hour Operating Digest (${new Date().toISOString().slice(0, 10)}):`,
           ``,
@@ -3166,7 +3274,7 @@ export default {
           `2. Backlink Health Patrol:`,
           `   • Checked: ${backlinkSummary.checked} | Live HTTP 200: ${backlinkSummary.verifiedLive} | Dofollow: ${backlinkSummary.dofollowCount}`,
           ``,
-          `3. Auto-Harvested Show HN Founder Leads (Today: ${hnHarvest.scanned} scanned, ${hnHarvest.withEmail} with public email):`,
+          `3. Auto-Harvested Show HN Founder Leads (Today: ${hnHarvest.scanned} scanned, ${hnHarvest.withEmail} with email, ${autoOutreachSent} auto-emailed via hello@mail.statementflow.win):`,
           ...(hnLeadLines.length > 0 ? hnLeadLines : [`   • No new un-scanned Show HN domains in this window.`]),
           ``,
           `Admin Console: https://pulse.statementflow.win/admin`,

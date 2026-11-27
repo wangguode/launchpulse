@@ -316,38 +316,74 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
   const pricingPlans = [
     {
       id: "blitz" as const,
-      name: isZh ? "启动包" : "Launch Starter",
+      name: isZh ? "自助加速包" : "Launch Starter",
       price: "$39",
       unit: isZh ? "一次性买断" : "one-time",
-      desc: isZh ? "适合刚上线的独立产品，快速拿下首批高权重外链。" : "Fast initial authority lift for new SaaS products.",
+      desc: isZh
+        ? "解锁全部 100+ 直达提交库与自动验活工具，比自己盲搜填表快 5 倍。"
+        : "Self-serve fast track: unlock all 100+ direct submit URLs, copy pack & live verifier.",
       features: isZh
-        ? ["30 个核心高权重目录提交队列", "自动 HTTP 200 外链验活回执", "专属边缘归因短链与点击统计", "免费 AEO 与 /llms.txt 诊断"]
-        : ["30 Tier-1 directory queue", "Automated HTTP 200 verification", "Custom edge tracking shortlinks", "AEO & /llms.txt audit"],
-      cta: isZh ? "立即开通启动包" : "Start for $39",
+        ? [
+            "解锁全部 100+ 人工验证直达 Submit URL",
+            "一键生成并复制长中短三档英文目录文案包",
+            "Wave 1 (30 站 DR 70+) 节奏清单与自动 HTTP 200 验活",
+            "专属边缘归因短链 (/r/) 与 /llms.txt 体检",
+          ]
+        : [
+            "All 100+ verified direct Submit URLs unlocked",
+            "1-click Brand Kit copy pack (short/med/long)",
+            "Wave 1 (30 DR 70+) pacer + automated HTTP 200 verifier",
+            "Custom /r/ attribution shortlinks & /llms.txt kit",
+          ],
+      cta: isZh ? "解锁自助加速包 · $39" : "Unlock Starter · $39",
       highlighted: false,
     },
     {
       id: "radar" as const,
-      name: isZh ? "增长指挥台" : "Growth Command",
+      name: isZh ? "增长指挥台 Pro" : "Growth Command Pro",
       price: "$29",
       unit: isZh ? "/ 月" : "/ mo",
-      desc: isZh ? "完整闭环：100 目录节奏投放 + 买家收件箱 + 美元级归因。" : "Complete OS: 100 directories, buyer inbox & attribution.",
+      desc: isZh
+        ? "持续获客引擎：100 目录三波次排期 + 24/7 社区求购雷达 + 美元归因。"
+        : "Ongoing growth OS: 3-wave 100-dir pacer + 24/7 Reddit/HN buyer inbox & attribution.",
       features: isZh
-        ? ["全部 100+ 精选目录 3 周自然排期", "24/7 买家收件箱扫帖与原生回复精编", "零链接安全养号模式与键盘流", "美元级转化漏斗与公开核验战报页"]
-        : ["All 100+ directories over 3 weeks", "24/7 Buyer Inbox + Reply Studio", "Zero-link safe mode & shortcuts", "Revenue funnel & verifiable public report"],
-      cta: isZh ? "订阅增长指挥台" : "Subscribe · $29/mo",
+        ? [
+            "含 $39 全部 100+ 目录库与三周自然波次排期",
+            "24/7 Reddit / HN / GitHub 买家求购帖每日邮件推送",
+            "零链接防封号原生英文回复精编器",
+            "Stripe / Creem 美元级渠道转化归因与公开战报页",
+          ]
+        : [
+            "All 100+ directories paced across 3 weekly waves",
+            "24/7 Reddit, HN & GitHub buyer intent inbox + daily alerts",
+            "Zero-link safe mode native reply studio",
+            "Dollar-level channel attribution & verifiable public report",
+          ],
+      cta: isZh ? "订阅增长指挥台 · $29/月" : "Start Pro · $29/mo",
       highlighted: true,
     },
     {
       id: "dfy" as const,
-      name: isZh ? "代投旗舰" : "Done-For-You",
+      name: isZh ? "全人工代投旗舰" : "Done-For-You Concierge",
       price: "$299",
       unit: isZh ? "一次性全托管" : "one-time concierge",
-      desc: isZh ? "把时间留给产品开发：人工精修物料并完成 100+ 目录代提交。" : "We polish your Brand Kit and submit all 100+ listings manually.",
+      desc: isZh
+        ? "创始人零填表：我们人工精修英文定位并逐站手动提交全部 100+ 目录。"
+        : "Zero founder form-filling: our team rewrites your Brand Kit and manually submits all 100+ listings.",
       features: isZh
-        ? ["100+ 精选目录全人工逐站代提交", "英文产品定位与三档目录简介代精修", "30 天内死链或拒审免费补投保障", "附赠 30 天增长指挥台完整权限"]
-        : ["Full manual 100+ directory submission", "Native English Brand Kit polish", "30-day replacement guarantee", "30 days Command Center access"],
-      cta: isZh ? "预约人工代投" : "Book Concierge · $299",
+        ? [
+            "100+ 精选目录全人工逐站注册与手动代提交（省 25 小时）",
+            "母语级英文产品定位与三档目录简介人工精修",
+            "每条外链附 HTTP 200 验活回执 · 30 天死链免费补投",
+            "附赠 30 天增长指挥台 Pro 完整权限",
+          ]
+        : [
+            "100% human manual submission across all 100+ directories",
+            "Native English Brand Kit & positioning rewrite",
+            "Live HTTP 200 receipt per link + 30-day replacement guarantee",
+            "Includes 30 days of Growth Command Pro access",
+          ],
+      cta: isZh ? "预约全人工代投 · $299" : "Book Concierge · $299",
       highlighted: false,
     },
   ];

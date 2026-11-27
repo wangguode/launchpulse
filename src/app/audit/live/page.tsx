@@ -388,44 +388,45 @@ export default function DynamicLiveAuditPage() {
             </Card>
           </div>
 
-          {/* 清晰 ROI 价值锚点与双阶行动舱（消除 25 小时人工填表苦力） */}
+          {/* 清晰 ROI 价值锚点与双阶行动舱（聚焦 $39 自助全库加速与 $299 人工代投转化，避免免费入口分流冲动付费） */}
           <Card className="border-primary/40">
             <CardContent className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="space-y-1.5 max-w-xl">
                 <Badge variant="outline" className="text-xs">
-                  {isZh ? "省去 25 小时枯燥手工注册填表" : "Save ~25 Founder Hours of Manual Directory Forms"}
+                  {isZh ? "省去 25 小时枯燥手工搜站填表" : "Save ~25 Founder Hours of Manual Directory Forms"}
                 </Badge>
                 <h3 className="text-lg font-semibold">
                   {isZh
-                    ? `为 ${instantScan.domain} 启动高权重外链三波次自然分发`
-                    : `Launch ${instantScan.domain} across verified DR 70+ SaaS directories`}
+                    ? `为 ${instantScan.domain} 启动 100+ 高权重外链三波次分发`
+                    : `Distribute ${instantScan.domain} across 100+ verified DR 70+ SaaS directories`}
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   {isZh
-                    ? "支持 $39 自助启动首波 30 个权威目录（含 HTTP 200 自动验活与归因短链），或选择 $299 全人工代写物料并逐站代投 100+ 目录（30 天死链免费补投）。"
-                    : "Start with Wave 1 ($39 once · 30 Tier-1 directories + HTTP 200 live verifier), or book Done-For-You Concierge ($299 · human Brand Kit polish + all 100+ manual submissions)."}
+                    ? "选 $39 自助加速包：立即解锁全部 100+ 直达 Submit URL、一键英文文案包与 HTTP 200 自动验活；或选 $299 全人工代投：由我们精修物料并逐站手动提交全部 100+ 目录（30 天死链免费补投）。"
+                    : "Choose Self-Serve Starter ($39 once · all 100+ direct Submit URLs, 1-click Brand Copy Pack & automated HTTP 200 verifier), or Done-For-You Concierge ($299 · 100% human manual submission across all 100+ directories)."}
                 </p>
+                <div className="pt-1">
+                  <Link
+                    href={`/dashboard?sample=1`}
+                    className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                  >
+                    {isZh ? "或先浏览免登录交互式沙盒账本 →" : "Or preview the interactive console sandbox first →"}
+                  </Link>
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                <Button
-                  variant="outline"
-                  className="min-h-11"
-                  render={<Link href={`/login?url=${encodeURIComponent(instantScan.origin)}`} />}
-                >
-                  {isZh ? "免费导入指挥台" : "Free Console Import"}
-                </Button>
                 <Button
                   variant="secondary"
                   className="min-h-11"
                   onClick={() => setCheckoutPlanDialog("blitz")}
                 >
-                  {isZh ? "Wave 1 启动包 · $39" : "Wave 1 Starter · $39"}
+                  {isZh ? "解锁 100+ 自助包 · $39" : "Self-Serve 100+ Kit · $39"}
                 </Button>
                 <Button
                   className="min-h-11"
                   onClick={() => setCheckoutPlanDialog("dfy")}
                 >
-                  {isZh ? "100+ 全托管代投 · $299" : "100+ DFY Concierge · $299"}
+                  {isZh ? "100+ 全人工代投 · $299" : "100+ Human DFY · $299"}
                   <IconArrowRight className="size-4" />
                 </Button>
               </div>
