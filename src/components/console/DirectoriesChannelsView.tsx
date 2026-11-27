@@ -141,7 +141,7 @@ export default function DirectoriesChannelsView({
   }, [initialDirectoryId, onClearInitialDirectory]);
 
   const unlockedIdSet = useMemo(() => {
-    const limit = isSample ? ledger.directories.length : entitlement.maxDirectories;
+    const limit = isSample ? 18 : entitlement.maxDirectories;
     const sortedByDr = [...ledger.directories].sort((a, b) => b.dr - a.dr);
     return new Set(sortedByDr.slice(0, limit).map((d) => d.id));
   }, [isSample, ledger.directories, entitlement.maxDirectories]);
@@ -165,10 +165,15 @@ export default function DirectoriesChannelsView({
       if (statusFilter !== "all" && d.effectiveStatus !== statusFilter) return false;
       if (linkFilter === "dofollow" && d.linkType !== "dofollow") return false;
       if (linkFilter === "free" && d.pricing !== "free") return false;
-      if (q && !`${d.name} ${d.url} ${d.category} dr${d.dr}`.toLowerCase().includes(q)) return false;
+      if (q) {
+        const searchTarget = unlockedIdSet.has(d.id)
+          ? `${d.name} ${d.url} ${d.category} dr${d.dr}`
+          : `${d.category} dr${d.dr}`;
+        if (!searchTarget.toLowerCase().includes(q)) return false;
+      }
       return true;
     });
-  }, [ledger.directories, waveFilter, statusFilter, linkFilter, query]);
+  }, [ledger.directories, waveFilter, statusFilter, linkFilter, query, unlockedIdSet]);
 
   const copyText = async (id: string, text: string, label?: string) => {
     try {
@@ -207,6 +212,30 @@ export default function DirectoriesChannelsView({
         header: () => (isZh ? "目录平台" : "Directory"),
         cell: ({ row }) => {
           const d = row.original;
+          const locked = !unlockedIdSet.has(d.id);
+          if (locked) {
+            const masked = `${d.name.slice(0, 2)}•••••`;
+            return (
+              <div className="flex items-center gap-3 min-w-[210px] opacity-80">
+                <div className="flex size-7 shrink-0 items-center justify-center rounded-md border bg-muted/60 text-muted-foreground">
+                  <IconLock className="size-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-medium text-muted-foreground flex items-center gap-1.5">
+                    <span className="truncate font-mono text-xs">{masked}</span>
+                    <Badge variant="outline" className="h-4.5 px-1.5 text-[10px]">
+                      {isZh ? "$39 解锁" : "$39 Starter"}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {formatCategoryLabel(d.category, isZh)} ·{" "}
+                    {d.pricing === "free" ? (isZh ? "免费收录" : "Free") : isZh ? "含加速项" : "Freemium"} ·{" "}
+                    {d.linkType === "dofollow" ? "Dofollow" : "Nofollow"}
+                  </div>
+                </div>
+              </div>
+            );
+          }
           return (
             <div className="flex items-center gap-3 min-w-[210px]">
               <DomainFavicon name={d.name} url={d.url} />
@@ -399,36 +428,39 @@ export default function DirectoriesChannelsView({
         </Button>
       </div>
 
-      {/* 商业配额提示条（清晰标明配额差异） */}
-      {!isSample && entitlement.maxDirectories < ledger.dirCounts.total && (
+      {/* 商业配额提示条（沙盒与免费版均锁定 #19–#100，$39 一次性解锁全部 100+ 目录） */}
+      {(isSample || entitlement.maxDirectories < ledger.dirCounts.total) && (
         <Card className="border-primary/25 bg-primary/[0.04] shadow-none">
           <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-2.5">
               <IconLock className="size-4 text-primary shrink-0 mt-0.5" />
               <div className="text-xs space-y-0.5">
                 <p className="font-semibold text-foreground">
-                  {isZh
-                    ? `${formatPlanName(entitlement.plan, true)}已开放前 ${entitlement.maxDirectories} 个高权重目录（共 ${ledger.dirCounts.total} 站）`
-                    : `${formatPlanName(entitlement.plan, false)} unlocks Top ${entitlement.maxDirectories} of ${ledger.dirCounts.total} directories`}
+                  {isSample
+                    ? isZh
+                      ? `沙盒预览已开放前 18 个高权重目录样本（其余 ${ledger.dirCounts.total - 18} 个直达提交入口已锁定）`
+                      : `Sandbox Preview shows Top 18 of ${ledger.dirCounts.total} directories (remaining ${ledger.dirCounts.total - 18} submit URLs locked)`
+                    : isZh
+                      ? `${formatPlanName(entitlement.plan, true)}已开放前 ${entitlement.maxDirectories} 个高权重目录（共 ${ledger.dirCounts.total} 站）`
+                      : `${formatPlanName(entitlement.plan, false)} unlocks Top ${entitlement.maxDirectories} of ${ledger.dirCounts.total} directories`}
                 </p>
                 <p className="text-muted-foreground">
                   {isZh
-                    ? "启动包（$39 买断）开放 30 站 + 5 条买家原帖；增长指挥台（$29/月）解锁全部 100 站与无限买家线索。"
-                    : "Starter ($39) unlocks 30 directories + 5 buyer threads; Growth Pro ($29/mo) unlocks all 100 directories + unlimited leads."}
+                    ? "自助加速包（$39 一次性买断）立即解锁全部 100+ 直达 Submit URL 与 HTTP 200 自动验活；全人工代投（$299）由团队逐站代交 70+ 免费高权目录。"
+                    : "Launch Starter ($39 once) unlocks all 100+ direct Submit URLs & live HTTP 200 verifier; Growth Pro ($29/mo) adds 24/7 Buyer Radar."}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Button
-                variant="outline"
                 size="sm"
                 disabled={checkoutPlan !== null}
                 onClick={() => void onCheckout("blitz")}
               >
-                {isZh ? "启动包 $39" : "Starter $39"}
+                {isZh ? "解锁全部 100+ 站 · $39" : "Unlock All 100+ · $39"}
               </Button>
-              <Button size="sm" disabled={checkoutPlan !== null} onClick={() => void onCheckout("radar")}>
-                {isZh ? "解锁全部 100 站 · $29/月" : "Unlock All 100 · $29/mo"}
+              <Button variant="outline" size="sm" disabled={checkoutPlan !== null} onClick={() => void onCheckout("radar")}>
+                {isZh ? "目录 + 雷达 · $29/月" : "Pro + Radar · $29/mo"}
               </Button>
             </div>
           </CardContent>
@@ -438,6 +470,7 @@ export default function DirectoriesChannelsView({
       {/* 100 目录三波次交互矩阵（点击波次直接联动下方表格筛选） */}
       <WaveTelemetryMatrix
         directories={ledger.directories}
+        unlockedIds={unlockedIdSet}
         isZh={isZh}
         activeWave={waveFilter}
         onSelectWave={(w) => setWaveFilter(w)}

@@ -436,15 +436,25 @@ export default function DynamicLiveAuditPage() {
                       </div>
                       <p className="text-sm font-medium">{ld.title}</p>
                       <p className="text-xs text-muted-foreground line-clamp-2">{ld.excerpt}</p>
-                      <a
-                        href={ld.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                      >
-                        {isZh ? "查看原帖" : "Open thread"}
-                        <IconArrowUpRight className="size-3.5" />
-                      </a>
+                      {(ld as { unlocked?: boolean }).unlocked !== false && ld.url ? (
+                        <a
+                          href={ld.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          {isZh ? "查看原帖" : "Open thread"}
+                          <IconArrowUpRight className="size-3.5" />
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void handleDirectInstantCheckout("blitz")}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                        >
+                          {isZh ? "已锁定原帖链接 · 升级解锁完整求购雷达 →" : "Thread URL locked · Unlock full workspace →"}
+                        </button>
+                      )}
                     </div>
                   ))
                 )}
@@ -561,8 +571,8 @@ export default function DynamicLiveAuditPage() {
                     ? `确认 ${instantScan.domain} 全托管代投 ($299)`
                     : `Book 100+ DFY Concierge for ${instantScan.domain} ($299)`
                   : isZh
-                  ? `解锁 ${instantScan.domain} 首波 30 目录队列 ($39)`
-                  : `Unlock Wave 1 (30 Directories) for ${instantScan.domain} ($39)`}
+                  ? `解锁 ${instantScan.domain} 全部 100+ 目录自助包 ($39)`
+                  : `Unlock All 100+ Directories for ${instantScan.domain} ($39)`}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleConfirmLiveCheckout} className="space-y-4 pt-1">

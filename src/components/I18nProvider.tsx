@@ -22,17 +22,13 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem("lp_locale") as Locale | null;
-      if (saved === "en" || saved === "zh" || saved === "ja") {
+      if (saved === "en" || saved === "zh") {
         setLocaleState(saved);
         document.documentElement.lang = saved;
         return;
       }
       const navLang = (navigator.language || "").toLowerCase();
-      const detected: Locale = navLang.startsWith("zh")
-        ? "zh"
-        : navLang.startsWith("ja")
-        ? "ja"
-        : "en";
+      const detected: Locale = navLang.startsWith("zh") ? "zh" : "en";
       setLocaleState(detected);
       document.documentElement.lang = detected;
     } catch {

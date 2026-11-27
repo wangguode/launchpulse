@@ -81,19 +81,19 @@ export function deriveUserEntitlement(
   if (activePlans.has("blitz") || activePlans.has("fixpack")) {
     return {
       plan: "blitz",
-      maxDirectories: 30,
+      maxDirectories: 100,
       maxLeads: 5,
-      canAutoScan: true,
-      canAiReply: true,
+      canAutoScan: false,
+      canAiReply: false,
       canExportReport: true,
     };
   }
   return {
     plan: "free",
-    maxDirectories: 10,
+    maxDirectories: 18,
     maxLeads: 3,
-    canAutoScan: true,
-    canAiReply: true,
+    canAutoScan: false,
+    canAiReply: false,
     canExportReport: false,
   };
 }
@@ -560,14 +560,17 @@ export async function handleDeepLiveScan(
           if (coreTokens.length > 0 && !coreTokens.some((tok) => combined.includes(tok))) continue;
           if (!intentRe.test(combined)) continue;
           seenTitles.add(key);
+          const isRowUnlocked = leads.length < 2;
           leads.push({
             source: "Hacker News",
-            author: `@${hit.author || "dev"}`,
+            author: isRowUnlocked ? `@${hit.author || "dev"}` : "@verified_buyer",
             postedAt: (hit.created_at || "").slice(0, 10),
             title: st,
-            excerpt: excerpt.slice(0, 160) + (excerpt.length > 160 ? "..." : ""),
-            url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
-            unlocked: leads.length < 3,
+            excerpt: isRowUnlocked
+              ? excerpt.slice(0, 160) + (excerpt.length > 160 ? "..." : "")
+              : "Subscribe to Growth Command Pro ($29/mo) to unlock full buyer thread context and direct URL.",
+            url: isRowUnlocked ? `https://news.ycombinator.com/item?id=${hit.objectID}` : "",
+            unlocked: isRowUnlocked,
           });
           if (leads.length >= 6) break;
         }
@@ -996,17 +999,14 @@ export async function handleV4DashboardOverview(
 
   const dirHealthList = Array.from(healthMap.values());
 
-  // 服务端强脱敏：超出当前套餐配额的买家原帖在服务端即抹除 URL 与正文，杜绝前端纯 CSS 模糊绕过
+  // 服务端强脱敏：严格按全局固定下标限制买家原帖配额（严禁跳过 dismissed 归档状态刷无限解锁）
   const rawLeads = (radarLeadsRes.results || []) as Array<Record<string, unknown>>;
-  let activeLeadRank = 0;
-  const safeRadarLeads = rawLeads.map((lead) => {
-    const isDismissed = lead.status === "dismissed";
-    const rank = isDismissed ? -1 : activeLeadRank++;
-    if (!isDismissed && rank >= entitlement.maxLeads) {
+  const safeRadarLeads = rawLeads.map((lead, idx) => {
+    if (idx >= entitlement.maxLeads) {
       return {
         ...lead,
-        title: "High-intent buyer discussion (Upgrade to unlock full thread)",
-        excerpt: "Subscribe to Growth Command to view full thread context, author handle, and direct link.",
+        title: "High-intent buyer discussion (Upgrade to Growth Pro to unlock)",
+        excerpt: "Subscribe to Growth Command Pro ($29/mo) to view full thread context, author handle, and direct link.",
         url: "",
         author: "@verified_buyer",
         draft_reply: "",
@@ -1015,6 +1015,10 @@ export async function handleV4DashboardOverview(
     }
     return { ...lead, locked: false };
   });
+
+  const safeDeliveries = ((deliveriesRes.results || []) as Array<Record<string, unknown>>).map((del, idx) =>
+    idx >= entitlement.maxLeads ? { ...del, url: "", excerpt: "Locked — upgrade to Growth Command Pro ($29/mo)." } : del
+  );
 
   return jsonRes({
     user,
@@ -1033,7 +1037,7 @@ export async function handleV4DashboardOverview(
     links,
     directories: mergedDirs,
     directoryHealth: dirHealthList,
-    deliveries: deliveriesRes.results || [],
+    deliveries: safeDeliveries,
     radarMonitor: radarMonitorRes
       ? {
           ...radarMonitorRes,
@@ -1101,6 +1105,7 @@ export async function handleSaveBrandKit(
       founderName?: string;
       founderX?: string;
     };
+
     const campaignId = Number(body.campaignId || 0);
     if (!campaignId) return jsonRes({ error: "Missing campaignId" }, 400);
 
@@ -1340,7 +1345,20 @@ export async function handleSaveDirectoryPref(
           ? [String(body.directoryId).trim().slice(0, 32)]
           : [];
     if (rawIds.length === 0) return jsonRes({ error: "Missing directoryId" }, 400);
+
     const campaignId = Number(body.campaignId || 0);
+    const ordRes = await env.DB.prepare(
+      `SELECT plan, status FROM customers_orders WHERE customer_email = ?1 AND status = 'active'`
+    )
+      .bind(user.email)
+      .all<{ plan: string; status: string }>();
+    const entitlement = deriveUserEntitlement(ordRes.results || []);
+    if (entitlement.maxDirectories < 100 && rawIds.length > entitlement.maxDirectories) {
+      return jsonRes(
+        { error: "Unlock Launch Starter ($39 once) to batch-schedule all 100+ directories.", code: "PRO_REQUIRED" },
+        402
+      );
+    }
     const mod = ["approved", "skipped", "priority"].includes(body.moderationState || "")
       ? String(body.moderationState)
       : "approved";
@@ -1391,6 +1409,26 @@ export async function handleSelfSubmitDirectory(
     };
     const directoryId = String(body.directoryId || "").trim().slice(0, 32);
     if (!directoryId) return jsonRes({ error: "Missing directoryId" }, 400);
+
+    const ordRes = await env.DB.prepare(
+      `SELECT plan, status FROM customers_orders WHERE customer_email = ?1 AND status = 'active'`
+    )
+      .bind(user.email)
+      .all<{ plan: string; status: string }>();
+    const entitlement = deriveUserEntitlement(ordRes.results || []);
+    if (entitlement.maxDirectories < 100) {
+      const existingSub = await env.DB.prepare(
+        `SELECT COUNT(*) as cnt FROM directory_submissions WHERE customer_email = ?1 AND directory_id != ?2`
+      )
+        .bind(user.email, directoryId)
+        .first<{ cnt: number }>();
+      if (Number(existingSub?.cnt || 0) >= entitlement.maxDirectories) {
+        return jsonRes(
+          { error: "Free preview quota (18 directories) reached. Unlock all 100+ directories & live verifier for $39 once.", code: "PRO_REQUIRED" },
+          402
+        );
+      }
+    }
 
     const campaignId = Number(body.campaignId || 0);
     const camp = campaignId
@@ -1577,6 +1615,7 @@ export async function handleSaveRadarMonitor(
       webhookUrl?: string;
       dailyDigestEnabled?: boolean;
     };
+
     const campaignId = Number(body.campaignId || 0);
     if (!campaignId) return jsonRes({ error: "Missing campaignId" }, 400);
 
@@ -1660,6 +1699,7 @@ export async function handleRunRadarScan(
   if (!env.DB) return jsonRes({ error: "DB not bound" }, 500);
   try {
     const body = (await request.json()) as { campaignId?: number };
+
     const campaignId = Number(body.campaignId || 0);
     if (!campaignId) return jsonRes({ error: "Missing campaignId" }, 400);
 
@@ -1670,8 +1710,15 @@ export async function handleRunRadarScan(
       .first<{ id: number; product_name: string; target_url: string; tagline: string; competitors: string }>();
     if (!campaign) return jsonRes({ error: "Campaign not found" }, 404);
 
+    const ordRes = await env.DB.prepare(
+      `SELECT plan, status FROM customers_orders WHERE customer_email = ?1 AND status = 'active'`
+    )
+      .bind(user.email)
+      .all<{ plan: string; status: string }>();
+    const entitlement = deriveUserEntitlement(ordRes.results || []);
+
     const monitor = await env.DB.prepare(
-      `SELECT keywords_json, competitors_json, exclude_words_json, sources_json, webhook_url FROM radar_monitors WHERE campaign_id = ?1 LIMIT 1`
+      `SELECT keywords_json, competitors_json, exclude_words_json, sources_json, webhook_url, last_scanned_at FROM radar_monitors WHERE campaign_id = ?1 LIMIT 1`
     )
       .bind(campaignId)
       .first<{
@@ -1680,7 +1727,20 @@ export async function handleRunRadarScan(
         exclude_words_json: string;
         sources_json: string;
         webhook_url: string;
+        last_scanned_at?: string;
       }>();
+
+    // 服务端付费门控：未订阅 Growth Command Pro ($29/mo) 或 DFY 仅允许首次初始化预览扫描 1 次
+    if (!entitlement.canAutoScan && monitor?.last_scanned_at) {
+      return jsonRes(
+        {
+          error:
+            "24/7 Live Buyer Radar re-scanning requires Growth Command Pro ($29/mo). Upgrade to unlock unlimited Reddit, HN & GitHub buyer threads.",
+          code: "PRO_REQUIRED",
+        },
+        402
+      );
+    }
 
     const keywords = parseJsonArr(monitor?.keywords_json);
     const competitors = parseJsonArr(
@@ -1992,9 +2052,9 @@ export async function handleRunRadarScan(
       .bind(campaignId, user.email, JSON.stringify(keywords), JSON.stringify(competitors))
       .run();
 
-    // 若配置了合法 Slack/Discord Webhook 且扫到高意图线索，自动触发推送
+    // 仅向具备 canAutoScan 付费权限的用户触发 Slack/Discord 实时原帖 Webhook 推送（防止免费用户借 Webhook 绕过线索锁）
     const topAlert = collected.find((c) => c.intentScore >= 92);
-    if (monitor?.webhook_url && topAlert && parseSafePublicUrl(monitor.webhook_url)) {
+    if (entitlement.canAutoScan && monitor?.webhook_url && topAlert && parseSafePublicUrl(monitor.webhook_url)) {
       const msg = `🎯 LaunchPulse Buyer Radar (${campaign.product_name})\n[${topAlert.source} · Intent ${topAlert.intentScore}] ${topAlert.title}\n${topAlert.url}`;
       fetch(monitor.webhook_url, {
         method: "POST",
@@ -2109,9 +2169,26 @@ function sanitizeAndValidateReply(raw: string, zeroLinkMode: boolean): string | 
 export async function handleGenerateRadarReply(
   request: Request,
   env: V4Env,
-  _user: SessionUser
+  user: SessionUser
 ): Promise<Response> {
   const t0 = Date.now();
+  if (env.DB) {
+    const ordRes = await env.DB.prepare(
+      `SELECT plan, status FROM customers_orders WHERE customer_email = ?1 AND status = 'active'`
+    )
+      .bind(user.email)
+      .all<{ plan: string; status: string }>();
+    const entitlement = deriveUserEntitlement(ordRes.results || []);
+    if (!entitlement.canAiReply) {
+      return jsonRes(
+        {
+          error: "AI Native Reply Studio requires Growth Command Pro ($29/mo).",
+          code: "PRO_REQUIRED",
+        },
+        402
+      );
+    }
+  }
   try {
     const body = (await request.json()) as {
       title?: string;
@@ -2327,7 +2404,23 @@ export async function handleUpsertPublicReport(
 ): Promise<Response> {
   if (!env.DB) return jsonRes({ error: "DB not bound" }, 500);
   try {
+    const ordRes = await env.DB.prepare(
+      `SELECT plan, status FROM customers_orders WHERE customer_email = ?1 AND status = 'active'`
+    )
+      .bind(user.email)
+      .all<{ plan: string; status: string }>();
+    const entitlement = deriveUserEntitlement(ordRes.results || []);
+    if (!entitlement.canExportReport) {
+      return jsonRes(
+        {
+          error: "Shareable Verifiable Public Reports require Launch Starter ($39) or Growth Command Pro ($29/mo).",
+          code: "PRO_REQUIRED",
+        },
+        402
+      );
+    }
     const body = (await request.json()) as { campaignId?: number; title?: string; showRevenue?: boolean };
+
     const campaignId = Number(body.campaignId || 0);
     if (!campaignId) return jsonRes({ error: "Missing campaignId" }, 400);
 

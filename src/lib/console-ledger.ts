@@ -210,14 +210,14 @@ export function getSiteOrigin(): string {
   if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin;
   }
-  return "https://launchpulse.app";
+  return "https://pulse.statementflow.win";
 }
 
 export function formatPlanName(plan: string, isZh: boolean): string {
   const key = (plan || "free").toLowerCase();
-  if (key === "dfy") return isZh ? "代投旗舰托管" : "Done-For-You";
+  if (key === "dfy") return isZh ? "全人工代投旗舰" : "Done-For-You";
   if (key === "radar") return isZh ? "增长指挥台 Pro" : "Growth Pro";
-  if (key === "blitz" || key === "fixpack") return isZh ? "启动包 · 30 站" : "Launch Starter";
+  if (key === "blitz" || key === "fixpack") return isZh ? "自助加速包 · 100+ 站" : "Launch Starter (100+)";
   return isZh ? "免费体验版" : "Free Tier";
 }
 
@@ -398,21 +398,21 @@ export function buildSampleOverview(): OverviewPayload {
   return {
     user: { id: 0, email: "alex@acmeflow.dev", name: "Alex Chen", role: "customer" },
     entitlement: {
-      plan: "radar",
-      maxDirectories: 100,
-      maxLeads: 999,
-      canAutoScan: true,
-      canAiReply: true,
-      canExportReport: true,
+      plan: "free",
+      maxDirectories: 18,
+      maxLeads: 3,
+      canAutoScan: false,
+      canAiReply: false,
+      canExportReport: false,
     },
-    orders: [{ order_id: "ord_sample_01", plan: "radar", amount_usd: 29, status: "active", created_at: "2026-11-01" }],
+    orders: [],
     campaigns: [
       {
         id: 1,
         slug: "acmeflow",
         product_name: "AcmeFlow",
         target_url: "https://acmeflow.example",
-        tagline: "轻量级 SSL 证书与域名到期自动告警工具，专为独立开发与小团队打造",
+        tagline: "Automated SSL certificate & domain expiry monitoring for lean SaaS teams",
         competitors: "UptimeRobot, Better Stack",
       },
       {
@@ -420,7 +420,7 @@ export function buildSampleOverview(): OverviewPayload {
         slug: "pingvault",
         product_name: "PingVault API",
         target_url: "https://pingvault.example",
-        tagline: "零配置 Webhook 可用性与延迟监控，面向 Node 与 Go 后端团队",
+        tagline: "Zero-config webhook uptime & latency alerts for Node and Go backends",
         competitors: "Checkly, Cronitor",
       },
     ],
@@ -428,7 +428,7 @@ export function buildSampleOverview(): OverviewPayload {
     brandKit: {
       campaign_id: 1,
       logo_url: "/icon.svg",
-      screenshots: [], // 刻意缺 1 张产品主图 → 90% 完整度，与今日行动流第一条严丝合缝
+      screenshots: [],
       short_tagline: "Automated SSL & domain expiry alerts for lean SaaS teams",
       medium_pitch:
         "AcmeFlow polls TLS handshakes and WHOIS registries every 6 hours from 3 global regions and alerts Slack or email before silent renewal failures break production.",
@@ -446,7 +446,7 @@ export function buildSampleOverview(): OverviewPayload {
         code: "acme-dir",
         campaign_id: 1,
         channel: "directory",
-        label: "100+ 海外高权重目录",
+        label: "100+ Curated SaaS Directories",
         destination_url: "https://acmeflow.example",
         clicks_count: 788,
         conversions_count: 30,
@@ -458,7 +458,7 @@ export function buildSampleOverview(): OverviewPayload {
         code: "acme-hn",
         campaign_id: 1,
         channel: "community",
-        label: "HN / GitHub 求购回复",
+        label: "HN & GitHub Buyer Replies",
         destination_url: "https://acmeflow.example",
         clicks_count: 408,
         conversions_count: 16,
@@ -470,7 +470,7 @@ export function buildSampleOverview(): OverviewPayload {
         code: "acme-vs",
         campaign_id: 1,
         channel: "seo",
-        label: "竞品对比与 AEO 页",
+        label: "AEO & /llms.txt Citations",
         destination_url: "https://acmeflow.example",
         clicks_count: 212,
         conversions_count: 8,

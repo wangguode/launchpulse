@@ -201,7 +201,7 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
         fetch("/api/track", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slug: "lp-home", event: "buyer_click" }),
+          body: JSON.stringify({ slug: "lp-home", event: "view" }),
           keepalive: true,
         }).catch(() => {});
         toast.success(isZh ? `${json.domain} 诊断完成：${json.score}/100` : `Audit complete: ${json.score}/100`);
@@ -323,13 +323,26 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
 
   const previewDirectories = useMemo(() => {
     const q = dirQuery.trim().toLowerCase();
-    return DISTRIBUTION_DIRECTORIES.filter((d) => {
+    // 首页仅对前 18 个公开样本站执行检索，防止免费访客通过搜索框穷举抓取全部 100 站 Submit URL
+    const publicPool = [...DISTRIBUTION_DIRECTORIES].sort((a, b) => b.dr - a.dr).slice(0, 18);
+    return publicPool.filter((d) => {
       if (dirFilter === "dr70" && d.dr < 70) return false;
       if (dirFilter === "dofollow" && d.linkType !== "dofollow") return false;
       if (q && !`${d.name} ${d.url} ${d.category}`.toLowerCase().includes(q)) return false;
       return true;
     }).slice(0, 8);
   }, [dirQuery, dirFilter]);
+
+  const sampleUnlockedIds = useMemo(
+    () =>
+      new Set(
+        [...SAMPLE_LEDGER.directories]
+          .sort((a, b) => b.dr - a.dr)
+          .slice(0, 18)
+          .map((d) => d.id)
+      ),
+    []
+  );
 
   const demoLead = SAMPLE_DATA.radarLeads[0];
   const liveDraft = buildContextualReply(
@@ -475,15 +488,9 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
             <Link href="/tools/aeo-checker" className="hover:text-foreground transition-colors">
               {isZh ? "免费体检" : "Free Audit"}
             </Link>
-            <a
-              href="https://github.com/wangguode/launchpulse"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors inline-flex items-center gap-1"
-            >
-              <span>GitHub</span>
-              <IconArrowUpRight className="size-3.5" />
-            </a>
+            <Link href="/portal" className="hover:text-foreground transition-colors">
+              {isZh ? "订单查询" : "Customer Portal"}
+            </Link>
           </nav>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
@@ -651,7 +658,7 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
                         {isZh ? "快速拉升域名权重与 AI 引用率：" : "Fix authority & AI citation gaps:"}
                       </span>{" "}
                       <span className="text-muted-foreground">
-                        {isZh ? "按 3 周自然波次投放 30+ 高权目录并自动 HTTP 200 验活" : "Queue Wave 1 (30 Tier-1 directories) with live HTTP 200 verification"}
+                        {isZh ? "一键解锁全部 100+ 直达 Submit URL、英文物料包与自动 HTTP 200 验活" : "Unlock all 100+ direct Submit URLs, Brand Copy Pack & live HTTP 200 verifier"}
                       </span>
                     </div>
                     <Button
@@ -660,7 +667,7 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
                       disabled={checkoutPlan === "blitz"}
                       onClick={() => void handleCheckout("blitz")}
                     >
-                      {isZh ? "解锁 Wave 1 · $39" : "Unlock Wave 1 · $39"}
+                      {isZh ? "解锁 100+ 自助包 · $39" : "Unlock 100+ Kit · $39"}
                       <IconArrowRight className="size-3.5" />
                     </Button>
                   </div>
@@ -671,7 +678,7 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
 
           {/* 嵌入式光学磨砂指挥台实景舞台（含 100 目录三波次遥测矩阵） */}
           <div className="space-y-4" data-ui="hero-console">
-            <WaveTelemetryMatrix directories={SAMPLE_LEDGER.directories} isZh={isZh} />
+            <WaveTelemetryMatrix directories={SAMPLE_LEDGER.directories} unlockedIds={sampleUnlockedIds} isZh={isZh} />
 
             <Card className="overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 bg-[var(--frost-well)] px-5 py-3 text-[13px]">
@@ -1182,8 +1189,8 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
                   ? "开通增长指挥台订阅 ($29/月)"
                   : "Activate Growth Command Pro ($29/mo)"
                 : isZh
-                ? "开通 Wave 1 启动包 ($39 买断)"
-                : "Unlock Launch Starter Wave 1 ($39 once)"}
+                ? "开通 100+ 目录自助加速包 ($39 买断)"
+                : "Unlock 100+ SaaS Directory Starter Kit ($39 once)"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleConfirmLaunchCheckout} className="space-y-4 pt-1">
@@ -1223,15 +1230,15 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
                   •{" "}
                   {checkoutDialogPlan === "dfy"
                     ? isZh
-                      ? "人工精修英文 Brand Kit + 100+ 目录逐站代提交排期"
-                      : "Human Brand Kit polish + manual submission across 100+ verified directories"
+                      ? "人工精修英文 Brand Kit + 70+ 免费高权目录逐站代投 + 30+ 严审站物料包"
+                      : "Human Brand Kit polish + manual submission across 70+ free high-DR directories + 30+ gated pack"
                     : checkoutDialogPlan === "radar"
                     ? isZh
                       ? "100+ 目录三波次队列 + 24/7 买家求购雷达 + 边缘归因短链"
                       : "100+ directory 3-wave pacer + 24/7 Buyer Inbox + edge revenue attribution"
                     : isZh
-                    ? "Wave 1 首波 30 个高权重目录队列 + 自动 HTTP 200 验活回执"
-                    : "Wave 1 queue (30 Tier-1 directories) + automated HTTP 200 live verification"}
+                    ? "解锁全部 100+ 直达 Submit URL + 英文文案包 + 自动 HTTP 200 验活"
+                    : "All 100+ direct Submit URLs unlocked + Brand Copy Pack + live HTTP 200 verifier"}
                 </li>
                 <li>
                   •{" "}

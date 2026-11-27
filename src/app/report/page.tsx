@@ -121,9 +121,11 @@ export default function PublicGrowthReportPage() {
       .finally(() => setLoading(false));
   }, [isZh]);
 
+  const showRevenue = (data as { config?: { showRevenue?: boolean } } | null)?.config?.showRevenue !== false;
   const series = (data?.stats.dailySeries || []).map((pt) => ({
     date: pt.date.slice(5),
-    revenueUsd: typeof pt.revenueUsd === "number" ? pt.revenueUsd : Math.round(pt.clicks * (data?.stats.rpv || 1.2)),
+    revenueUsd: showRevenue && typeof pt.revenueUsd === "number" ? pt.revenueUsd : 0,
+    clicks: pt.clicks || 0,
   }));
 
   return (
@@ -190,9 +192,19 @@ export default function PublicGrowthReportPage() {
             <div className="grid gap-5 lg:grid-cols-7 tabular-nums">
               <Card className="lg:col-span-4">
                 <CardHeader>
-                  <CardDescription>{isZh ? "近 30 天归因净收入 (Stripe)" : "Attributed Revenue (30d)"}</CardDescription>
+                  <CardDescription>
+                    {showRevenue
+                      ? isZh
+                        ? "近 30 天已核验归因净收入"
+                        : "Attributed Revenue (30d)"
+                      : isZh
+                        ? "近 30 天边缘归因点击量"
+                        : "Verified Referral Clicks (30d)"}
+                  </CardDescription>
                   <CardTitle className="text-3xl font-semibold">
-                    ${data.stats.attributedRevenueUsd.toLocaleString()}
+                    {showRevenue
+                      ? `$${data.stats.attributedRevenueUsd.toLocaleString()}`
+                      : data.stats.funnel.clicks.toLocaleString()}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -200,10 +212,15 @@ export default function PublicGrowthReportPage() {
                     <AreaChart data={series} margin={{ top: 8, right: 20, left: 0, bottom: 0 }}>
                       <CartesianGrid vertical={false} strokeDasharray="3 3" />
                       <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={28} />
-                      <YAxis tickLine={false} axisLine={false} width={48} tickFormatter={(v) => `$${v}`} />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        width={48}
+                        tickFormatter={(v) => (showRevenue ? `$${v}` : `${v}`)}
+                      />
                       <ChartTooltip content={<ChartTooltipContent />} />
                       <Area
-                        dataKey="revenueUsd"
+                        dataKey={showRevenue ? "revenueUsd" : "clicks"}
                         type="monotone"
                         fill="var(--color-revenueUsd)"
                         fillOpacity={0.2}
@@ -214,7 +231,7 @@ export default function PublicGrowthReportPage() {
                     </AreaChart>
                   </ChartContainer>
                   <Separator />
-                  <div className="grid grid-cols-4 text-center">
+                  <div className={showRevenue ? "grid grid-cols-4 text-center" : "grid grid-cols-3 text-center"}>
                     <div>
                       <div className="text-base font-semibold">{data.stats.funnel.clicks.toLocaleString()}</div>
                       <div className="text-xs text-muted-foreground">{isZh ? "短链点击" : "Clicks"}</div>
@@ -227,10 +244,12 @@ export default function PublicGrowthReportPage() {
                       <div className="text-base font-semibold">{data.stats.funnel.signups}</div>
                       <div className="text-xs text-muted-foreground">{isZh ? "注册试用" : "Signups"}</div>
                     </div>
-                    <div>
-                      <div className="text-base font-semibold">{data.stats.funnel.purchases}</div>
-                      <div className="text-xs text-muted-foreground">{isZh ? "美元付费" : "Paid"}</div>
-                    </div>
+                    {showRevenue && (
+                      <div>
+                        <div className="text-base font-semibold">{data.stats.funnel.purchases}</div>
+                        <div className="text-xs text-muted-foreground">{isZh ? "美元付费" : "Paid"}</div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

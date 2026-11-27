@@ -62,25 +62,43 @@ export default function PortalBridgePage() {
     }
     if (checkoutId) {
       setExchanging(true);
-      fetch("/api/checkout/claim", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checkoutId }),
-      })
-        .then((r) => r.json())
-        .then((d: { ok?: boolean; redirectTo?: string; error?: string }) => {
+      const claimLoop = async (attempt = 0): Promise<void> => {
+        try {
+          const r = await fetch("/api/checkout/claim", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ checkoutId }),
+          });
+          const d = (await r.json()) as {
+            ok?: boolean;
+            pending?: boolean;
+            redirectTo?: string;
+            error?: string;
+          };
           if (d.ok) {
             router.replace(d.redirectTo || "/dashboard?unlocked=1");
             return;
           }
+          if (d.pending && attempt < 3) {
+            await new Promise((res) => setTimeout(res, 1800));
+            return claimLoop(attempt + 1);
+          }
           setError(d.error || t.portal.lookupError);
           setExchanging(false);
-        })
-        .catch(() => {
+        } catch {
           setError(t.portal.lookupError);
           setExchanging(false);
-        });
+        }
+      };
+      void claimLoop();
       return;
+    }
+    if (params.get("unlocked") === "1" && !token) {
+      setFeedback(
+        isZh
+          ? "付款成功！请在下方输入结账邮箱，即刻获取 30 天免密控制台登录链接。"
+          : "Payment received! Enter your checkout email below to receive your instant Magic Login Link."
+      );
     }
     if (token) {
       void exchangeToken(token);

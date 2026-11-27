@@ -2,7 +2,7 @@
  * LaunchPulse Cloudflare Workers 边缘网关（D1 动态底座版）：
  * 1. POST /api/scan            — 100% 被动无害实时 SEO/AEO/安全头体检 + HN 真实买家匹配（内置防 SSRF）
  * 2. POST /api/track           — 战情页热力埋点（访问次数 / 视频播放最大秒数 / 买家线索点击数）实时写入 D1
- * 3. POST /api/checkout        — 直连 Creem.io 实时收银（$39 50+ Directory Blitz / $29/mo Radar Pro / $299 DFY）
+ * 3. POST /api/checkout        — 直连 Creem.io 实时收银（$39 100+ Directory Starter / $29/mo Radar Pro / $299 DFY）
  * 4. POST /api/webhook         — Creem HMAC-SHA256 验签并自动入账 D1 customers_orders + 签发 Magic Token
  * 5. POST /api/portal/lookup   — 免密客户工作台查询（凭 Magic Token 或付款邮箱拉取已购报告与买家线索）
  * 6. POST /api/portal/lead-status — 客户在工作台标记线索状态（new / replied / won）
@@ -67,19 +67,19 @@ interface Env {
 
 const PLAN_CONFIG = {
   blitz: {
-    name: "LaunchPulse 50+ Directory Distribution Blitz",
+    name: "LaunchPulse 100+ SaaS Directory Starter Kit",
     amountUsd: 39,
   },
   fixpack: {
-    name: "LaunchPulse 50+ Directory Distribution Blitz",
+    name: "LaunchPulse 100+ SaaS Directory Starter Kit",
     amountUsd: 39,
   },
   radar: {
-    name: "LaunchPulse Growth & Buyer Intent Radar Pro (Monthly)",
+    name: "LaunchPulse Growth Command & Buyer Radar Pro (Monthly)",
     amountUsd: 29,
   },
   dfy: {
-    name: "LaunchPulse Done-For-You Growth Sprint",
+    name: "LaunchPulse 100+ Directory Done-For-You Concierge",
     amountUsd: 299,
   },
 } as const;
@@ -395,14 +395,17 @@ async function handleLiveScan(request: Request): Promise<Response> {
           const hasIntent = intentRegex.test(combined);
           if (!hasTopic || !hasIntent) continue;
           seenScanTitles.add(titleKey);
+          const isLeadUnlocked = leads.length < 2;
           leads.push({
             source: "Hacker News",
-            author: `@${hit.author || "dev"}`,
+            author: isLeadUnlocked ? `@${hit.author || "dev"}` : "@••••",
             postedAt: (hit.created_at || "").slice(0, 10),
             title: st || "Developer thread",
-            excerpt: excerpt.slice(0, 160) + (excerpt.length > 160 ? "..." : ""),
-            url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
-            unlocked: leads.length < 3,
+            excerpt: isLeadUnlocked
+              ? excerpt.slice(0, 160) + (excerpt.length > 160 ? "..." : "")
+              : "Upgrade to Growth Command Pro ($29/mo) to unlock direct thread URL & native reply draft.",
+            url: isLeadUnlocked ? `https://news.ycombinator.com/item?id=${hit.objectID}` : "",
+            unlocked: isLeadUnlocked,
           });
           if (leads.length >= 6) break;
         }
@@ -997,6 +1000,7 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
         eventType?: string;
         object?: {
           id?: string;
+          product?: { id?: string } | string;
           customer?: { email?: string };
           metadata?: { plan?: string; slug?: string; targetUrl?: string };
           order?: { amount?: number };
@@ -1005,11 +1009,27 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
       const obj = payload.object || {};
       const email = (obj.customer?.email || "").trim().toLowerCase();
       const orderId = obj.id || `ord_${Date.now()}`;
-      const plan = obj.metadata?.plan || "radar";
+      let detectedPlan = (obj.metadata?.plan || "").toLowerCase();
+      const prodId = typeof obj.product === "string" ? obj.product : obj.product?.id || "";
+      if (!detectedPlan && prodId) {
+        const skuRow = await env.DB.prepare(
+          `SELECT plan_key FROM creem_sku_overrides WHERE app_key = 'lp' AND product_id = ?1 LIMIT 1`
+        )
+          .bind(prodId)
+          .first<{ plan_key: string }>()
+          .catch(() => null);
+        if (skuRow?.plan_key) detectedPlan = skuRow.plan_key.toLowerCase();
+      }
+      if (!detectedPlan && obj.order?.amount) {
+        if (obj.order.amount >= 20000) detectedPlan = "dfy";
+        else if (obj.order.amount >= 3500) detectedPlan = "blitz";
+        else detectedPlan = "radar";
+      }
+      const plan = detectedPlan === "dfy" ? "dfy" : detectedPlan === "blitz" || detectedPlan === "fixpack" ? "blitz" : "radar";
       const slug = obj.metadata?.slug || "";
       const targetUrl = obj.metadata?.targetUrl || "";
       const fallbackCents =
-        plan === "dfy" ? 29900 : plan === "blitz" || plan === "fixpack" ? 3900 : 2900;
+        plan === "dfy" ? 29900 : plan === "blitz" ? 3900 : 2900;
       const amountUsd = Math.round((obj.order?.amount || fallbackCents) / 100);
       const magicToken = crypto.randomUUID().replace(/-/g, "");
 
@@ -1082,12 +1102,15 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
             const activeMagicToken = savedOrder?.magic_token || magicToken;
             const origin = new URL(request.url).origin;
             const portalLink = `${origin}/portal?token=${activeMagicToken}`;
-            const warRoomLink = slug ? `${origin}/audit/${slug}?token=${activeMagicToken}` : portalLink;
+            const isStaticSampleSlug = /^(certnudge|trieste|multiplecodex|pinpoint)$/i.test(slug);
+            const warRoomLink = isStaticSampleSlug
+              ? `${origin}/audit/${encodeURIComponent(slug)}?token=${activeMagicToken}`
+              : portalLink;
 
             const planDisplayName =
               plan === "dfy"
                 ? "100+ Directory Done-For-You Concierge ($299)"
-                : plan === "blitz" || plan === "fixpack"
+                : plan === "blitz"
                 ? "100+ SaaS Directory Starter Kit ($39)"
                 : "Growth Command & Buyer Radar Pro ($29/mo)";
 
@@ -1208,10 +1231,11 @@ async function handlePortalLookup(request: Request, env: Env): Promise<Response>
           .run();
 
         const origin = new URL(request.url).origin;
-        const targetLink =
-          body.slug || order.slug
-            ? `${origin}/audit/${encodeURIComponent(body.slug || order.slug)}?token=${rotatedToken}`
-            : `${origin}/portal?token=${rotatedToken}`;
+        const candidateSlug = (body.slug || order.slug || "").trim();
+        const isStaticSampleSlug = /^(certnudge|trieste|multiplecodex|pinpoint)$/i.test(candidateSlug);
+        const targetLink = isStaticSampleSlug
+          ? `${origin}/audit/${encodeURIComponent(candidateSlug)}?token=${rotatedToken}`
+          : `${origin}/portal?token=${rotatedToken}`;
         await sendResendEmail(env, {
           to: email,
           subject: "Your LaunchPulse Magic Login Link (Valid 30 Days)",
@@ -2042,7 +2066,7 @@ async function handleMagicExchange(request: Request, env: Env): Promise<Response
             .first<{ cnt: number }>();
           if (!cntRow || Number(cntRow.cnt) === 0) {
             for (const d of [
-              { channel: "directory", label: "50+ Directory Distribution" },
+              { channel: "directory", label: "100+ Directory Distribution" },
               { channel: "community", label: "HN / Reddit Buyer Replies" },
               { channel: "seo", label: "Competitor /vs/ & /llms.txt" },
             ]) {
@@ -2097,24 +2121,39 @@ async function handleCheckoutClaim(request: Request, env: Env): Promise<Response
       return jsonResponse({ ok: false, error: "Invalid checkout_id" }, 400);
     }
 
-    const res = await fetch(
-      `https://api.creem.io/v1/checkouts?checkout_id=${encodeURIComponent(checkoutId)}`,
-      { headers: { "x-api-key": creemApiKey } }
-    );
-    if (!res.ok) {
-      return jsonResponse({ ok: false, unlocked: false, error: "Checkout session not verified" }, 402);
-    }
-
-    const data = (await res.json()) as {
+    type CreemCheckoutShape = {
       id?: string;
       status?: string;
+      product?: { id?: string } | string;
       customer?: { email?: string };
       order?: { id?: string; amount?: number };
       metadata?: { plan?: string; slug?: string; targetUrl?: string };
     };
 
+    const fetchCreemCheckout = async (): Promise<CreemCheckoutShape | null> => {
+      const r = await fetch(
+        `https://api.creem.io/v1/checkouts?checkout_id=${encodeURIComponent(checkoutId)}`,
+        { headers: { "x-api-key": creemApiKey } }
+      );
+      if (!r.ok) return null;
+      return (await r.json()) as CreemCheckoutShape;
+    };
+
+    let data = await fetchCreemCheckout();
+    if (!data) {
+      return jsonResponse({ ok: false, unlocked: false, error: "Checkout session not verified" }, 402);
+    }
     if (data.status !== "completed") {
-      return jsonResponse({ ok: false, unlocked: false, status: data.status || "pending" }, 402);
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const retried = await fetchCreemCheckout();
+      if (retried) data = retried;
+    }
+
+    if (data.status !== "completed") {
+      return jsonResponse(
+        { ok: false, unlocked: false, pending: true, status: data.status || "pending" },
+        402
+      );
     }
 
     const sessionUser = await getSessionUser(request, env);
@@ -2123,7 +2162,22 @@ async function handleCheckoutClaim(request: Request, env: Env): Promise<Response
       return jsonResponse({ ok: false, error: "Customer email missing on checkout" }, 400);
     }
 
-    const rawPlan = (data.metadata?.plan || "blitz").toLowerCase();
+    let rawPlan = (data.metadata?.plan || "").toLowerCase();
+    const prodId = typeof data.product === "string" ? data.product : data.product?.id || "";
+    if (!rawPlan && prodId) {
+      const skuRow = await env.DB.prepare(
+        `SELECT plan_key FROM creem_sku_overrides WHERE app_key = 'lp' AND product_id = ?1 LIMIT 1`
+      )
+        .bind(prodId)
+        .first<{ plan_key: string }>()
+        .catch(() => null);
+      if (skuRow?.plan_key) rawPlan = skuRow.plan_key.toLowerCase();
+    }
+    if (!rawPlan && data.order?.amount) {
+      if (data.order.amount >= 20000) rawPlan = "dfy";
+      else if (data.order.amount >= 3500) rawPlan = "blitz";
+      else rawPlan = "radar";
+    }
     const plan = rawPlan === "dfy" ? "dfy" : rawPlan === "radar" ? "radar" : "blitz";
     const slug = (data.metadata?.slug || "").trim();
     const targetUrl = (data.metadata?.targetUrl || "").trim();
@@ -2148,33 +2202,90 @@ async function handleCheckoutClaim(request: Request, env: Env): Promise<Response
       .bind(orderId, email, slug === "public" ? "" : slug, targetUrl, plan, amountUsd, magicToken, tokenExpiry)
       .run();
 
+    // 若已登录账号使用其它结账邮箱付款，同步写入一条关联订单记录，确保原工作台与项目无感解锁
+    if (sessionUser?.email && sessionUser.email.toLowerCase() !== email) {
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token, token_expires_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', ?7, ?8)`
+      )
+        .bind(`${orderId}_acct`, sessionUser.email.toLowerCase(), slug === "public" ? "" : slug, targetUrl, plan, 0, `${magicToken}a`, tokenExpiry)
+        .run();
+    }
+
     if (plan === "dfy") {
       await env.DB.prepare(
-        `INSERT OR IGNORE INTO dfy_fulfillment_jobs (order_id, customer_email, target_url, slug, status)
-         VALUES (?1, ?2, ?3, ?4, 'queued')`
+        `INSERT INTO dfy_fulfillment_jobs (order_id, customer_email, target_url, slug, status, updated_at)
+         VALUES (?1, ?2, ?3, ?4, 'queued_wave1', datetime('now'))
+         ON CONFLICT(order_id) DO UPDATE SET updated_at = datetime('now')`
       )
         .bind(orderId, email, targetUrl, slug === "public" ? "" : slug)
         .run();
     }
 
+    const accountEmail = sessionUser?.email ? sessionUser.email.toLowerCase() : email;
     let user = await env.DB.prepare(`SELECT id, email, name, role FROM users WHERE email = ?1 LIMIT 1`)
-      .bind(email)
+      .bind(accountEmail)
       .first<{ id: number; email: string; name: string; role: string }>();
 
     if (!user) {
       const randPass = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
       const { hash, salt } = await hashPassword(randPass);
-      const displayName = email.split("@")[0];
+      const displayName = accountEmail.split("@")[0];
       await env.DB.prepare(
         `INSERT OR IGNORE INTO users (email, name, password_hash, password_salt, role) VALUES (?1, ?2, ?3, ?4, 'customer')`
       )
-        .bind(email, displayName, hash, salt)
+        .bind(accountEmail, displayName, hash, salt)
         .run();
       user = await env.DB.prepare(`SELECT id, email, name, role FROM users WHERE email = ?1 LIMIT 1`)
-        .bind(email)
+        .bind(accountEmail)
         .first<{ id: number; email: string; name: string; role: string }>();
     }
     if (!user) return jsonResponse({ ok: false, error: "Account provisioning failed" }, 500);
+
+    // 若结账附带有效 targetUrl，自动建档 campaigns + 3 条归因短链，避免 DFY/新购客户进入空白工作台
+    if (targetUrl) {
+      const parsed = parseSafePublicHttpsUrl(targetUrl);
+      if (parsed) {
+        const cleanSlug =
+          ((slug && slug !== "public" ? slug : parsed.hostname.replace(/^www\./, "").split(".")[0])
+            .toLowerCase()
+            .replace(/[^a-z0-9-]/g, "")) || "project";
+        const productName = parsed.hostname.replace(/^www\./, "");
+        await env.DB.prepare(
+          `INSERT OR IGNORE INTO campaigns (user_email, slug, product_name, target_url, status)
+           VALUES (?1, ?2, ?3, ?4, 'active')`
+        )
+          .bind(user.email, cleanSlug, productName, parsed.origin)
+          .run();
+        const camp = await env.DB.prepare(
+          `SELECT id, target_url FROM campaigns WHERE user_email = ?1 AND slug = ?2 LIMIT 1`
+        )
+          .bind(user.email, cleanSlug)
+          .first<{ id: number; target_url: string }>();
+        if (camp) {
+          const cntRow = await env.DB.prepare(
+            `SELECT COUNT(*) as cnt FROM tracking_links WHERE campaign_id = ?1`
+          )
+            .bind(camp.id)
+            .first<{ cnt: number }>();
+          if (!cntRow || Number(cntRow.cnt) === 0) {
+            for (const d of [
+              { channel: "directory", label: "100+ Directory Distribution" },
+              { channel: "community", label: "HN / Reddit Buyer Replies" },
+              { channel: "seo", label: "Competitor /vs/ & /llms.txt" },
+            ]) {
+              const code = randomShortCode(`${cleanSlug.slice(0, 4)}${d.channel[0]}`);
+              await env.DB.prepare(
+                `INSERT OR IGNORE INTO tracking_links (code, campaign_id, user_email, channel, label, destination_url)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+              )
+                .bind(code, camp.id, user.email, d.channel, d.label, camp.target_url)
+                .run();
+            }
+          }
+        }
+      }
+    }
 
     const sessionToken = bytesToHex(crypto.getRandomValues(new Uint8Array(24)));
     const sessionExpiry = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
@@ -3201,7 +3312,7 @@ export default {
         `SELECT m.campaign_id, m.user_email, m.keywords_json, m.competitors_json, c.slug, o.magic_token
          FROM radar_monitors m
          JOIN campaigns c ON c.id = m.campaign_id
-         LEFT JOIN customers_orders o ON o.customer_email = m.user_email AND o.status = 'active'
+         JOIN customers_orders o ON o.customer_email = m.user_email AND o.status = 'active' AND o.plan IN ('radar', 'dfy')
          WHERE m.daily_digest_enabled = 1
          LIMIT 40`
       ).all<{

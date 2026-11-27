@@ -285,12 +285,12 @@ export default function WorkspaceSettingsView({
               {
                 id: "blitz" as const,
                 badge: isZh ? "一次性买断" : "One-time",
-                name: isZh ? "启动包 · Launch Starter" : "Launch Starter",
+                name: isZh ? "自助加速包 · Launch Starter" : "Launch Starter",
                 price: "$39",
                 period: isZh ? "一次性" : "one-time",
                 features: isZh
-                  ? ["开放前 30 个最高 DR 核心目录", "解锁前 5 条高意向买家原帖", "全套归因短链 + 1 行美元像素", "可核验公开战报页导出"]
-                  : ["Top 30 high-DR directories unlocked", "5 high-intent buyer threads", "Edge shortlinks + 1-line pixel", "Shareable public report"],
+                  ? ["解锁全部 100+ 人工验证直达 Submit URL", "一键英文 Brand Kit 文案包 + HTTP 200 自动验活", "全套边缘归因短链 (/r/) + 1 行美元像素", "可核验公开战报页导出"]
+                  : ["All 100+ verified direct Submit URLs", "1-click Brand Copy Pack + HTTP 200 verifier", "Edge shortlinks (/r/) + 1-line pixel", "Shareable public report"],
               },
               {
                 id: "radar" as const,
@@ -300,18 +300,18 @@ export default function WorkspaceSettingsView({
                 period: isZh ? "/ 月" : "/ mo",
                 highlight: true,
                 features: isZh
-                  ? ["解锁全部 100+ 海外高权重目录", "无限条 Reddit / HN / GitHub 买家原帖", "无限次 AI 原生英文回复精编", "Slack / Discord 高意向实时 Webhook 推送"]
-                  : ["All 100+ directories unlocked", "Unlimited Reddit / HN / GitHub threads", "Unlimited AI native reply drafting", "Real-time Slack / Discord webhooks"],
+                  ? ["含全部 100+ 海外高权目录三波次排期", "无限条 Reddit / HN / GitHub 买家原帖", "零链接防封号原生英文回复精编", "Slack / Discord 高意向实时 Webhook 推送"]
+                  : ["All 100+ directories paced across 3 waves", "Unlimited Reddit / HN / GitHub threads", "Zero-link safe native reply studio", "Real-time Slack / Discord webhooks"],
               },
               {
                 id: "dfy" as const,
                 badge: isZh ? "全人工代投" : "Concierge",
-                name: isZh ? "代投旗舰 · Done-For-You" : "Done-For-You Sprint",
+                name: isZh ? "代投旗舰 · Done-For-You" : "Done-For-You Concierge",
                 price: "$299",
                 period: isZh ? "一次性" : "one-time",
                 features: isZh
-                  ? ["人工分 3 周代提交全部 100+ 目录", "逐站回填截图凭证 + 自动 HTTP 验活", "含增长指挥台 Pro 全部功能权益", "收录死链 90 天内免费补投保障"]
-                  : ["Manual 3-week submission to 100+ sites", "Proof screenshots + HTTP verification", "Includes full Growth Pro access", "90-day dead-link replacement guarantee"],
+                  ? ["70+ 免费高权目录全人工逐站代投 + 30+ 严审站即贴包", "母语级英文 Brand Kit 定位重塑 + HTTP 200 回执", "附赠 30 天增长指挥台 Pro 完整权限", "30 天死链免费补投保障（不含第三方目录自收加急费）"]
+                  : ["70+ free high-DR directories manually submitted + 30+ gated pack", "Human Brand Kit rewrite + HTTP 200 proofs", "Includes 30 days of Growth Command Pro", "30-day dead-link replacement guarantee"],
               },
             ].map((plan) => (
               <Card
@@ -413,7 +413,11 @@ export default function WorkspaceSettingsView({
                   {isZh ? "12 维 AEO / AI 搜索引擎实时体检" : "12-Point Live AEO & AI Crawler Audit"}
                 </CardTitle>
                 <CardDescription className="font-mono text-xs mt-1">
-                  {isSample ? "https://linear.app (示例体检目标)" : campaign?.target_url || "https://your-saas.com"}
+                  {isSample
+                    ? isZh
+                      ? "https://linear.app (示例体检目标)"
+                      : "https://linear.app (sample target)"
+                    : campaign?.target_url || "https://your-saas.com"}
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -432,10 +436,22 @@ export default function WorkspaceSettingsView({
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
-                    { label: "TTFB 响应", value: `${diag.ttfbMs} ms`, ok: diag.ttfbMs < 1000 },
-                    { label: "Sitemap.xml", value: diag.sitemapValid ? "已就绪" : "缺失", ok: Boolean(diag.sitemapValid) },
-                    { label: "/llms.txt", value: diag.llmsTxt?.exists ? "已部署" : "未部署", ok: Boolean(diag.llmsTxt?.exists) },
-                    { label: "JSON-LD 结构化", value: `${diag.jsonLd?.count || 0} 块`, ok: (diag.jsonLd?.count || 0) > 0 },
+                    { label: isZh ? "TTFB 响应" : "Edge TTFB", value: `${diag.ttfbMs} ms`, ok: diag.ttfbMs < 1000 },
+                    {
+                      label: "Sitemap.xml",
+                      value: diag.sitemapValid ? (isZh ? "已就绪" : "Valid") : isZh ? "缺失" : "Missing",
+                      ok: Boolean(diag.sitemapValid),
+                    },
+                    {
+                      label: "/llms.txt",
+                      value: diag.llmsTxt?.exists ? (isZh ? "已部署" : "Deployed") : isZh ? "未部署" : "Missing",
+                      ok: Boolean(diag.llmsTxt?.exists),
+                    },
+                    {
+                      label: isZh ? "JSON-LD 结构化" : "JSON-LD Schema",
+                      value: `${diag.jsonLd?.count || 0} ${isZh ? "块" : "blocks"}`,
+                      ok: (diag.jsonLd?.count || 0) > 0,
+                    },
                   ].map((item, idx) => (
                     <div key={idx} className="rounded-lg border p-3 space-y-1">
                       <p className="text-[11px] text-muted-foreground">{item.label}</p>
@@ -455,11 +471,17 @@ export default function WorkspaceSettingsView({
                       {isZh ? "主流 AI 爬虫放行状态（robots.txt）" : "AI Crawler Access Matrix"}
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {diag.aiCrawlers.map((bot) => (
-                        <Badge key={bot.name} variant={bot.allowed ? "success" : "destructive"} className="text-xs font-mono">
-                          {bot.name}: {bot.allowed ? "Allow" : "Blocked"}
-                        </Badge>
-                      ))}
+                      {diag.aiCrawlers.map((bot, bIdx) => {
+                        const botLabel =
+                          (bot as { name?: string; bot?: string }).name ||
+                          (bot as { bot?: string }).bot ||
+                          `Crawler-${bIdx + 1}`;
+                        return (
+                          <Badge key={botLabel} variant={bot.allowed ? "success" : "destructive"} className="text-xs font-mono">
+                            {botLabel}: {bot.allowed ? "Allow" : "Blocked"}
+                          </Badge>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -485,7 +507,9 @@ export default function WorkspaceSettingsView({
 
           <Card className="shadow-xs">
             <CardHeader>
-              <CardTitle className="text-base">/llms.txt 自动生成与部署指南</CardTitle>
+              <CardTitle className="text-base">
+                {isZh ? "/llms.txt 自动生成与部署指南" : "Auto-Generated /llms.txt Manifest"}
+              </CardTitle>
               <CardDescription>
                 {isZh
                   ? "上传至网站根目录（例如 https://your-saas.com/llms.txt），帮助 ChatGPT、Perplexity 与 Claude 准确引用你的产品"

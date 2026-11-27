@@ -179,11 +179,6 @@ export default function DashboardPage() {
         const cleanQs = sp.toString();
         window.history.replaceState({}, "", cleanQs ? `${window.location.pathname}?${cleanQs}` : window.location.pathname);
       }
-      if (sp.get("unlocked") === "1") {
-        toast.success(
-          isZh ? "付款已确认，方案权益已自动同步解锁！" : "Payment confirmed — workspace entitlements updated!"
-        );
-      }
       if (sp.get("sample") === "1") {
         setIsSampleMode(true);
         setData(buildSampleOverview());
@@ -192,27 +187,47 @@ export default function DashboardPage() {
         return;
       }
       if (checkoutId) {
-        fetch("/api/checkout/claim", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ checkoutId }),
-        })
-          .then((r) => r.json().catch(() => null))
-          .then((claimed: { unlocked?: boolean; amountUsd?: number } | null) => {
-            if (claimed?.unlocked && typeof window !== "undefined") {
+        const claimWithRetry = async (attempt = 0): Promise<void> => {
+          try {
+            const r = await fetch("/api/checkout/claim", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ checkoutId }),
+            });
+            const claimed = (await r.json().catch(() => null)) as {
+              unlocked?: boolean;
+              pending?: boolean;
+              amountUsd?: number;
+            } | null;
+            if (claimed?.unlocked) {
+              toast.success(
+                isZh ? "付款已确认，方案权益已自动同步解锁！" : "Payment confirmed — workspace entitlements updated!"
+              );
               try {
                 const w = window as Window & { lpConvert?: (t: string, a: number) => void };
                 w.lpConvert?.("purchase", Number(claimed.amountUsd || 39));
               } catch {
                 // 忽略归因像素异常
               }
+              return;
             }
-          })
-          .catch(() => {})
-          .finally(() => {
-            void loadOverview(initCampId > 0 ? initCampId : undefined);
-          });
+            if (claimed?.pending && attempt < 2) {
+              await new Promise((res) => setTimeout(res, 1800));
+              return claimWithRetry(attempt + 1);
+            }
+          } catch {
+            // ignore
+          }
+        };
+        void claimWithRetry().finally(() => {
+          void loadOverview(initCampId > 0 ? initCampId : undefined);
+        });
         return;
+      }
+      if (sp.get("unlocked") === "1") {
+        sp.delete("unlocked");
+        const cleanQs = sp.toString();
+        window.history.replaceState({}, "", cleanQs ? `${window.location.pathname}?${cleanQs}` : window.location.pathname);
       }
       void loadOverview(initCampId > 0 ? initCampId : undefined);
       return;
@@ -798,10 +813,14 @@ export default function DashboardPage() {
       },
     ];
 
-    // 全量 100 目录进入 cmdk 检索，不再截断
-    const dirs: CommandActionItem[] = (ledger?.directories || []).map((d) => ({
+    // 仅将当前套餐已解锁的目录开放至 ⌘K 检索，防止沙盒/免费版枚举全部 100 站私密列表
+    const maxCmdDirs = isSampleMode ? 18 : data?.entitlement?.maxDirectories || 18;
+    const unlockedDirs = [...(ledger?.directories || [])]
+      .sort((a, b) => b.dr - a.dr)
+      .slice(0, maxCmdDirs);
+    const dirs: CommandActionItem[] = unlockedDirs.map((d) => ({
       id: `dir-${d.id}`,
-      group: isZh ? "目录平台检索（100 站）" : "Directories (100)",
+      group: isZh ? `已解锁目录（${unlockedDirs.length} 站）` : `Unlocked Directories (${unlockedDirs.length})`,
       label: d.name,
       hint: `DR ${d.dr} · ${d.url.replace("https://", "")}`,
       keywords: `${d.category} dr${d.dr} ${d.linkType}`,
@@ -812,7 +831,7 @@ export default function DashboardPage() {
     }));
 
     return [...base, ...dirs];
-  }, [isZh, ledger, resolvedTheme, toggleTheme, setLocale, navigateView, handlePublishReport]);
+  }, [isZh, ledger, isSampleMode, data?.entitlement?.maxDirectories, resolvedTheme, toggleTheme, setLocale, navigateView, handlePublishReport]);
 
   if (loading) {
     return (

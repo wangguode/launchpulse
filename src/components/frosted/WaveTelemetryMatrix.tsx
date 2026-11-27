@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 interface WaveTelemetryMatrixProps {
   directories: ReconciledDirectoryRow[];
   isZh: boolean;
+  unlockedIds?: Set<string>;
   onSelectDirectory?: (dir: ReconciledDirectoryRow) => void;
   onSelectWave?: (wave: "all" | "1" | "2" | "3") => void;
   activeWave?: string;
@@ -19,6 +20,7 @@ interface WaveTelemetryMatrixProps {
 export default function WaveTelemetryMatrix({
   directories,
   isZh,
+  unlockedIds,
   onSelectDirectory,
   onSelectWave,
   activeWave,
@@ -119,13 +121,20 @@ export default function WaveTelemetryMatrix({
                         : dir.effectiveStatus === "skipped"
                           ? "bg-rose-400/35"
                           : "bg-slate-400/30 dark:bg-slate-500/25";
+                  const isLockedBar = Boolean(unlockedIds && !unlockedIds.has(dir.id));
                   return (
                     <button
                       key={dir.id}
                       type="button"
-                      title={`${dir.name} (DR ${dir.dr}) · ${dir.effectiveStatus}`}
+                      title={
+                        isLockedBar
+                          ? isZh
+                            ? `已锁定高权目录 (DR ${dir.dr}) · $39 解锁全部 100+ 站`
+                            : `Locked Directory (DR ${dir.dr}) · Unlock all 100+ for $39`
+                          : `${dir.name} (DR ${dir.dr}) · ${dir.effectiveStatus}`
+                      }
                       onClick={(e) => {
-                        if (onSelectDirectory) {
+                        if (onSelectDirectory && !isLockedBar) {
                           e.stopPropagation();
                           onSelectDirectory(dir);
                         }

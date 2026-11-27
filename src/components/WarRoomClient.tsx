@@ -103,6 +103,17 @@ export default function WarRoomClient({ report }: Props) {
             }
           })
           .catch(() => {});
+      } else {
+        fetch("/api/dashboard/overview")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((ov: { entitlement?: { plan?: string } } | null) => {
+            if (ov?.entitlement?.plan && ov.entitlement.plan !== "free") {
+              setIsUnlocked(true);
+              setUnlockedPlan(ov.entitlement.plan);
+              setPostCheckoutPrompt(false);
+            }
+          })
+          .catch(() => {});
       }
       trackEvent("view");
     }
@@ -426,27 +437,15 @@ export default function WarRoomClient({ report }: Props) {
                 <CardTitle className="text-sm">
                   {t.warRoom.generatedLlmsTitle} {report.domain}
                 </CardTitle>
-                {isUnlocked && (
-                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => copyText("llms-txt", report.generatedLlmsTxtPreview)}>
-                    {copiedId === "llms-txt" ? t.common.copiedBang : t.common.copyFile}
-                  </Button>
-                )}
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => copyText("llms-txt", report.generatedLlmsTxtPreview)}>
+                  {copiedId === "llms-txt" ? t.common.copiedBang : t.common.copyFile}
+                </Button>
               </CardHeader>
               <CardContent>
-                <div className="relative rounded-md overflow-hidden border bg-muted/40">
-                  <pre className={`text-xs font-mono text-muted-foreground p-3.5 whitespace-pre-wrap ${!isUnlocked ? "blur-[4px] select-none" : ""}`}>
+                <div className="rounded-md overflow-hidden border bg-muted/40">
+                  <pre className="text-xs font-mono text-muted-foreground p-3.5 whitespace-pre-wrap">
                     {report.generatedLlmsTxtPreview}
                   </pre>
-                  {!isUnlocked && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-xs p-4 text-center gap-2.5">
-                      <p className="text-xs font-medium">
-                        {t.warRoom.llmsOverlayDescPrefix} <code>public/llms.txt</code> {t.warRoom.llmsOverlayDescSuffix}
-                      </p>
-                      <Button size="sm" disabled={loadingPlan !== null} onClick={() => handleCheckout("blitz")}>
-                        {loadingPlan === "blitz" ? t.pricing.loadingCheckout : t.warRoom.unlockBlitzLong}
-                      </Button>
-                    </div>
-                  )}
                 </div>
               </CardContent>
             </Card>

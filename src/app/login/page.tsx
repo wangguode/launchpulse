@@ -26,8 +26,39 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [magicSending, setMagicSending] = useState(false);
+  const [magicNotice, setMagicNotice] = useState("");
   const [error, setError] = useState("");
   const [prefillUrl, setPrefillUrl] = useState("");
+
+  const handleSendMagicLink = async () => {
+    const clean = email.trim().toLowerCase();
+    if (!clean.includes("@")) {
+      setError(isZh ? "请先在上方填写付款邮箱，再点击发送免密链接。" : "Enter your checkout email above first.");
+      return;
+    }
+    setMagicSending(true);
+    setError("");
+    setMagicNotice("");
+    try {
+      const res = await fetch("/api/portal/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: clean }),
+      });
+      const d = (await res.json()) as { message?: string };
+      setMagicNotice(
+        d.message ||
+          (isZh
+            ? "若该邮箱存在有效订单，免密登录链接已发至收件箱。"
+            : "If an active order exists for this email, a Magic Login Link was sent to your inbox.")
+      );
+    } catch {
+      setError(isZh ? "网络异常，请稍后重试。" : "Network error. Please retry.");
+    } finally {
+      setMagicSending(false);
+    }
+  };
 
   useEffect(() => {
     const sp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
@@ -120,9 +151,28 @@ export default function LoginPage() {
                 <Input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="h-10" />
               </div>
               {error && <p className="text-xs text-destructive">{error}</p>}
+              {magicNotice && <p className="text-xs text-emerald-600 dark:text-emerald-400">{magicNotice}</p>}
               <Button type="submit" size="lg" className="w-full" disabled={loading}>
                 {loading ? (isZh ? "提交中..." : "Submitting...") : mode === "register" ? (isZh ? "创建账号并进入 →" : "Create Workspace →") : isZh ? "立即进入指挥台 →" : "Sign In →"}
               </Button>
+              {mode === "login" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  disabled={magicSending}
+                  onClick={() => void handleSendMagicLink()}
+                >
+                  {magicSending
+                    ? isZh
+                      ? "正在发送免密链接..."
+                      : "Sending Magic Link..."
+                    : isZh
+                      ? "已付款无密码？发送免密登录链接到邮箱"
+                      : "Paid via Creem? Email me a Magic Login Link"}
+                </Button>
+              )}
             </form>
           </CardContent>
 
