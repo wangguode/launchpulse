@@ -521,10 +521,12 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
     const origin = request.headers.get("origin") || new URL(request.url).origin;
     const sessionUser = await getSessionUser(request, env);
     const resolvedEmail = (body.email || body.customerEmail || sessionUser?.email || "").trim().toLowerCase();
+    const rawSlug = (body.slug || "").trim().toLowerCase();
+    const isKnownStaticAudit = /^(certnudge|trieste|multiplecodex|pinpoint)$/.test(rawSlug);
     const returnPath = sessionUser
       ? `/dashboard?unlocked=1&plan=${plan}`
-      : body.slug
-        ? `/audit/${encodeURIComponent(body.slug)}?unlocked=1&plan=${plan}`
+      : isKnownStaticAudit
+        ? `/audit/${encodeURIComponent(rawSlug)}?unlocked=1&plan=${plan}`
         : `/portal?unlocked=1&plan=${plan}`;
 
     const creemApiKey = env.CREEM_API_KEY?.trim();
@@ -675,6 +677,16 @@ async function ensureEmailOutboxTable(env: Env): Promise<void> {
         audit_url TEXT NOT NULL DEFAULT '',
         outreach_status TEXT NOT NULL DEFAULT 'queued',
         discovered_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`
+    ).run();
+    await env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS checkout_intents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        work_email TEXT NOT NULL,
+        target_url TEXT NOT NULL DEFAULT '',
+        plan TEXT NOT NULL DEFAULT 'blitz',
+        country TEXT NOT NULL DEFAULT 'XX',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
       )`
     ).run();
     try {
@@ -2528,6 +2540,41 @@ export default {
     if (url.pathname === "/api/track" && request.method === "POST") {
       if (!checkRateLimit(request, 60)) return jsonResponse({ ok: true, throttled: true }, 429);
       return handleTrack(request, env);
+    }
+    if (url.pathname === "/api/lead-intent" && request.method === "POST") {
+      if (!checkRateLimit(request, 15)) return jsonResponse({ ok: true, throttled: true }, 429);
+      try {
+        const body = (await request.json()) as {
+          email?: string;
+          targetUrl?: string;
+          plan?: string;
+        };
+        const email = (body.email || "").trim().toLowerCase().slice(0, 120);
+        const targetUrl = (body.targetUrl || "").trim().slice(0, 240);
+        const plan = ["blitz", "radar", "dfy"].includes(body.plan || "") ? body.plan! : "blitz";
+        if (!email || !email.includes("@")) {
+          return jsonResponse({ ok: false, error: "Invalid email" }, 400);
+        }
+        const country = ((request as Request & { cf?: { country?: string } }).cf?.country || "XX").slice(0, 8);
+        if (env.DB) {
+          await ensureEmailOutboxTable(env);
+          await env.DB.prepare(
+            `INSERT INTO checkout_intents (work_email, target_url, plan, country) VALUES (?1, ?2, ?3, ?4)`
+          )
+            .bind(email, targetUrl, plan, country)
+            .run();
+        }
+        if (plan === "dfy") {
+          await sendResendEmail(env, {
+            to: "hello@statementflow.win",
+            subject: `🔥 [LaunchPulse $299 DFY Intent] ${email} (${targetUrl || "no-url"})`,
+            text: `Founder initiated $299 Done-For-You checkout:\n- Email: ${email}\n- Target URL: ${targetUrl}\n- Country: ${country}`,
+          });
+        }
+        return jsonResponse({ ok: true });
+      } catch {
+        return jsonResponse({ ok: false }, 400);
+      }
     }
     if (url.pathname === "/api/checkout" && request.method === "POST") {
       if (!checkRateLimit(request, 15)) return jsonResponse({ error: "Too many checkout attempts." }, 429);

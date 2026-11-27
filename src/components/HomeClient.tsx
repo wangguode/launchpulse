@@ -86,6 +86,16 @@ interface LiveScanPayload {
   };
 }
 
+interface ScanHistoryEntry {
+  domain: string;
+  origin: string;
+  firstScore: number;
+  latestScore: number;
+  scannedAt: string;
+}
+
+const LP_SCAN_HISTORY_KEY = "lp_scan_history_v1";
+
 /**
  * LaunchPulse 官网（/）
  * 100% 复用官方 shadcn/ui 组件库 + Kiranism 10 套多主题系统 + Recharts 3 交互图表
@@ -117,7 +127,21 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
   const [dirFilter, setDirFilter] = useState<"all" | "dr70" | "dofollow">("all");
   const [videoOpen, setVideoOpen] = useState(false);
   const [checkoutPlan, setCheckoutPlan] = useState<string | null>(null);
+  const [checkoutDialogPlan, setCheckoutDialogPlan] = useState<"blitz" | "radar" | "dfy" | null>(null);
+  const [checkoutEmail, setCheckoutEmail] = useState("");
+  const [checkoutTargetUrl, setCheckoutTargetUrl] = useState("");
   const [copiedLlms, setCopiedLlms] = useState(false);
+  const [scanHistory, setScanHistory] = useState<ScanHistoryEntry[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = window.localStorage.getItem(LP_SCAN_HISTORY_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as ScanHistoryEntry[];
+      return Array.isArray(parsed) ? parsed.slice(0, 6) : [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     fetch("/api/track", {
@@ -156,6 +180,24 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
         toast.error(json.error || (isZh ? "诊断失败，请确认网址可公网访问" : "Could not inspect this URL"));
       } else {
         setScanResult(json);
+        setCheckoutTargetUrl(json.origin);
+        setScanHistory((prev) => {
+          const prevMatch = prev.find((item) => item.domain === json.domain);
+          const entry: ScanHistoryEntry = {
+            domain: json.domain,
+            origin: json.origin,
+            firstScore: prevMatch ? prevMatch.firstScore : json.score,
+            latestScore: json.score,
+            scannedAt: new Date().toISOString(),
+          };
+          const next = [entry, ...prev.filter((item) => item.domain !== json.domain)].slice(0, 6);
+          try {
+            window.localStorage.setItem(LP_SCAN_HISTORY_KEY, JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+          return next;
+        });
         fetch("/api/track", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -176,20 +218,69 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
     await executeScanForUrl(scanUrl);
   };
 
-  const handleCheckout = async (plan: "blitz" | "radar" | "dfy") => {
-    setCheckoutPlan(plan);
+  const handleCheckout = (plan: "blitz" | "radar" | "dfy") => {
+    setCheckoutTargetUrl(scanResult?.origin || scanUrl.trim() || "");
+    setCheckoutDialogPlan(plan);
+  };
+
+  const handleConfirmLaunchCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!checkoutDialogPlan) return;
+    const cleanEmail = checkoutEmail.trim().toLowerCase();
+    let cleanUrl = checkoutTargetUrl.trim();
+    if (cleanUrl && !/^https?:\/\//i.test(cleanUrl)) {
+      cleanUrl = `https://${cleanUrl}`;
+    }
+    let derivedDomain = scanResult?.domain || "saas-launch";
     try {
+      if (cleanUrl) {
+        derivedDomain = new URL(cleanUrl).hostname.replace(/^www\./i, "");
+      }
+    } catch {
+      toast.error(isZh ? "请输入有效的产品网址（例如 https://your-saas.com）" : "Please enter a valid product URL.");
+      return;
+    }
+
+    setCheckoutPlan(checkoutDialogPlan);
+    try {
+      fetch("/api/lead-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: cleanEmail,
+          targetUrl: cleanUrl,
+          plan: checkoutDialogPlan,
+        }),
+        keepalive: true,
+      }).catch(() => {});
+
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          plan,
-          slug: scanResult?.domain || "saas-launch",
-          targetUrl: scanResult?.origin || scanUrl.trim() || "",
+          plan: checkoutDialogPlan,
+          email: cleanEmail,
+          slug: derivedDomain,
+          targetUrl: cleanUrl,
         }),
       });
-      const data = (await res.json()) as { checkoutUrl?: string };
-      if (res.ok && data.checkoutUrl) window.location.href = data.checkoutUrl;
+      const data = (await res.json()) as { checkoutUrl?: string; error?: string };
+      if (res.ok && data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+      toast.error(
+        data.error ||
+          (isZh
+            ? "暂时无法初始化结账会话，请稍后重试或联系 hello@statementflow.win"
+            : "Unable to start checkout right now. Please retry or email hello@statementflow.win.")
+      );
+    } catch {
+      toast.error(
+        isZh
+          ? "网络连接异常，请检查网络后重试"
+          : "Network error while connecting to Creem checkout. Please retry."
+      );
     } finally {
       setCheckoutPlan(null);
     }
@@ -289,12 +380,12 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
   ];
 
   return (
-    <div className="min-h-screen bg-transparent text-foreground">
+    <div className="min-h-screen overflow-x-clip bg-transparent text-foreground">
       {/* 悬浮光学磨砂旗舰导航舱 */}
-      <div className="sticky top-3 z-40 px-4 sm:px-6">
-        <header className="lp-frosted-topbar mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 rounded-2xl px-4 sm:px-5">
-          <Link href="/" className="flex items-center gap-2.5 font-semibold text-[15px] tracking-tight">
-            <div className="lp-btn-bevel flex size-8 items-center justify-center rounded-[10px]">
+      <div className="sticky top-3 z-40 px-3 sm:px-6">
+        <header className="lp-frosted-topbar mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 sm:gap-4 rounded-2xl px-3 sm:px-5">
+          <Link href="/" className="flex shrink-0 items-center gap-2 font-semibold text-[14.5px] sm:text-[15px] tracking-tight whitespace-nowrap">
+            <div className="lp-btn-bevel flex size-7 sm:size-8 items-center justify-center rounded-[10px]">
               <BrandMark className="size-4" tone="light" />
             </div>
             <span>LaunchPulse</span>
@@ -324,11 +415,12 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
             </a>
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <LangSwitcher />
             <ThemeModeToggle />
-            <Button size="sm" render={<Link href="/dashboard?sample=1" />}>
-              {isZh ? "进入指挥台" : "Open Console"}
+            <Button size="sm" className="whitespace-nowrap px-2.5 sm:px-3" render={<Link href="/dashboard?sample=1" />}>
+              <span className="hidden sm:inline">{isZh ? "进入指挥台" : "Open Console"}</span>
+              <span className="sm:hidden">{isZh ? "指挥台" : "Console"}</span>
               <IconArrowRight className="size-3.5" />
             </Button>
           </div>
@@ -337,14 +429,14 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
 
       {/* 第 1 幕：殿堂级排版 Hero + 命令式诊断栏 + 嵌入式光学磨砂指挥台实景 */}
       <section>
-        <div className="mx-auto max-w-6xl px-4 pt-14 pb-16 sm:px-6 sm:pt-20 sm:pb-20 space-y-12">
+        <div className="mx-auto max-w-6xl px-4 pt-12 pb-16 sm:px-6 sm:pt-20 sm:pb-20 space-y-12">
           <div className="mx-auto max-w-4xl text-center space-y-6">
             <div className="inline-flex items-center gap-2 lp-frost-pill rounded-full px-3.5 py-1 text-xs font-medium text-muted-foreground">
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
               <span>{isZh ? "100 高权目录三波次分发 · 社区求购雷达 · Stripe 边缘美元归因" : "100 Curated Directories · Buyer Radar · Verifiable Revenue Attribution"}</span>
             </div>
 
-            <h1 className="lp-display text-4xl font-semibold tracking-[-0.035em] sm:text-6xl lg:text-[64px] leading-[1.08]">
+            <h1 className="lp-display text-[29px] font-semibold tracking-[-0.035em] sm:text-6xl lg:text-[64px] leading-[1.12] sm:leading-[1.08]">
               {isZh ? (
                 <>
                   把海外外链分发，
@@ -359,7 +451,7 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
                 </>
               )}
             </h1>
-            <p className="mx-auto max-w-2xl text-[16.5px] text-muted-foreground leading-relaxed">
+            <p className="mx-auto max-w-2xl text-[15.5px] sm:text-[16.5px] text-muted-foreground leading-relaxed">
               {isZh
                 ? "一次录入品牌资料，按三波次自然节奏投递 100+ 海外高权重目录，全天候捕捉 Reddit 与 Hacker News 买家求购信号，并将每笔美元收款精确归因到具体渠道。"
                 : "Calibrate your Brand Kit once to pace 100+ high-DR directory submissions, capture live Reddit & HN buying threads, and reconcile every dollar of revenue."}
@@ -374,12 +466,12 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
                     ref={scanInputRef}
                     value={scanUrl}
                     onChange={(e) => setScanUrl(e.target.value)}
-                    placeholder={isZh ? "粘贴你的产品官网地址，例如 https://your-saas.com" : "https://your-saas.com"}
-                    className="h-11 pl-10 pr-14 border-transparent bg-transparent shadow-none focus-visible:ring-0 text-[14.5px]"
+                    placeholder={isZh ? "粘贴产品官网，如 https://your-saas.com" : "https://your-saas.com"}
+                    className="h-11 pl-10 pr-3 sm:pr-14 border-transparent bg-transparent shadow-none focus-visible:ring-0 text-base sm:text-[14.5px]"
                   />
                   <Kbd className="lp-frost-pill border-none hidden sm:inline-flex absolute right-3 top-1/2 -translate-y-1/2">⌘K</Kbd>
                 </div>
-                <Button type="submit" size="lg" className="h-11 px-6 rounded-xl" disabled={scanning}>
+                <Button type="submit" size="lg" className="min-h-11 px-6 rounded-xl" disabled={scanning}>
                   {scanning ? (isZh ? "诊断中..." : "Scanning...") : isZh ? "免费增长体检" : "Free Growth Audit"}
                   <IconArrowRight className="size-4" />
                 </Button>
@@ -398,6 +490,41 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
                   </button>
                 ))}
               </div>
+
+              {/* 本地复测涨分留存飞轮：记录首次与最新健康分差值，驱动创始人部署 /llms.txt 后回访复测转化 */}
+              {scanHistory.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
+                  <span className="text-muted-foreground">
+                    {isZh ? "最近体检记录：" : "Recent scans:"}
+                  </span>
+                  {scanHistory.map((item) => {
+                    const delta = item.latestScore - item.firstScore;
+                    return (
+                      <button
+                        key={item.domain}
+                        type="button"
+                        disabled={scanning}
+                        onClick={() => void executeScanForUrl(item.origin)}
+                        className="lp-frost-pill inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-[11.5px] text-foreground hover:border-primary/50 transition-colors cursor-pointer tabular-nums"
+                      >
+                        <span>{item.domain}</span>
+                        <span className="font-semibold text-primary">{item.latestScore}/100</span>
+                        {delta !== 0 && (
+                          <span
+                            className={
+                              delta > 0
+                                ? "text-emerald-600 dark:text-emerald-400 font-bold"
+                                : "text-amber-600 font-bold"
+                            }
+                          >
+                            {delta > 0 ? `+${delta}` : delta}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </form>
 
             {scanResult && (
@@ -845,15 +972,23 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
 
       <Separator />
 
-      {/* 第 4 幕：官方 shadcn Card 三档透明定价 */}
+      {/* 第 4 幕：官方 shadcn Card 三档透明定价 + 工时 ROI 锚点 */}
       <section id="pricing" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 space-y-8">
-        <div className="max-w-xl space-y-1.5">
-          <h2 className="lp-display text-2xl font-bold tracking-tight sm:text-3xl">
-            {isZh ? "透明定价，按出海阶段选择。" : "Transparent pricing for every launch stage."}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {isZh ? "无年付绑定，全部外链与营收归因支持公开查验。" : "No lock-ins. Every backlink and dollar is verifiable."}
-          </p>
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div className="max-w-xl space-y-1.5">
+            <h2 className="lp-display text-2xl font-bold tracking-tight sm:text-3xl">
+              {isZh ? "透明定价，按出海阶段选择。" : "Transparent pricing for every launch stage."}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {isZh
+                ? "手工逐站注册提交 100 个海外目录耗时约 25 小时（按工程师时薪折合 $2,000+）。无年付绑定，全部外链支持 HTTP 200 验活。"
+                : "Manual submission across 100+ SaaS directories takes ~25 founder hours ($2,000+ opportunity cost). Every plan includes Creem VAT invoicing & 14-day guarantee."}
+            </p>
+          </div>
+          <Badge variant="outline" className="w-fit py-1 px-3 text-xs">
+            <IconShieldCheck className="size-3.5 mr-1 text-emerald-500" />
+            {isZh ? "14 天退款保障 · 30 天死链免费补投" : "14-Day Refund Guarantee · 30-Day Link Replacement"}
+          </Badge>
         </div>
 
         <div className="grid md:grid-cols-3 gap-5">
@@ -951,6 +1086,110 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
           </div>
         </div>
       </footer>
+
+      <Dialog
+        open={Boolean(checkoutDialogPlan)}
+        onOpenChange={(open) => {
+          if (!open) setCheckoutDialogPlan(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">
+              {checkoutDialogPlan === "dfy"
+                ? isZh
+                  ? "确认代投旗舰站点与接收邮箱 ($299)"
+                  : "Confirm Done-For-You Concierge ($299)"
+                : checkoutDialogPlan === "radar"
+                ? isZh
+                  ? "开通增长指挥台订阅 ($29/月)"
+                  : "Activate Growth Command Pro ($29/mo)"
+                : isZh
+                ? "开通 Wave 1 启动包 ($39 买断)"
+                : "Unlock Launch Starter Wave 1 ($39 once)"}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleConfirmLaunchCheckout} className="space-y-4 pt-1">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">
+                {isZh ? "需要推广的产品官网 URL" : "Product Website URL to Distribute"}
+              </label>
+              <Input
+                type="text"
+                required
+                value={checkoutTargetUrl}
+                onChange={(e) => setCheckoutTargetUrl(e.target.value)}
+                placeholder="https://your-saas.com"
+                className="h-11 text-base sm:text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">
+                {isZh ? "创始人邮箱（接收免密控制台链接与税票）" : "Work Email (Receives Instant Console Link & VAT Invoice)"}
+              </label>
+              <Input
+                type="email"
+                required
+                value={checkoutEmail}
+                onChange={(e) => setCheckoutEmail(e.target.value)}
+                placeholder="founder@your-saas.com"
+                className="h-11 text-base sm:text-sm"
+              />
+            </div>
+
+            <div className="rounded-xl border bg-muted/40 p-3 text-xs space-y-1.5">
+              <p className="font-semibold text-foreground">
+                {isZh ? "付款后 60 秒内自动交付：" : "Delivered automatically within 60 seconds:"}
+              </p>
+              <ul className="space-y-1 text-muted-foreground">
+                <li>
+                  •{" "}
+                  {checkoutDialogPlan === "dfy"
+                    ? isZh
+                      ? "人工精修英文 Brand Kit + 100+ 目录逐站代提交排期"
+                      : "Human Brand Kit polish + manual submission across 100+ verified directories"
+                    : checkoutDialogPlan === "radar"
+                    ? isZh
+                      ? "100+ 目录三波次队列 + 24/7 买家求购雷达 + 边缘归因短链"
+                      : "100+ directory 3-wave pacer + 24/7 Buyer Inbox + edge revenue attribution"
+                    : isZh
+                    ? "Wave 1 首波 30 个高权重目录队列 + 自动 HTTP 200 验活回执"
+                    : "Wave 1 queue (30 Tier-1 directories) + automated HTTP 200 live verification"}
+                </li>
+                <li>
+                  •{" "}
+                  {isZh
+                    ? "Creem 官方全球税务合规发票 + 14 天无忧保障"
+                    : "Creem Merchant-of-Record VAT invoice + 14-day satisfaction guarantee"}
+                </li>
+              </ul>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full min-h-11"
+              disabled={Boolean(checkoutPlan)}
+            >
+              {checkoutPlan
+                ? isZh
+                  ? "正在安全跳转至 Creem 收银台..."
+                  : "Redirecting to Secure Creem Checkout..."
+                : checkoutDialogPlan === "dfy"
+                ? isZh
+                  ? "前往安全结账 · $299"
+                  : "Continue to Secure Checkout · $299"
+                : checkoutDialogPlan === "radar"
+                ? isZh
+                  ? "前往安全结账 · $29/月"
+                  : "Continue to Secure Checkout · $29/mo"
+                : isZh
+                ? "前往安全结账 · $39"
+                : "Continue to Secure Checkout · $39"}
+              <IconArrowRight className="size-4" />
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={videoOpen} onOpenChange={setVideoOpen}>
         <DialogContent className="sm:max-w-3xl p-0 overflow-hidden">

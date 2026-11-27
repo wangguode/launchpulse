@@ -16,7 +16,7 @@ export default function LangSwitcher({ surface = "auto" }: { surface?: "auto" | 
 
   return (
     <div
-      className={`inline-flex items-center rounded-full border p-0.5 text-[11px] font-medium ${containerCls}`}
+      className={`inline-flex shrink-0 whitespace-nowrap items-center rounded-full border p-0.5 text-[11px] font-medium ${containerCls}`}
       role="group"
       aria-label={isZh ? "切换界面语言" : "Switch interface language"}
     >
@@ -24,7 +24,7 @@ export default function LangSwitcher({ surface = "auto" }: { surface?: "auto" | 
         type="button"
         aria-pressed={isZh}
         onClick={() => setLocale("zh")}
-        className={`px-2 py-0.5 rounded-full lp-ease cursor-pointer ${
+        className={`whitespace-nowrap px-2 py-0.5 rounded-full lp-ease cursor-pointer ${
           isZh
             ? surface === "dark"
               ? "bg-white/15 text-white font-semibold"
