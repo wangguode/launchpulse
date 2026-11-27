@@ -121,7 +121,9 @@ export default function PublicGrowthReportPage() {
       .finally(() => setLoading(false));
   }, [isZh]);
 
-  const showRevenue = (data as { config?: { showRevenue?: boolean } } | null)?.config?.showRevenue !== false;
+  const showRevenue =
+    data?.showRevenue !== false &&
+    (data as { config?: { showRevenue?: boolean } } | null)?.config?.showRevenue !== false;
   const series = (data?.stats.dailySeries || []).map((pt) => ({
     date: pt.date.slice(5),
     revenueUsd: showRevenue && typeof pt.revenueUsd === "number" ? pt.revenueUsd : 0,
@@ -158,7 +160,7 @@ export default function PublicGrowthReportPage() {
         ) : error || !data ? (
           <Card className="p-16 text-center space-y-3">
             <p className="font-semibold">{error}</p>
-            <Button variant="link" render={<Link href="/report?id=demo-acmeflow" />}>
+            <Button variant="link" render={<Link href="/report/demo-acmeflow" />}>
               {isZh ? "查看 AcmeFlow 示例战报 →" : "Open Sample Report →"}
             </Button>
           </Card>
@@ -183,7 +185,7 @@ export default function PublicGrowthReportPage() {
                 <CardAction>
                   <Badge variant="success" className="gap-1.5">
                     <IconShieldCheck className="size-3.5" />
-                    {isZh ? "Cloudflare 边缘归因实证" : "Verified Edge Attribution"}
+                    {isZh ? "Cloudflare 边缘像素归因" : "Edge Pixel Attribution"}
                   </Badge>
                 </CardAction>
               </CardHeader>
@@ -268,8 +270,12 @@ export default function PublicGrowthReportPage() {
                     items={data.stats.channelBreakdown.map((ch) => ({
                       key: ch.channel,
                       label: formatChannelLabel(ch.channel, isZh),
-                      value: Math.max(ch.revenueUsd || 0, 1),
-                      formattedValue: `$${(ch.revenueUsd || 0).toLocaleString()}`,
+                      value: showRevenue
+                        ? Math.max(ch.revenueUsd || 0, ch.clicks > 0 ? 1 : 0)
+                        : Math.max(ch.clicks || 0, 1),
+                      formattedValue: showRevenue
+                        ? `$${(ch.revenueUsd || 0).toLocaleString()}`
+                        : `${(ch.clicks || 0).toLocaleString()} clicks`,
                     }))}
                   />
                   <Separator />

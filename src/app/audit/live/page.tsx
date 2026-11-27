@@ -68,16 +68,16 @@ export default function DynamicLiveAuditPage() {
   const [loading, setLoading] = useState(true);
   const [copiedLlms, setCopiedLlms] = useState(false);
 
-  const [checkoutPlanDialog, setCheckoutPlanDialog] = useState<"blitz" | "dfy" | null>(null);
+  const [checkoutPlanDialog, setCheckoutPlanDialog] = useState<"blitz" | "radar" | "dfy" | null>(null);
   const [checkoutEmail, setCheckoutEmail] = useState("");
   const [submittingCheckout, setSubmittingCheckout] = useState(false);
-  const [directPlanLoading, setDirectPlanLoading] = useState<"blitz" | "dfy" | null>(null);
+  const [directPlanLoading, setDirectPlanLoading] = useState<"blitz" | "radar" | "dfy" | null>(null);
 
   const [freeSampleEmail, setFreeSampleEmail] = useState("");
   const [freeSampleLoading, setFreeSampleLoading] = useState(false);
   const [freeSampleDoneMsg, setFreeSampleDoneMsg] = useState("");
 
-  const handleDirectInstantCheckout = async (plan: "blitz" | "dfy") => {
+  const handleDirectInstantCheckout = async (plan: "blitz" | "radar" | "dfy") => {
     if (!instantScan) return;
     setDirectPlanLoading(plan);
     try {
@@ -449,10 +449,10 @@ export default function DynamicLiveAuditPage() {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => void handleDirectInstantCheckout("blitz")}
+                          onClick={() => void handleDirectInstantCheckout("radar")}
                           className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
                         >
-                          {isZh ? "已锁定原帖链接 · 升级解锁完整求购雷达 →" : "Thread URL locked · Unlock full workspace →"}
+                          {isZh ? "已锁定原帖链接 · 开启 $29/月求购雷达解锁 →" : "Thread URL locked · Unlock 24/7 Radar ($29/mo) →"}
                         </button>
                       )}
                     </div>

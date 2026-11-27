@@ -1927,7 +1927,7 @@ export default function AdminConsolePage() {
                       <SelectValue>{formatPlanName(grantPlan, isZh)}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="blitz">{isZh ? "启动包 · 30 站 ($39)" : "Launch Starter ($39)"}</SelectItem>
+                      <SelectItem value="blitz">{isZh ? "启动包 · 100+ 站 ($39)" : "Launch Starter · 100+ dirs ($39)"}</SelectItem>
                       <SelectItem value="radar">{isZh ? "增长指挥台 Pro ($29/月)" : "Growth Pro ($29/mo)"}</SelectItem>
                       <SelectItem value="dfy">{isZh ? "代投旗舰托管 ($299)" : "Done-For-You ($299)"}</SelectItem>
                     </SelectContent>

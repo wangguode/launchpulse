@@ -100,6 +100,9 @@ export default function WarRoomClient({ report }: Props) {
             if (d.unlocked) {
               setIsUnlocked(true);
               setUnlockedPlan(d.plan || "radar");
+              params.delete("token");
+              const cleanQs = params.toString();
+              window.history.replaceState({}, "", cleanQs ? `${window.location.pathname}?${cleanQs}` : window.location.pathname);
             }
           })
           .catch(() => {});

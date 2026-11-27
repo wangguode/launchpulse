@@ -328,9 +328,9 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     pillars: {
       kicker: "REAL DISTRIBUTION CLAUDE CODE CAN'T DO FOR YOU",
       title: "Three Traffic Engines That Send Paying Customers to Your Site",
-      p1Title: "1. 100+ High-DR Directory Blitz ($39)",
+      p1Title: "1. 100+ High-DR Directory Starter Kit ($39)",
       p1Desc:
-        "Skip 15 hours of tedious form-filling. We submit your SaaS to 100+ curated AI & SaaS directories (AlternativeTo, SaaSHub, Toolify, Uneed, MicroLaunch) with a live backlink proof dashboard.",
+        "Instant unlock of all 100+ vetted AI & SaaS direct submit URLs (AlternativeTo, SaaSHub, Toolify, Uneed, MicroLaunch), 3-wave anti-sandbox pacing schedule, and live HTTP 200 / dofollow tracker (or choose $299 Done-For-You concierge).",
       p2Title: "2. 24/7 Live Buyer Intent Radar ($29/mo)",
       p2Desc:
         "Every day we filter Hacker News, Reddit, and GitHub for fresh (<45d) developer pain-point threads — delivering direct links and non-spam reply angles that turn readers into paid signups.",
@@ -351,11 +351,11 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       freeF2: "Top 3 critical SEO / AEO / security leaks",
       freeF3: "First 3 fresh community buyer links unlocked",
       freeBtn: "Scan Your URL Above ↑",
-      fixLabel: "100+ DIRECTORY DISTRIBUTION BLITZ",
-      fixPeriod: "one-time blitz",
+      fixLabel: "100+ DIRECTORY STARTER KIT",
+      fixPeriod: "one-time unlock",
       fixDesc:
-        "Our growth specialists hand-submit your SaaS to 100+ vetted high-DR directories — zero spam bots, real backlinks & referral traffic.",
-      fixF1: "Submissions to 100+ AI & SaaS directories (DR 45–91)",
+        "Instant self-serve unlock of all 100+ vetted high-DR direct submit URLs, 3-wave anti-sandbox schedule, and live backlink verification ($299 Done-For-You concierge available).",
+      fixF1: "Direct submit URLs for 100+ AI & SaaS directories (DR 45–91)",
       fixF2: "Live backlink proof tracker & CSV report in /dashboard",
       fixF3: "Saves 15+ hours of tedious directory form-filling",
       fixF4Prefix: "Free Bonus:",
@@ -602,9 +602,9 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     pillars: {
       kicker: "CLAUDE CODE 永远替代不了的真实获客苦力",
       title: "三大流量引擎，把真实访问与付费客户直接送进你的 SaaS",
-      p1Title: "1. 100+ 高权重目录一键分发 ($39 买断)",
+      p1Title: "1. 100+ 高权重目录自助启动包 ($39 买断)",
       p1Desc:
-        "省下 15 小时枯燥填表！我们将你的产品提交至 AlternativeTo、SaaSHub、Toolify、Uneed、MicroLaunch 等 100+ 海外高权重目录站，在工作台交付实时外链进度与回执表。",
+        "即刻解锁 AlternativeTo、SaaSHub、Toolify、Uneed 等 100+ 海外高权目录直达提交入口、三波次防沙盒排期与 HTTP 200 外链验活看板（如需人工代填表可选 $299 托管包）。",
       p2Title: "2. 24/7 全网高意图买家雷达 ($29/月)",
       p2Desc:
         "每天自动过滤 Hacker News、Reddit 与 GitHub 近 45 天内最新痛点讨论，直接递上原帖链接与不招人烦的原生回复话术，帮你天天捡精准付费用户。",
@@ -623,10 +623,10 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       freeF2: "核心 SEO / AEO / 安全头流失点排查",
       freeF3: "前 3 条近期社区真实买家原帖免费解锁",
       freeBtn: "在上方输入网址免费扫描 ↑",
-      fixLabel: "100+ 高权重目录流量分发冲刺包",
+      fixLabel: "100+ 高权重目录自助启动包",
       fixPeriod: "一次性买断",
-      fixDesc: "由增长专员人工逐站将你的 SaaS 精选提交至 100+ 海外高权重目录，拒绝垃圾群发，稳拿真实外链与精准推荐流量。",
-      fixF1: "提交至 100+ 海外高权重 AI/SaaS 目录（DR 45–91）",
+      fixDesc: "即刻解锁全部 100+ 海外高权目录直达提交入口、三波次排期与实时外链验活看板（需要专员人工代投可选 $299 托管包）。",
+      fixF1: "解锁 100+ 海外高权重 AI/SaaS 目录直达入口（DR 45–91）",
       fixF2: "控制台实时外链收录进度追踪 + CSV 回执导出",
       fixF3: "替你省下 15+ 小时枯燥重复的目录填表时间",
       fixF4Prefix: "免费附赠：",
@@ -868,9 +868,9 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     pillars: {
       kicker: "AIコーディングツールでは代替できない「リアルな集客代行」",
       title: "あなたのサイトへ有料ユーザーを送り込む3つの集客エンジン",
-      p1Title: "1. 100+ 高DRディレクトリ一括配信 ($39 買い切り)",
+      p1Title: "1. 100+ 高DRディレクトリスターターキット ($39 買い切り)",
       p1Desc:
-        "15時間かかる退屈なフォーム入力を代行。AlternativeTo、SaaSHub、Toolify、Uneedなど100以上の海外有力ディレクトリへ掲載し、被リンク進捗ダッシュボードを納品します。",
+        "AlternativeTo、SaaSHub、Toolify、Uneedなど100以上の海外有力ディレクトリの直リンク、3ウェーブ配信スケジュール、HTTP 200被リンク検証を即時解除（手動申請代行は$299コンシェルジュで対応）。",
       p2Title: "2. 24時間リアル見込み客レーダー ($29/月)",
       p2Desc:
         "Hacker News・Reddit・GitHubから直近45日以内のリアルな悩み投稿を毎日抽出し、自然な返信切り口とともに直接お届けします。",
@@ -889,11 +889,11 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       freeF2: "重要な SEO / AEO / セキュリティ機会損失を検出",
       freeF3: "最新の見込み客スレッド3件を無料で直接閲覧",
       freeBtn: "上でURLを無料スキャン ↑",
-      fixLabel: "100+ ディレクトリ一括配信パック",
+      fixLabel: "100+ ディレクトリスターターキット",
       fixPeriod: "買い切り",
       fixDesc:
-        "専任スタッフが100以上の厳選高DR海外ディレクトリへ1件ずつ丁寧に手動掲載申請。スパム一切なしで確かな被リンクと流入を獲得します。",
-      fixF1: "100+ の海外有力 AI / SaaS ディレクトリへ掲載（DR 45–91）",
+        "100以上の厳選高DR海外ディレクトリの直接投稿URL・3ウェーブ配信表・被リンクトラッカーを即時アンロック（手動掲載代行は$299プラン）。",
+      fixF1: "100+ の海外有力 AI / SaaS ディレクトリ直リンク解除（DR 45–91）",
       fixF2: "ダッシュボードで被リンク進捗確認＆CSV出力",
       fixF3: "15時間以上の煩雑なディレクトリ入力作業を削減",
       fixF4Prefix: "無料特典：",
@@ -1043,8 +1043,8 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       dfyBadge: "丸投げ代行：初期100ユーザー獲得スプリント ($299)",
       dfyHeadline: "機能開発で忙しく、ディレクトリ登録やSEO修正、スレッド返信の時間がありませんか？",
       dfyDescPrefix:
-        "100+ディレクトリ登録代行、AEO/SEO/セキュリティ修正のGitHub PR作成、5件の競合比較",
-      dfyDescSuffix: "ページ公開、7日間の非スパム顧客開拓スプリントまで丸ごと代行します。",
+        "専任チームによる英語ブランドキット作成、70以上の無料高DRディレクトリへの手動申請代行、および厳格審査30+サイト用コピペパック（",
+      dfyDescSuffix: "30日間のリンク切れ再申請保証付き）を丸ごと代行します。",
       dfyBtn: "$299 集客スプリントを申し込む →",
     },
     liveAudit: {
@@ -1071,7 +1071,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
         "LaunchPulseにドメインを送信することで、公開Webメタデータの非侵襲診断、ディレクトリ掲載支援、および公開コミュニティ投稿の抽出を依頼することに同意したものとみなされます。",
       termsS2Title: "2. プラン・返金・解約について",
       termsS2BodyPrefix:
-        "$39 100+ディレクトリ配信パックは買い切りプランです。$29/月の見込み客レーダー Pro はいつでもワンクリックで解約可能です。初回購入から7日以内にご満足いただけない場合は",
+        "$39 100+ディレクトリスターターキットは買い切りプランです。$29/月の見込み客レーダー Pro はいつでもワンクリックで解約可能です。初回購入から14日以内にご満足いただけない場合は",
       termsS2BodySuffix: "までご連絡いただければ全額返金いたします。",
     },
   },

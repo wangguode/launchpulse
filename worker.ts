@@ -143,26 +143,30 @@ function parseSafePublicHttpsUrl(rawInput: string): URL | null {
     const host = parsed.hostname.toLowerCase();
     if (
       host === "localhost" ||
+      host === "0.0.0.0" ||
       host.endsWith(".local") ||
       host.endsWith(".internal") ||
-      !host.includes(".")
+      !host.includes(".") ||
+      host.startsWith("[") ||
+      host.includes(":")
     ) {
       return null;
     }
     if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
       const parts = host.split(".").map(Number);
       if (
+        parts[0] === 0 ||
         parts[0] === 10 ||
         parts[0] === 127 ||
-        parts[0] === 0 ||
+        (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127) ||
         (parts[0] === 169 && parts[1] === 254) ||
         (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
-        (parts[0] === 192 && parts[1] === 168)
+        (parts[0] === 192 && parts[1] === 168) ||
+        (parts[0] === 198 && (parts[1] === 18 || parts[1] === 19))
       ) {
         return null;
       }
     }
-    if (host.startsWith("[") || host.includes(":")) return null;
     return parsed;
   } catch {
     return null;
@@ -170,25 +174,39 @@ function parseSafePublicHttpsUrl(rawInput: string): URL | null {
 }
 
 async function safeGet(url: string, timeoutMs = 6000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "LaunchPulseEdgeScanner/1.0 (+https://pulse.statementflow.win)",
-        Accept: "text/html,text/plain,application/xml;q=0.9,*/*;q=0.8",
-      },
-    });
-    const text = (await res.text()).slice(0, 120000);
-    return { ok: res.ok, status: res.status, headers: res.headers, text };
-  } catch {
-    return { ok: false, status: 0, headers: new Headers(), text: "" };
-  } finally {
-    clearTimeout(timer);
+  let currentUrl = url;
+  for (let hop = 0; hop < 3; hop += 1) {
+    const safeTarget = parseSafePublicHttpsUrl(currentUrl);
+    if (!safeTarget) {
+      return { ok: false, status: 0, headers: new Headers(), text: "" };
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(safeTarget.toString(), {
+        method: "GET",
+        redirect: "manual",
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "LaunchPulseEdgeScanner/1.0 (+https://pulse.statementflow.win)",
+          Accept: "text/html,text/plain,application/xml;q=0.9,*/*;q=0.8",
+        },
+      });
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        if (!loc) return { ok: false, status: res.status, headers: res.headers, text: "" };
+        currentUrl = new URL(loc, safeTarget.toString()).toString();
+        continue;
+      }
+      const text = (await res.text()).slice(0, 120000);
+      return { ok: res.ok, status: res.status, headers: res.headers, text };
+    } catch {
+      return { ok: false, status: 0, headers: new Headers(), text: "" };
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  return { ok: false, status: 0, headers: new Headers(), text: "" };
 }
 
 function cleanEntities(raw: string): string {
@@ -450,6 +468,20 @@ async function handleTrack(request: Request, env: Env): Promise<Response> {
     const sec = Math.max(0, Math.min(600, Math.round(Number(body.seconds || 0))));
     const now = new Date().toISOString();
 
+    // 仅允许对已注册审计页、外联目标或已有 outreach_logs 记录更新热力指标，防止外部随机 slug 灌水污染后台
+    const knownSlug = await env.DB.prepare(
+      `SELECT 1 FROM outreach_logs WHERE slug = ?1
+       UNION ALL SELECT 1 FROM leads_targets WHERE slug = ?1
+       UNION ALL SELECT 1 FROM audits_assets WHERE slug = ?1
+       UNION ALL SELECT 1 FROM campaigns WHERE slug = ?1
+       LIMIT 1`
+    )
+      .bind(slug)
+      .first();
+    if (!knownSlug && !/^(certnudge|trieste|multiplecodex|pinpoint|live)$/.test(slug)) {
+      return jsonResponse({ ok: true, persisted: false });
+    }
+
     await env.DB.prepare(
       `INSERT INTO outreach_logs (slug, page_views, max_video_seconds, buyer_clicks, last_event_at, last_event_type)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -474,6 +506,21 @@ async function handleTrack(request: Request, env: Env): Promise<Response> {
   } catch {
     return jsonResponse({ ok: false }, 400);
   }
+}
+
+async function timingSafeEqualSecret(a: string, b: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const [ha, hb] = await Promise.all([
+    crypto.subtle.digest("SHA-256", enc.encode(a)),
+    crypto.subtle.digest("SHA-256", enc.encode(b)),
+  ]);
+  const ua = new Uint8Array(ha);
+  const ub = new Uint8Array(hb);
+  let diff = 0;
+  for (let i = 0; i < ua.length; i += 1) {
+    diff |= ua[i] ^ ub[i];
+  }
+  return diff === 0;
 }
 
 function timingSafeEqualHex(a: string, b: string): boolean {
@@ -521,7 +568,11 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
         ? "dfy"
         : "radar";
     const meta = PLAN_CONFIG[plan];
-    const origin = request.headers.get("origin") || new URL(request.url).origin;
+    const reqUrlOrigin = new URL(request.url).origin;
+    const origin =
+      reqUrlOrigin === "https://pulse.statementflow.win" || /^http:\/\/localhost:\d+$/i.test(reqUrlOrigin)
+        ? reqUrlOrigin
+        : "https://pulse.statementflow.win";
     const sessionUser = await getSessionUser(request, env);
     const resolvedEmail = (body.email || body.customerEmail || sessionUser?.email || "").trim().toLowerCase();
     const rawSlug = (body.slug || "").trim().toLowerCase();
@@ -731,6 +782,13 @@ async function ensureEmailOutboxTable(env: Env): Promise<void> {
     } catch {
       // 列已存在时安全忽略
     }
+    try {
+      await env.DB.prepare(
+        `ALTER TABLE customers_orders ADD COLUMN claimed_at TEXT NOT NULL DEFAULT ''`
+      ).run();
+    } catch {
+      // 列已存在时安全忽略
+    }
   } catch {
     // ignore
   }
@@ -760,24 +818,34 @@ async function findRealBuyerThreadsForTitle(
 
   try {
     const cutoffSec = Math.floor(Date.now() / 1000) - 21 * 86400;
-    const res = await fetch(
-      `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(
-        query
-      )}&tags=comment&numericFilters=created_at_i>${cutoffSec}&hitsPerPage=12`
-    );
-    if (!res.ok) return [];
-    const data = (await res.json()) as {
-      hits?: Array<{
-        objectID: string;
-        author?: string;
-        story_title?: string;
-        title?: string;
-        comment_text?: string;
-      }>;
+    const fetchHnHits = async (q: string) => {
+      const r = await fetch(
+        `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(
+          q
+        )}&tags=comment&numericFilters=created_at_i>${cutoffSec}&hitsPerPage=12`
+      );
+      if (!r.ok) return [];
+      const j = (await r.json()) as {
+        hits?: Array<{
+          objectID: string;
+          author?: string;
+          story_title?: string;
+          title?: string;
+          comment_text?: string;
+        }>;
+      };
+      return j.hits || [];
     };
+    let hits = await fetchHnHits(query);
+    if (hits.length === 0) {
+      const fallbackWord = tokens.find((t) => t.length >= 4);
+      if (fallbackWord && fallbackWord !== query) {
+        hits = await fetchHnHits(fallbackWord);
+      }
+    }
     const out: Array<{ source: string; title: string; author: string; url: string; snippet: string }> = [];
     const seen = new Set<string>();
-    for (const hit of data.hits || []) {
+    for (const hit of hits) {
       if (out.length >= 3) break;
       const st = cleanEntities(hit.story_title || hit.title || "").trim();
       const body = cleanEntities(hit.comment_text || "").trim();
@@ -822,7 +890,7 @@ async function harvestDailyShowHnLaunches(
     };
 
     const skipHosts =
-      /^(github\.com|gitlab\.com|youtube\.com|youtu\.be|medium\.com|substack\.com|arxiv\.org|npmjs\.com|pypi\.org|crates\.io|huggingface\.co|news\.ycombinator\.com|reddit\.com|x\.com|twitter\.com|docs\.google\.com)$/i;
+      /(^|\.)(github\.com|gitlab\.com|codeberg\.org|bitbucket\.org|sourceforge\.net|youtube\.com|youtu\.be|medium\.com|substack\.com|arxiv\.org|npmjs\.com|pypi\.org|crates\.io|huggingface\.co|news\.ycombinator\.com|reddit\.com|x\.com|twitter\.com|docs\.google\.com|chromewebstore\.google\.com|addons\.mozilla\.org|apps\.apple\.com|play\.google\.com|producthunt\.com|indiehackers\.com|linkedin\.com|discord\.com|discord\.gg|wikipedia\.org|archive\.org)$/i;
 
     for (const hit of hnJson.hits || []) {
       if (scanned >= maxProbes) break;
@@ -848,21 +916,36 @@ async function harvestDailyShowHnLaunches(
         safeGet(`${origin}/llms.txt`, 3500),
         safeGet(`${origin}/sitemap.xml`, 3500),
       ]);
-      if (!homeRes.status) continue;
+      if (!homeRes.status) {
+        // 记录不可达站点占位，防止 72 小时窗口内每天重复消耗 Cron 探测名额
+        await env.DB.prepare(
+          `INSERT OR IGNORE INTO show_hn_prospects (
+             domain, title, target_url, hn_url, hn_author, founder_email, aeo_score, has_llms_txt, leaks_summary, audit_url, outreach_status, buyer_threads_json
+           ) VALUES (?1, ?2, ?3, ?4, ?5, '', 0, 0, 'unreachable', '', 'unreachable', '[]')`
+        )
+          .bind(
+            domain,
+            cleanEntities(hit.title || domain).slice(0, 140),
+            origin,
+            `https://news.ycombinator.com/item?id=${hit.objectID}`,
+            hit.author || ""
+          )
+          .run();
+        continue;
+      }
 
       const html = homeRes.text;
       let combinedContactCorpus = html;
-      // 若首页未直接暴露邮箱，自动并行穿透 /contact、/privacy 及 HN 创始人个人主页简介（大幅提升创始人公开邮箱命中率）
+      // 若首页未直接暴露邮箱，并行穿透 /contact 与 HN 创始人主页简介（精简掉 /privacy 请求以严控 Cron 50 次子请求预算）
       if (!/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(html)) {
-        const [contactRes, privacyRes, hnUserRes] = await Promise.all([
+        const [contactRes, hnUserRes] = await Promise.all([
           safeGet(`${origin}/contact`, 3000),
-          safeGet(`${origin}/privacy`, 3000),
           hit.author
             ? safeGet(`https://hacker-news.firebaseio.com/v0/user/${encodeURIComponent(hit.author)}.json`, 3000)
             : Promise.resolve({ ok: false, status: 0, headers: new Headers(), text: "" }),
         ]);
         const decodedHnAbout = cleanEntities(hnUserRes.text || "");
-        combinedContactCorpus = `${html}\n${contactRes.text}\n${privacyRes.text}\n${decodedHnAbout}`;
+        combinedContactCorpus = `${html}\n${contactRes.text}\n${decodedHnAbout}`;
       }
       const rawEmails: string[] =
         combinedContactCorpus.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
@@ -955,6 +1038,15 @@ async function flushSharedEmailOutbox(env: Env, limit = 15): Promise<number> {
 
   let sentCount = 0;
   for (const row of pending.results || []) {
+    // 原子抢占锁：将 pending 转为 sending，防止并发请求或 Cron 重叠导致同一封邮件重复发送
+    const claimed = (await env.DB.prepare(
+      `UPDATE email_outbox SET status = 'sending', attempts = attempts + 1 WHERE id = ?1 AND status = 'pending'`
+    )
+      .bind(row.id)
+      .run()) as { success: boolean; meta?: { changes?: number } };
+    if (claimed.meta && typeof claimed.meta.changes === "number" && claimed.meta.changes === 0) {
+      continue;
+    }
     const ok = await sendResendEmail(env, {
       to: row.to_email,
       subject: row.subject,
@@ -964,13 +1056,13 @@ async function flushSharedEmailOutbox(env: Env, limit = 15): Promise<number> {
     if (ok) {
       sentCount += 1;
       await env.DB.prepare(
-        `UPDATE email_outbox SET status = 'sent', attempts = attempts + 1, sent_at = datetime('now') WHERE id = ?1`
+        `UPDATE email_outbox SET status = 'sent', sent_at = datetime('now') WHERE id = ?1`
       )
         .bind(row.id)
         .run();
     } else {
       await env.DB.prepare(
-        `UPDATE email_outbox SET attempts = attempts + 1, status = CASE WHEN attempts + 1 >= 3 THEN 'failed' ELSE 'pending' END WHERE id = ?1`
+        `UPDATE email_outbox SET status = CASE WHEN attempts >= 3 THEN 'failed' ELSE 'pending' END WHERE id = ?1`
       )
         .bind(row.id)
         .run();
@@ -1054,7 +1146,7 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
           });
         } else if (isRevoke) {
           await env.DB.prepare(
-            `UPDATE customers_orders SET status = ?1 WHERE order_id = ?2 OR customer_email = ?3`
+            `UPDATE customers_orders SET status = ?1 WHERE order_id = ?2 OR order_id = (?2 || '_acct') OR customer_email = ?3`
           )
             .bind(/refund|dispute/.test(evt) ? "refunded" : "canceled", orderId, email)
             .run();
@@ -1714,6 +1806,8 @@ async function handleDashboardDeleteCampaign(request: Request, env: Env): Promis
       env.DB.prepare(`DELETE FROM brand_kits WHERE campaign_id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
       env.DB.prepare(`DELETE FROM radar_monitors WHERE campaign_id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
       env.DB.prepare(`DELETE FROM radar_leads WHERE campaign_id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
+      env.DB.prepare(`DELETE FROM link_clicks WHERE campaign_id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
+      env.DB.prepare(`DELETE FROM conversions WHERE campaign_id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
       env.DB.prepare(`DELETE FROM tracking_links WHERE campaign_id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
       env.DB.prepare(`DELETE FROM public_reports WHERE campaign_id = ?1 AND user_email = ?2`).bind(campaignId, user.email).run(),
       env.DB.prepare(`DELETE FROM directory_health_checks WHERE campaign_id = ?1 AND customer_email = ?2`).bind(campaignId, user.email).run(),
@@ -1804,7 +1898,8 @@ async function handleShortLinkRedirect(code: string, request: Request, env: Env)
 
   const ua = request.headers.get("user-agent") || "";
   const device = /mobile|android|iphone|ipad/i.test(ua) ? "mobile" : "desktop";
-  const referer = (request.headers.get("referer") || "").slice(0, 200);
+  const reqRefParam = (new URL(request.url).searchParams.get("ref") || "").replace(/[^a-zA-Z0-9-_]/g, "").slice(0, 48);
+  const referer = (request.headers.get("referer") || (reqRefParam ? `dir:${reqRefParam}` : "")).slice(0, 200);
   const cfCountry = ((request as Request & { cf?: { country?: string } }).cf?.country || "UN").slice(0, 8);
 
   // 仅对真实 GET 访问计入点击，避免 HEAD 探测虚增点击数
@@ -1831,6 +1926,7 @@ async function handleShortLinkRedirect(code: string, request: Request, env: Env)
     const destUrl = new URL(link.destination_url);
     destUrl.searchParams.set("utm_source", "launchpulse");
     destUrl.searchParams.set("utm_medium", link.channel);
+    if (reqRefParam) destUrl.searchParams.set("utm_content", reqRefParam);
     destUrl.searchParams.set("lp_ref", link.code);
     dest = destUrl.toString();
   } catch {
@@ -1851,7 +1947,7 @@ async function handleShortLinkRedirect(code: string, request: Request, env: Env)
  * 客户网站 1 行转化追踪脚本（/api/pixel.js）与转化回传（POST /api/pixel）
  */
 function handlePixelScript(): Response {
-  const js = `(function(){try{var p=new URLSearchParams(location.search);var r=p.get("lp_ref");if(r)localStorage.setItem("lp_ref",r);window.lpConvert=function(ev,val){var c=localStorage.getItem("lp_ref")||"";fetch("https://pulse.statementflow.win/api/pixel",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:c,event:ev||"signup",valueUsd:Number(val||0)}),keepalive:true}).catch(function(){});};}catch(e){}})();`;
+  const js = `(function(){try{var p=new URLSearchParams(location.search);var r=p.get("lp_ref");if(r)localStorage.setItem("lp_ref",JSON.stringify({c:r,t:Date.now()}));window.lpConvert=function(ev,val){try{var raw=localStorage.getItem("lp_ref")||"";var c=raw;var ts=Date.now();if(raw.charAt(0)==="{"){var j=JSON.parse(raw);c=j.c||"";ts=j.t||0;}if(!c||Date.now()-ts>2592e6)return;var lockKey="lp_conv_lock_"+c+"_"+(ev||"signup");if(sessionStorage.getItem(lockKey))return;sessionStorage.setItem(lockKey,"1");if(ev==="purchase")localStorage.removeItem("lp_ref");fetch("https://pulse.statementflow.win/api/pixel",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:c,event:ev||"signup",valueUsd:Number(val||0)}),keepalive:true}).catch(function(){});}catch(e){}};}catch(e){}})();`;
   return new Response(js, {
     status: 200,
     headers: {
@@ -1862,6 +1958,8 @@ function handlePixelScript(): Response {
   });
 }
 
+const pixelDedupWindow = new Map<string, number>();
+
 async function handlePixelConversion(request: Request, env: Env): Promise<Response> {
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -1871,9 +1969,15 @@ async function handlePixelConversion(request: Request, env: Env): Promise<Respon
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
+  if (!checkRateLimit(request, 20)) {
+    return new Response(JSON.stringify({ ok: false, error: "Too many pixel events" }), {
+      status: 429,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
+  }
   if (!env.DB) return new Response(JSON.stringify({ ok: false }), { status: 500, headers: corsHeaders });
   try {
-    const body = (await request.json()) as { code?: string; event?: string; valueUsd?: number };
+    const body = (await request.json()) as { code?: string; event?: string; valueUsd?: number; test?: boolean };
     const code = (body.code || "").toLowerCase().replace(/[^a-z0-9-_]/g, "").slice(0, 32);
     if (!code) {
       return new Response(JSON.stringify({ ok: false, error: "Missing tracking code" }), {
@@ -1882,18 +1986,55 @@ async function handlePixelConversion(request: Request, env: Env): Promise<Respon
       });
     }
     const link = await env.DB.prepare(
-      `SELECT code, campaign_id, user_email FROM tracking_links WHERE code = ?1 LIMIT 1`
+      `SELECT code, campaign_id, user_email, destination_url FROM tracking_links WHERE code = ?1 LIMIT 1`
     )
       .bind(code)
-      .first<{ code: string; campaign_id: number; user_email: string }>();
+      .first<{ code: string; campaign_id: number; user_email: string; destination_url: string }>();
     if (!link) {
       return new Response(JSON.stringify({ ok: false, error: "Unknown code" }), {
         status: 404,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
+
+    // 域名同源校验：仅允许来自该短链绑定目标站（含子域名）或 LaunchPulse 控制台的调用，彻底封堵外部脚本伪造百万美元战报
+    const callerHeader = request.headers.get("origin") || request.headers.get("referer") || "";
+    let callerHost = "";
+    let expectedRootHost = "";
+    try {
+      if (callerHeader) callerHost = new URL(callerHeader).hostname.replace(/^www\./i, "").toLowerCase();
+      if (link.destination_url) expectedRootHost = new URL(link.destination_url).hostname.replace(/^www\./i, "").toLowerCase();
+    } catch {
+      // ignore
+    }
+    const isSelfConsole = callerHost === "pulse.statementflow.win" || callerHost === "localhost";
+    const isAuthorizedTarget =
+      Boolean(callerHost && expectedRootHost) &&
+      (callerHost === expectedRootHost || callerHost.endsWith(`.${expectedRootHost}`));
+    if (!isAuthorizedTarget && !isSelfConsole) {
+      return new Response(JSON.stringify({ ok: false, error: "Origin mismatch for tracking link target domain" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     const ev = body.event === "purchase" ? "purchase" : "signup";
-    const val = Math.max(0, Math.min(100000, Number(body.valueUsd || 0)));
+    // 控制台自测按钮不计入美元收入，真实目标站单笔回传上限 $5,000 防异常溢出
+    const val = isSelfConsole && !isAuthorizedTarget
+      ? 0
+      : Math.max(0, Math.min(5000, Number(body.valueUsd || 0)));
+
+    const ip = request.headers.get("cf-connecting-ip") || "unknown";
+    const dedupKey = `${ip}:${code}:${ev}`;
+    const prevTs = pixelDedupWindow.get(dedupKey) || 0;
+    if (Date.now() - prevTs < 5 * 60_000) {
+      return new Response(JSON.stringify({ ok: true, deduplicated: true, code: link.code, event: ev }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+    pixelDedupWindow.set(dedupKey, Date.now());
+
     await Promise.all([
       env.DB.prepare(`UPDATE tracking_links SET conversions_count = conversions_count + 1 WHERE code = ?1`)
         .bind(link.code)
@@ -1935,9 +2076,9 @@ async function signAdminCookieValue(secret: string, expMs: number): Promise<stri
 async function isAdminAuthorized(request: Request, env: Env): Promise<boolean> {
   const adminKey = env.ADMIN_API_KEY?.trim();
   if (!adminKey) return false;
-  // 1. CLI / 自动化脚本头鉴权
+  // 1. CLI / 自动化脚本头鉴权（SHA-256 恒定时间比对，彻底消除密钥长度时序侧信道）
   const headerKey = (request.headers.get("x-admin-key") || "").trim();
-  if (headerKey && timingSafeEqualHex(headerKey, adminKey)) return true;
+  if (headerKey && (await timingSafeEqualSecret(headerKey, adminKey))) return true;
   // 2. 网页端 HttpOnly 签名 Cookie 鉴权（绝不将密钥明文存前端 storage）
   const cookies = parseCookies(request);
   const raw = cookies.lp_admin || "";
@@ -1956,7 +2097,7 @@ async function handleAdminLogin(request: Request, env: Env): Promise<Response> {
   try {
     const body = (await request.json()) as { key?: string };
     const provided = (body.key || "").trim();
-    if (!provided || !timingSafeEqualHex(provided, adminKey)) {
+    if (!provided || !(await timingSafeEqualSecret(provided, adminKey))) {
       return jsonResponse({ error: "Invalid administrator key." }, 401);
     }
     const expMs = Date.now() + 7 * 86400 * 1000;
@@ -2157,7 +2298,7 @@ async function handleCheckoutClaim(request: Request, env: Env): Promise<Response
     }
 
     const sessionUser = await getSessionUser(request, env);
-    const email = (data.customer?.email || sessionUser?.email || "").trim().toLowerCase();
+    const email = (data.customer?.email || "").trim().toLowerCase();
     if (!email || !email.includes("@")) {
       return jsonResponse({ ok: false, error: "Customer email missing on checkout" }, 400);
     }
@@ -2185,32 +2326,39 @@ async function handleCheckoutClaim(request: Request, env: Env): Promise<Response
     const fallbackCents = plan === "dfy" ? 29900 : plan === "blitz" ? 3900 : 2900;
     const amountUsd = Math.round((data.order?.amount || fallbackCents) / 100);
 
+    await ensureEmailOutboxTable(env);
     const existingOrder = await env.DB.prepare(
-      `SELECT magic_token FROM customers_orders WHERE order_id = ?1 LIMIT 1`
+      `SELECT magic_token, claimed_at FROM customers_orders WHERE order_id = ?1 LIMIT 1`
     )
       .bind(orderId)
-      .first<{ magic_token: string }>();
+      .first<{ magic_token: string; claimed_at?: string }>();
+
+    const isSameAuthenticatedOwner =
+      Boolean(sessionUser?.email) && sessionUser!.email.toLowerCase() === email;
+
+    // 一次性认领锁：若该订单已被认领过且当前请求并非同一已登录账号，拒绝重复签发 Session Cookie 与泄露 magicToken，彻底封堵 checkout_id 重放接管账号漏洞
+    if (existingOrder?.claimed_at && !isSameAuthenticatedOwner) {
+      return jsonResponse({
+        ok: true,
+        unlocked: false,
+        alreadyClaimed: true,
+        plan,
+        redirectTo: "/portal",
+        message:
+          "This order has already been activated. Enter your checkout email on /portal to receive a fresh Magic Login Link.",
+      });
+    }
 
     const magicToken = existingOrder?.magic_token || crypto.randomUUID().replace(/-/g, "");
     const tokenExpiry = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
 
     await env.DB.prepare(
-      `INSERT INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token, token_expires_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', ?7, ?8)
-       ON CONFLICT(order_id) DO UPDATE SET status = 'active', token_expires_at = ?8`
+      `INSERT INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token, token_expires_at, claimed_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', ?7, ?8, datetime('now'))
+       ON CONFLICT(order_id) DO UPDATE SET status = 'active', token_expires_at = ?8, claimed_at = datetime('now')`
     )
       .bind(orderId, email, slug === "public" ? "" : slug, targetUrl, plan, amountUsd, magicToken, tokenExpiry)
       .run();
-
-    // 若已登录账号使用其它结账邮箱付款，同步写入一条关联订单记录，确保原工作台与项目无感解锁
-    if (sessionUser?.email && sessionUser.email.toLowerCase() !== email) {
-      await env.DB.prepare(
-        `INSERT OR IGNORE INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token, token_expires_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', ?7, ?8)`
-      )
-        .bind(`${orderId}_acct`, sessionUser.email.toLowerCase(), slug === "public" ? "" : slug, targetUrl, plan, 0, `${magicToken}a`, tokenExpiry)
-        .run();
-    }
 
     if (plan === "dfy") {
       await env.DB.prepare(
@@ -2222,7 +2370,8 @@ async function handleCheckoutClaim(request: Request, env: Env): Promise<Response
         .run();
     }
 
-    const accountEmail = sessionUser?.email ? sessionUser.email.toLowerCase() : email;
+    // 严格绑定至真实付款邮箱本人账号，严禁将他人 checkoutId 克隆至当前异名登录账号
+    const accountEmail = email;
     let user = await env.DB.prepare(`SELECT id, email, name, role FROM users WHERE email = ?1 LIMIT 1`)
       .bind(accountEmail)
       .first<{ id: number; email: string; name: string; role: string }>();
@@ -2448,13 +2597,14 @@ async function handleAdminGrantPlan(request: Request, env: Env): Promise<Respons
     const bytes = new Uint8Array(16);
     crypto.getRandomValues(bytes);
     const magicToken = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    const grantExpiry = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
 
     await env.DB.prepare(
-      `INSERT INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token, created_at)
-       VALUES (?1, ?2, ?3, '', ?4, ?5, ?6, ?7, datetime('now'))
-       ON CONFLICT(order_id) DO UPDATE SET plan = ?4, amount_usd = ?5, status = ?6`
+      `INSERT INTO customers_orders (order_id, customer_email, slug, target_url, plan, amount_usd, status, magic_token, token_expires_at, created_at)
+       VALUES (?1, ?2, ?3, '', ?4, ?5, ?6, ?7, ?8, datetime('now'))
+       ON CONFLICT(order_id) DO UPDATE SET plan = ?4, amount_usd = ?5, status = ?6, token_expires_at = ?8`
     )
-      .bind(orderId, email, (body.slug || "").trim().slice(0, 60), plan, amountUsd, status, magicToken)
+      .bind(orderId, email, (body.slug || "").trim().slice(0, 60), plan, amountUsd, status, magicToken, grantExpiry)
       .run();
 
     await logAdminAudit(env, request, "grant_plan", `${email}:${plan}:${status}`);
@@ -2523,11 +2673,13 @@ async function handleAdminNotifyCustomer(request: Request, env: Env): Promise<Re
  * 内部指挥台同步接口（受 ADMIN_API_KEY 保护，供本地 PocketBase 拉取实时数据）
  */
 async function handleAdminOverview(request: Request, env: Env): Promise<Response> {
+  if (!checkRateLimit(request, 15)) return jsonResponse({ error: "Too many requests" }, 429);
   const adminKey = env.ADMIN_API_KEY?.trim();
   const provided = request.headers.get("x-admin-key") || "";
-  if (!adminKey || !provided || !timingSafeEqualHex(provided, adminKey)) {
+  if (!adminKey || !provided || !(await timingSafeEqualSecret(provided, adminKey))) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
+  await logAdminAudit(env, request, "overview_read");
   if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
 
   const [leads, outreach, orders] = await Promise.all([
@@ -2554,8 +2706,8 @@ export default {
 
     // 内部共享发信队列刷新端点（仅消费 D1 已入库的 email_outbox 待发记录，外部无法伪造收件人与正文）
     if (url.pathname === "/api/internal/flush-outbox" && request.method === "POST") {
-      if (!checkRateLimit(request, 30)) return jsonResponse({ ok: false }, 429);
-      const sent = await flushSharedEmailOutbox(env, 10);
+      if (!checkRateLimit(request, 6)) return jsonResponse({ ok: false }, 429);
+      const sent = await flushSharedEmailOutbox(env, 6);
       return jsonResponse({ ok: true, sent });
     }
 
@@ -2916,6 +3068,7 @@ export default {
       return handleUpdateRadarLead(request, env, user);
     }
     if (url.pathname === "/api/dashboard/radar/test-webhook" && request.method === "POST") {
+      if (!checkRateLimit(request, 8)) return jsonResponse({ error: "Too many test requests. Wait 60s." }, 429);
       const user = await getSessionUser(request, env);
       if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
       return handleTestRadarWebhook(request);
@@ -3063,12 +3216,15 @@ export default {
           return jsonResponse({ ok: true, persisted: false, reason: "demo_local_only" });
         }
         const owner = await env.DB.prepare(
-          `SELECT customer_email FROM customers_orders WHERE magic_token = ?1 AND status = 'active' LIMIT 1`
+          `SELECT customer_email, token_expires_at FROM customers_orders WHERE magic_token = ?1 AND status = 'active' LIMIT 1`
         )
           .bind(token)
-          .first<{ customer_email: string }>();
-        if (!owner) {
-          return jsonResponse({ error: "Unauthorized token" }, 401);
+          .first<{ customer_email: string; token_expires_at?: string }>();
+        const isTokExpired =
+          Boolean(owner?.token_expires_at) &&
+          new Date(owner!.token_expires_at!).getTime() < Date.now();
+        if (!owner || isTokExpired) {
+          return jsonResponse({ error: "Unauthorized or expired token" }, 401);
         }
         const leadId = (body.leadId || "").slice(0, 80);
         const status = ["new", "replied", "won", "archived"].includes(body.status || "")
@@ -3097,15 +3253,15 @@ export default {
       }
     }
     if (url.pathname === "/api/admin/overview" && request.method === "GET") {
-      await logAdminAudit(env, request, "overview_read");
       return handleAdminOverview(request, env);
     }
 
     // 动态报告入库接口（受 ADMIN_API_KEY 保护，新增客户 1 秒写入 D1 立即上线无需重新 build）
     if (url.pathname === "/api/admin/ingest" && request.method === "POST") {
+      if (!checkRateLimit(request, 15)) return jsonResponse({ error: "Too many requests" }, 429);
       const adminKey = env.ADMIN_API_KEY?.trim();
       const provided = request.headers.get("x-admin-key") || "";
-      if (!adminKey || !provided || !timingSafeEqualHex(provided, adminKey)) {
+      if (!adminKey || !provided || !(await timingSafeEqualSecret(provided, adminKey))) {
         return jsonResponse({ error: "Unauthorized" }, 401);
       }
       if (!env.DB) return jsonResponse({ error: "DB not bound" }, 500);
@@ -3274,6 +3430,10 @@ export default {
       });
     }
 
+    if (url.pathname.startsWith("/api/")) {
+      return jsonResponse({ error: "API endpoint not found" }, 404);
+    }
+
     const assetResp = await env.ASSETS.fetch(request);
     const headers = new Headers(assetResp.headers);
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
@@ -3287,41 +3447,162 @@ export default {
   },
 
   /**
-   * 每日 UTC 13:00（北京时间 21:00）全自动闭环巡检：
-   * 1. 消费并发送三站共享 D1 email_outbox 队列邮件
-   * 2. 对已收录外链执行 HTTP 200 & dofollow 自动验活巡检
-   * 3. 对所有活跃订阅者与监控项目自动抓取最新买家求购线索并发送日报
-   * 4. 聚合三大系统（StatementFlow + HardCall + LaunchPulse）当日营收、漏斗与待办，发送 CEO 自动经营日报
+   * 每日 UTC 13:00（北京时间 21:00）全自动闭环巡检（严格控制外部 fetch 总数 <= 36 次，彻底规避 Cloudflare Workers 50 次子请求熔断）：
+   * 1. 优先消费共享 D1 email_outbox 待发队列（上限 5 次）
+   * 2. 优先抓取最新 Show HN 首发项目（上限 3 个新站 <= 16 次）并立即执行黄金窗口自动外呼（上限 3 封 <= 6 次）
+   * 3. 扫描活跃付费客户买家雷达（EXISTS 去重，上限 2 个项目 <= 6 次）
+   * 4. 轮询最久未检的 4 条外链健康度（<= 4 次）
+   * 5. 发送三系统聚合 CEO 经营日报（1 次）
    */
   async scheduled(_event: unknown, env: Env): Promise<void> {
     if (!env.DB) return;
     try {
-      await flushSharedEmailOutbox(env, 25);
+      await flushSharedEmailOutbox(env, 5);
     } catch {
       // ignore
     }
-    let backlinkSummary = { checked: 0, verifiedLive: 0, dofollowCount: 0 };
+
+    // 2. 自动抓取当日最新 Show HN 首发 SaaS 站点入池（严格控量 3 站，留足发信配额）
+    let hnHarvest = { scanned: 0, withEmail: 0, items: [] as Array<{ domain: string; email: string; score: number; auditUrl: string }> };
     try {
-      backlinkSummary = await runBacklinkHealthCheck(env, "", 25);
+      hnHarvest = await harvestDailyShowHnLaunches(env, 3);
     } catch {
-      // 单次验活失败不影响后续任务
+      // ignore
     }
-    // 3. 扫描所有开启每日监控的 radar_monitors（真实读取配置的 keywords_json 与 competitors_json）及付费订阅客户
+
+    // 3. 黄金首发窗口全自动精准触达（优先把历史及今日 queued 带邮箱记录发出，每日限额 3 封）
+    let autoOutreachSent = 0;
+    try {
+      const candidates = await env.DB.prepare(
+        `SELECT domain, target_url, title, founder_email, aeo_score, has_llms_txt, buyer_threads_json
+         FROM show_hn_prospects
+         WHERE outreach_status = 'queued' AND founder_email != ''
+         ORDER BY discovered_at DESC LIMIT 4`
+      ).all<{
+        domain: string;
+        target_url: string;
+        title: string;
+        founder_email: string;
+        aeo_score: number;
+        has_llms_txt: number;
+        buyer_threads_json?: string;
+      }>();
+
+      for (const row of candidates.results || []) {
+        if (autoOutreachSent >= 3) break;
+        const email = (row.founder_email || "").trim().toLowerCase();
+        if (
+          !email ||
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+          /^(noreply|no-reply|donotreply|privacy|security|abuse|legal|dmca)@/i.test(email) ||
+          /example\.com|sentry\.io|github\.com|sourceforge\.net/i.test(email)
+        ) {
+          await env.DB.prepare(`UPDATE show_hn_prospects SET outreach_status = 'skipped' WHERE domain = ?1`)
+            .bind(row.domain)
+            .run();
+          continue;
+        }
+        const alreadySent = await env.DB.prepare(
+          `SELECT 1 FROM outreach_logs WHERE LOWER(recipient_email) = ?1 LIMIT 1`
+        )
+          .bind(email)
+          .first();
+        if (alreadySent) {
+          await env.DB.prepare(`UPDATE show_hn_prospects SET outreach_status = 'emailed' WHERE domain = ?1`)
+            .bind(row.domain)
+            .run();
+          continue;
+        }
+
+        let threads: Array<{ title: string; url: string }> = [];
+        try {
+          threads = JSON.parse(row.buyer_threads_json || "[]") as Array<{ title: string; url: string }>;
+        } catch {
+          threads = [];
+        }
+        if (threads.length === 0 && row.title) {
+          threads = await findRealBuyerThreadsForTitle(row.title, row.domain).catch(() => []);
+          if (threads.length > 0) {
+            await env.DB.prepare(`UPDATE show_hn_prospects SET buyer_threads_json = ?1 WHERE domain = ?2`)
+              .bind(JSON.stringify(threads), row.domain)
+              .run();
+          }
+        }
+
+        const canonicalTargetUrl = row.target_url || `https://${row.domain}`;
+        const auditLink = `https://pulse.statementflow.win/audit/live?url=${encodeURIComponent(canonicalTargetUrl)}`;
+        const threadBlock =
+          threads.length > 0
+            ? [
+                `While indexing today's Show HN launches, our radar also surfaced ${threads.length} active developer discussion(s) around this space where your perspective might help:`,
+                ...threads.slice(0, 2).map((t) => `• ${t.title}\n  ${t.url}`),
+                ``,
+              ]
+            : [];
+
+        const llmsLine = row.has_llms_txt
+          ? `Your site already serves /llms.txt (nice work — Readiness Score: ${row.aeo_score}/100). We generated an updated 12-point AEO & directory authority snapshot for ${row.domain} here:`
+          : `One quick win from our passive scan (${row.aeo_score}/100): ${row.domain} doesn't have a /llms.txt manifest yet for ChatGPT Search & Perplexity citations. We generated a ready-to-drop /llms.txt file for you free (zero signup):`;
+
+        const sentOk = await sendResendEmail(env, {
+          to: email,
+          fromLabel: "Wang Guo · LaunchPulse",
+          subject: `Congrats on the Show HN for ${row.domain} (+ free /llms.txt & launch notes)`,
+          text: [
+            `Hi there,`,
+            ``,
+            `Saw ${row.domain} on Show HN — congrats on shipping!`,
+            ``,
+            ...threadBlock,
+            llmsLine,
+            auditLink,
+            ``,
+            `If you ever want to skip ~25 hours of manual directory forms after HN traffic cools down, we also maintain 100+ verified DR 70+ SaaS/AI submit links there. Either way, hope the free /llms.txt helps!`,
+            ``,
+            `Best,`,
+            `Wang Guo`,
+            `Founder, LaunchPulse (https://pulse.statementflow.win)`,
+          ].join("\n"),
+        });
+
+        if (sentOk) {
+          autoOutreachSent += 1;
+          const slug = `showhn-${row.domain.replace(/[^a-z0-9-]/gi, "-").toLowerCase()}`.slice(0, 64);
+          await env.DB.prepare(`UPDATE show_hn_prospects SET outreach_status = 'auto_emailed' WHERE domain = ?1`)
+            .bind(row.domain)
+            .run();
+          await env.DB.prepare(
+            `INSERT INTO outreach_logs (slug, recipient_email, channel, sent_at, last_event_at, last_event_type, follow_up_status)
+             VALUES (?1, ?2, 'resend_cron_showhn', datetime('now'), datetime('now'), 'auto_showhn_outreach', 'pending')
+             ON CONFLICT(slug) DO UPDATE SET last_event_at = datetime('now'), last_event_type = 'auto_showhn_outreach'`
+          )
+            .bind(slug, email)
+            .run();
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // 4. 扫描开启每日监控的付费订阅客户（使用 EXISTS 去重防止多订单客户收到重复邮件）
     try {
       const monitors = await env.DB.prepare(
-        `SELECT m.campaign_id, m.user_email, m.keywords_json, m.competitors_json, c.slug, o.magic_token
+        `SELECT m.campaign_id, m.user_email, m.keywords_json, m.competitors_json, c.slug
          FROM radar_monitors m
          JOIN campaigns c ON c.id = m.campaign_id
-         JOIN customers_orders o ON o.customer_email = m.user_email AND o.status = 'active' AND o.plan IN ('radar', 'dfy')
          WHERE m.daily_digest_enabled = 1
-         LIMIT 40`
+           AND EXISTS (
+             SELECT 1 FROM customers_orders o
+             WHERE o.customer_email = m.user_email AND o.status = 'active' AND o.plan IN ('radar', 'dfy')
+           )
+         ORDER BY COALESCE(m.last_scanned_at, '') ASC
+         LIMIT 2`
       ).all<{
         campaign_id: number;
         user_email: string;
         keywords_json: string;
         competitors_json: string;
         slug: string;
-        magic_token: string | null;
       }>();
 
       for (const mon of monitors.results || []) {
@@ -3332,7 +3613,7 @@ export default {
           kwList = [...(Array.isArray(parsedKw) ? parsedKw : []), ...(Array.isArray(parsedComp) ? parsedComp : [])]
             .map((s) => String(s).trim())
             .filter(Boolean)
-            .slice(0, 3);
+            .slice(0, 2);
         } catch {
           kwList = [];
         }
@@ -3387,7 +3668,7 @@ export default {
           .bind(mon.campaign_id)
           .run();
 
-        if (freshLines.length > 0 && mon.magic_token) {
+        if (freshLines.length > 0) {
           await sendResendEmail(env, {
             to: mon.user_email,
             subject: `LaunchPulse Daily Radar: ${freshLines.length} fresh buyer threads for ${mon.slug}`,
@@ -3405,118 +3686,10 @@ export default {
       // ignore
     }
 
-    // 3.5 自动抓取当日最新 Show HN 首发 SaaS 站点、被动体检 /llms.txt 并提取公开创始人邮箱入池
-    let hnHarvest = { scanned: 0, withEmail: 0, items: [] as Array<{ domain: string; email: string; score: number; auditUrl: string }> };
+    // 5. 轮询最久未检的 4 条已收录外链（严格将外链验活放在发信之后，绝不挤占核心发信子请求配额）
+    let backlinkSummary = { checked: 0, verifiedLive: 0, dofollowCount: 0 };
     try {
-      hnHarvest = await harvestDailyShowHnLaunches(env, 6);
-    } catch {
-      // ignore
-    }
-
-    // 3.6 黄金首发窗口全自动精准触达：对刚捕获到公开创始人邮箱的 Show HN 新站，先免费送上真实买家讨论帖 + 专属 /llms.txt 报告（每日限额 3 封，严防重复）
-    let autoOutreachSent = 0;
-    try {
-      const candidates = await env.DB.prepare(
-        `SELECT domain, target_url, title, founder_email, aeo_score, has_llms_txt, buyer_threads_json
-         FROM show_hn_prospects
-         WHERE outreach_status = 'queued' AND founder_email != ''
-         ORDER BY discovered_at DESC LIMIT 4`
-      ).all<{
-        domain: string;
-        target_url: string;
-        title: string;
-        founder_email: string;
-        aeo_score: number;
-        has_llms_txt: number;
-        buyer_threads_json?: string;
-      }>();
-
-      for (const row of candidates.results || []) {
-        if (autoOutreachSent >= 3) break;
-        const email = (row.founder_email || "").trim().toLowerCase();
-        if (
-          !email ||
-          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-          /^(noreply|no-reply|donotreply|privacy|security|abuse|legal|dmca)@/i.test(email) ||
-          /example\.com|sentry\.io|github\.com/i.test(email)
-        ) {
-          await env.DB.prepare(`UPDATE show_hn_prospects SET outreach_status = 'skipped' WHERE domain = ?1`)
-            .bind(row.domain)
-            .run();
-          continue;
-        }
-        const alreadySent = await env.DB.prepare(
-          `SELECT 1 FROM outreach_logs WHERE LOWER(recipient_email) = ?1 LIMIT 1`
-        )
-          .bind(email)
-          .first();
-        if (alreadySent) {
-          await env.DB.prepare(`UPDATE show_hn_prospects SET outreach_status = 'emailed' WHERE domain = ?1`)
-            .bind(row.domain)
-            .run();
-          continue;
-        }
-
-        let threads: Array<{ title: string; url: string }> = [];
-        try {
-          threads = JSON.parse(row.buyer_threads_json || "[]") as Array<{ title: string; url: string }>;
-        } catch {
-          threads = [];
-        }
-        if (threads.length === 0 && row.title) {
-          threads = await findRealBuyerThreadsForTitle(row.title, row.domain).catch(() => []);
-        }
-
-        const auditLink = `https://pulse.statementflow.win/audit/live?url=${encodeURIComponent(`https://${row.domain}`)}`;
-        const threadBlock =
-          threads.length > 0
-            ? [
-                `While indexing today's Show HN launches, our radar also surfaced ${threads.length} active developer discussion(s) around this space where your perspective might help:`,
-                ...threads.slice(0, 2).map((t) => `• ${t.title}\n  ${t.url}`),
-                ``,
-              ]
-            : [];
-
-        const llmsLine = row.has_llms_txt
-          ? `Your site already serves /llms.txt (nice work — Readiness Score: ${row.aeo_score}/100). We generated an updated 12-point AEO & directory authority snapshot for ${row.domain} here:`
-          : `One quick win from our passive scan (${row.aeo_score}/100): ${row.domain} doesn't have a /llms.txt manifest yet for ChatGPT Search & Perplexity citations. We generated a ready-to-drop /llms.txt file for you free (zero signup):`;
-
-        const sentOk = await sendResendEmail(env, {
-          to: email,
-          fromLabel: "Wang Guo · LaunchPulse",
-          subject: `Congrats on the Show HN for ${row.domain} (+ free /llms.txt & launch notes)`,
-          text: [
-            `Hi there,`,
-            ``,
-            `Saw ${row.domain} on Show HN — congrats on shipping!`,
-            ``,
-            ...threadBlock,
-            llmsLine,
-            auditLink,
-            ``,
-            `If you ever want to skip ~25 hours of manual directory forms after HN traffic cools down, we also maintain 100+ verified DR 70+ SaaS/AI submit links there. Either way, hope the free /llms.txt helps!`,
-            ``,
-            `Best,`,
-            `Wang Guo`,
-            `Founder, LaunchPulse (https://pulse.statementflow.win)`,
-          ].join("\n"),
-        });
-
-        if (sentOk) {
-          autoOutreachSent += 1;
-          const slug = `showhn-${row.domain.replace(/[^a-z0-9-]/gi, "-").toLowerCase()}`.slice(0, 64);
-          await env.DB.prepare(`UPDATE show_hn_prospects SET outreach_status = 'auto_emailed' WHERE domain = ?1`)
-            .bind(row.domain)
-            .run();
-          await env.DB.prepare(
-            `INSERT INTO outreach_logs (slug, recipient_email, channel, sent_at, last_event_at, last_event_type, follow_up_status)
-             VALUES (?1, ?2, 'resend_cron_showhn', datetime('now'), datetime('now'), 'auto_showhn_outreach', 'pending')
-             ON CONFLICT(slug) DO UPDATE SET last_event_at = datetime('now'), last_event_type = 'auto_showhn_outreach'`
-          )
-            .bind(slug, email)
-            .run();
-        }
-      }
+      backlinkSummary = await runBacklinkHealthCheck(env, "", 4);
     } catch {
       // ignore
     }

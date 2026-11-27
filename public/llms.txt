@@ -10,7 +10,7 @@
 ## Key Pages & Free Tools
 - Homepage: https://pulse.statementflow.win/
 - Interactive Growth Console Sandbox: https://pulse.statementflow.win/dashboard?sample=1
-- Verifiable Public Growth Report Demo: https://pulse.statementflow.win/report?id=demo-acmeflow
+- Verifiable Public Growth Report Demo: https://pulse.statementflow.win/report/demo-acmeflow
 - 12-Point AEO & AI Crawler Checker: https://pulse.statementflow.win/tools/aeo-checker
 - /llms.txt Manifest Generator: https://pulse.statementflow.win/tools/llms-txt-generator
 - 100+ High-DR SaaS Directory Finder: https://pulse.statementflow.win/tools/directory-finder

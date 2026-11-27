@@ -817,7 +817,7 @@ export default function BuyerInboxView({
                 disabled={checkoutPlan === "blitz"}
                 onClick={() => void onCheckout("blitz")}
               >
-                {isZh ? "启动包 · $39 一次性买断（5 条线索 + 30 站）" : "Starter · $39 one-time (5 leads + 30 dirs)"}
+                {isZh ? "启动包 · $39 一次性买断（5 条线索 + 100+ 站）" : "Starter · $39 one-time (5 leads + 100+ dirs)"}
               </Button>
             </CardContent>
           </Card>

@@ -140,7 +140,7 @@ export function parseSafePublicUrl(rawInput: string): URL | null {
     if (!trimmed) return null;
     const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
     const parsed = new URL(withProto);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    if (parsed.protocol !== "https:") return null;
     const host = parsed.hostname.toLowerCase();
     if (
       !host ||
@@ -149,16 +149,25 @@ export function parseSafePublicUrl(rawInput: string): URL | null {
       host.endsWith(".local") ||
       host.endsWith(".internal") ||
       host === "0.0.0.0" ||
-      host === "::1" ||
-      host === "[::1]" ||
-      /^127\./.test(host) ||
-      /^10\./.test(host) ||
-      /^192\.168\./.test(host) ||
-      /^169\.254\./.test(host) ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-      /^\[?(fc|fd|fe80)/i.test(host)
+      host.startsWith("[") ||
+      host.includes(":")
     ) {
       return null;
+    }
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+      const parts = host.split(".").map(Number);
+      if (
+        parts[0] === 0 ||
+        parts[0] === 10 ||
+        parts[0] === 127 ||
+        (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127) ||
+        (parts[0] === 169 && parts[1] === 254) ||
+        (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+        (parts[0] === 192 && parts[1] === 168) ||
+        (parts[0] === 198 && (parts[1] === 18 || parts[1] === 19))
+      ) {
+        return null;
+      }
     }
     return parsed;
   } catch {
@@ -167,24 +176,36 @@ export function parseSafePublicUrl(rawInput: string): URL | null {
 }
 
 async function passiveGet(url: string, timeoutMs = 5500) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; LaunchPulsePassiveAudit/4.0; +https://pulse.statementflow.win)",
-      },
-    });
-    const text = await res.text();
-    return { ok: res.ok, status: res.status, headers: res.headers, text: text.slice(0, 120000) };
-  } catch {
-    return { ok: false, status: 0, headers: new Headers(), text: "" };
-  } finally {
-    clearTimeout(timer);
+  let currentUrl = url;
+  for (let hop = 0; hop < 3; hop += 1) {
+    const safeTarget = parseSafePublicUrl(currentUrl);
+    if (!safeTarget) return { ok: false, status: 0, headers: new Headers(), text: "" };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(safeTarget.toString(), {
+        method: "GET",
+        redirect: "manual",
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; LaunchPulsePassiveAudit/4.0; +https://pulse.statementflow.win)",
+        },
+      });
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        if (!loc) return { ok: false, status: res.status, headers: res.headers, text: "" };
+        currentUrl = new URL(loc, safeTarget.toString()).toString();
+        continue;
+      }
+      const text = await res.text();
+      return { ok: res.ok, status: res.status, headers: res.headers, text: text.slice(0, 120000) };
+    } catch {
+      return { ok: false, status: 0, headers: new Headers(), text: "" };
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  return { ok: false, status: 0, headers: new Headers(), text: "" };
 }
 
 function parseJsonArr(raw: string | null | undefined, fallback: string[] = []): string[] {
@@ -1114,9 +1135,10 @@ export async function handleSaveBrandKit(
       .first();
     if (!own) return jsonRes({ error: "Campaign not found" }, 404);
 
-    const logoUrl = (body.logoUrl || "").trim().slice(0, 300);
+    const rawLogo = (body.logoUrl || "").trim().slice(0, 300);
+    const logoUrl = rawLogo && parseSafePublicUrl(rawLogo) ? parseSafePublicUrl(rawLogo)!.toString() : "";
     const screenshots = (Array.isArray(body.screenshots) ? body.screenshots : [])
-      .map((s) => String(s).trim())
+      .map((s) => parseSafePublicUrl(String(s).trim().slice(0, 300))?.toString() || "")
       .filter(Boolean)
       .slice(0, 5);
     const shortTagline = (body.shortTagline || "").trim().slice(0, 80);
@@ -1530,8 +1552,9 @@ export async function runBacklinkHealthCheck(
         `SELECT ds.customer_email, ds.directory_id, ds.live_backlink_url, c.id as campaign_id, c.target_url
          FROM directory_submissions ds
          LEFT JOIN campaigns c ON c.user_email = ds.customer_email AND (ds.slug = '' OR c.slug = ds.slug)
+         LEFT JOIN directory_health_checks dhc ON dhc.customer_email = ds.customer_email AND dhc.directory_id = ds.directory_id
          WHERE ds.customer_email = ?1 AND ds.status = 'live' AND ds.live_backlink_url != ''
-         ORDER BY ds.updated_at DESC LIMIT ?2`
+         ORDER BY COALESCE(dhc.last_checked_at, '') ASC, ds.updated_at ASC LIMIT ?2`
       )
         .bind(filterEmail.toLowerCase(), limit)
         .all<{
@@ -1545,8 +1568,9 @@ export async function runBacklinkHealthCheck(
         `SELECT ds.customer_email, ds.directory_id, ds.live_backlink_url, c.id as campaign_id, c.target_url
          FROM directory_submissions ds
          LEFT JOIN campaigns c ON c.user_email = ds.customer_email AND (ds.slug = '' OR c.slug = ds.slug)
+         LEFT JOIN directory_health_checks dhc ON dhc.customer_email = ds.customer_email AND dhc.directory_id = ds.directory_id
          WHERE ds.status = 'live' AND ds.live_backlink_url != ''
-         ORDER BY ds.updated_at DESC LIMIT ?1`
+         ORDER BY COALESCE(dhc.last_checked_at, '') ASC, ds.updated_at ASC LIMIT ?1`
       )
         .bind(limit)
         .all<{
@@ -2382,7 +2406,8 @@ export async function handleTestRadarWebhook(request: Request): Promise<Response
     const body = (await request.json()) as { webhookUrl?: string; productName?: string };
     const safe = parseSafePublicUrl(body.webhookUrl || "");
     if (!safe) return jsonRes({ error: "Invalid HTTPS webhook URL." }, 400);
-    const msg = `✅ LaunchPulse Buyer Radar connected for ${body.productName || "your SaaS"}. High-intent HN / GitHub / Dev.to buyer leads will arrive here in real time.`;
+    const cleanProd = String(body.productName || "your SaaS").trim().slice(0, 80);
+    const msg = `✅ LaunchPulse Buyer Radar connected for ${cleanProd}. High-intent HN / GitHub / Dev.to buyer leads will arrive here in real time.`;
     const res = await fetch(safe.toString(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2469,6 +2494,7 @@ export async function handleGetPublicReport(shareIdRaw: string, env: V4Env): Pro
       date: new Date(Date.now() - (13 - i) * 86400 * 1000).toISOString().slice(0, 10),
       clicks: 74 + Math.round(i * 4.5 + (i % 3) * 7),
       conversions: 3 + (i % 4),
+      revenueUsd: 116 + (i % 4) * 29,
     }));
     return jsonRes({
       shareId,
@@ -2523,25 +2549,30 @@ export async function handleGetPublicReport(shareIdRaw: string, env: V4Env): Pro
     }>();
   if (!rpt) return jsonRes({ error: "Public report not found" }, 404);
 
-  const [linksRes, clicksDailyRes, convDailyRes, convSumRes, liveDirsRes] = await Promise.all([
-    env.DB.prepare(`SELECT channel, clicks_count, conversions_count FROM tracking_links WHERE campaign_id = ?1`)
+  const [linksRes, clicksDailyRes, convDailyRes, convSumRes, convByCodeRes, liveDirsRes] = await Promise.all([
+    env.DB.prepare(`SELECT code, channel, clicks_count, conversions_count FROM tracking_links WHERE campaign_id = ?1`)
       .bind(rpt.campaign_id)
-      .all<{ channel: string; clicks_count: number; conversions_count: number }>(),
+      .all<{ code: string; channel: string; clicks_count: number; conversions_count: number }>(),
     env.DB.prepare(
       `SELECT substr(clicked_at, 1, 10) as day, COUNT(*) as cnt FROM link_clicks WHERE campaign_id = ?1 AND clicked_at >= datetime('now', '-30 days') GROUP BY day ORDER BY day ASC`
     )
       .bind(rpt.campaign_id)
       .all<{ day: string; cnt: number }>(),
     env.DB.prepare(
-      `SELECT substr(created_at, 1, 10) as day, COUNT(*) as cnt FROM conversions WHERE campaign_id = ?1 AND created_at >= datetime('now', '-30 days') GROUP BY day ORDER BY day ASC`
+      `SELECT substr(created_at, 1, 10) as day, COUNT(*) as cnt, COALESCE(SUM(value_usd), 0) as rev FROM conversions WHERE campaign_id = ?1 AND created_at >= datetime('now', '-30 days') GROUP BY day ORDER BY day ASC`
     )
       .bind(rpt.campaign_id)
-      .all<{ day: string; cnt: number }>(),
+      .all<{ day: string; cnt: number; rev: number }>(),
     env.DB.prepare(
       `SELECT event_type, COUNT(*) as cnt, COALESCE(SUM(value_usd), 0) as rev FROM conversions WHERE campaign_id = ?1 GROUP BY event_type`
     )
       .bind(rpt.campaign_id)
       .all<{ event_type: string; cnt: number; rev: number }>(),
+    env.DB.prepare(
+      `SELECT code, COALESCE(SUM(value_usd), 0) as rev FROM conversions WHERE campaign_id = ?1 GROUP BY code`
+    )
+      .bind(rpt.campaign_id)
+      .all<{ code: string; rev: number }>(),
     env.DB.prepare(
       `SELECT directory_name as name, dr, live_backlink_url as url FROM directory_submissions WHERE customer_email = ?1 AND status = 'live' ORDER BY dr DESC LIMIT 12`
     )
@@ -2561,18 +2592,27 @@ export async function handleGetPublicReport(shareIdRaw: string, env: V4Env): Pro
     else signups += Number(r.cnt || 0);
   }
 
+  const showRev = Boolean(rpt.show_revenue);
   const cMap = new Map((clicksDailyRes.results || []).map((r) => [r.day, Number(r.cnt)]));
   const vMap = new Map((convDailyRes.results || []).map((r) => [r.day, Number(r.cnt)]));
+  const rMap = new Map((convDailyRes.results || []).map((r) => [r.day, Number(r.rev || 0)]));
   const dailySeries = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(Date.now() - (13 - i) * 86400 * 1000).toISOString().slice(0, 10);
-    return { date: d, clicks: cMap.get(d) || 0, conversions: vMap.get(d) || 0 };
+    return {
+      date: d,
+      clicks: cMap.get(d) || 0,
+      conversions: vMap.get(d) || 0,
+      revenueUsd: showRev ? rMap.get(d) || 0 : 0,
+    };
   });
 
-  const chMap = new Map<string, { clicks: number; conversions: number }>();
+  const codeRevMap = new Map((convByCodeRes.results || []).map((r) => [r.code, Number(r.rev || 0)]));
+  const chMap = new Map<string, { clicks: number; conversions: number; revenueUsd: number }>();
   for (const l of links) {
-    const cur = chMap.get(l.channel) || { clicks: 0, conversions: 0 };
+    const cur = chMap.get(l.channel) || { clicks: 0, conversions: 0, revenueUsd: 0 };
     cur.clicks += Number(l.clicks_count || 0);
     cur.conversions += Number(l.conversions_count || 0);
+    cur.revenueUsd += showRev ? codeRevMap.get(l.code) || 0 : 0;
     chMap.set(l.channel, cur);
   }
 
@@ -2581,23 +2621,29 @@ export async function handleGetPublicReport(shareIdRaw: string, env: V4Env): Pro
     title: rpt.title,
     productName: rpt.product_name,
     targetUrl: rpt.target_url,
-    showRevenue: Boolean(rpt.show_revenue),
+    showRevenue: showRev,
     generatedAt: new Date().toISOString(),
     stats: {
       totalClicks,
       totalConversions,
       conversionRate: totalClicks > 0 ? Number(((totalConversions / totalClicks) * 100).toFixed(2)) : 0,
-      attributedRevenueUsd: rpt.show_revenue ? rev : 0,
-      rpv: rpt.show_revenue && totalClicks > 0 ? Number((rev / totalClicks).toFixed(2)) : 0,
-      roiMultiple: rpt.show_revenue && rev > 0 ? Number((rev / 39).toFixed(1)) : 0,
+      attributedRevenueUsd: showRev ? rev : 0,
+      rpv: showRev && totalClicks > 0 ? Number((rev / totalClicks).toFixed(2)) : 0,
+      roiMultiple: showRev && rev > 0 ? Number((rev / 39).toFixed(1)) : 0,
       directoriesLive: (liveDirsRes.results || []).length,
       directoriesTotal: 100,
-      funnel: { clicks: totalClicks, qualifiedVisits: Math.round(totalClicks * 0.84), signups, purchases },
+      funnel: {
+        clicks: totalClicks,
+        qualifiedVisits: Math.round(totalClicks * 0.84),
+        signups,
+        purchases: showRev ? purchases : 0,
+      },
       dailySeries,
       channelBreakdown: Array.from(chMap.entries()).map(([channel, v]) => ({
         channel,
         clicks: v.clicks,
         conversions: v.conversions,
+        revenueUsd: v.revenueUsd,
         cvr: v.clicks > 0 ? Number(((v.conversions / v.clicks) * 100).toFixed(2)) : 0,
       })),
       topDirectories: (liveDirsRes.results || []).map((d) => ({ ...d, linkType: "dofollow" })),
