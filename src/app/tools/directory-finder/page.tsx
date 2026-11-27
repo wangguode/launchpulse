@@ -71,6 +71,28 @@ export default function DirectoryFinderToolPage() {
   const [targetUrl, setTargetUrl] = useState("");
   const [workEmail, setWorkEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [quickUnlocking, setQuickUnlocking] = useState(false);
+
+  const handleDirectBlitzUnlock = async () => {
+    setQuickUnlocking(true);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: "blitz", slug: "directory-finder" }),
+      });
+      const data = (await res.json()) as { checkoutUrl?: string };
+      if (res.ok && data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+      setCheckoutPlanDialog("blitz");
+    } catch {
+      setCheckoutPlanDialog("blitz");
+    } finally {
+      setQuickUnlocking(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -205,8 +227,10 @@ export default function DirectoryFinderToolPage() {
                 {isZh ? "进入已解锁指挥台" : "Open Console"}
               </Button>
             ) : (
-              <Button size="sm" onClick={() => setCheckoutPlanDialog("blitz")}>
-                {isZh ? "解锁全部 100 站 · $39" : "Unlock All 100 · $39"}
+              <Button size="sm" disabled={quickUnlocking} onClick={() => void handleDirectBlitzUnlock()}>
+                {quickUnlocking
+                  ? isZh ? "跳转中..." : "Opening..."
+                  : isZh ? "解锁全部 100 站 · $39" : "Unlock All 100 · $39"}
               </Button>
             )}
           </div>
@@ -233,11 +257,13 @@ export default function DirectoryFinderToolPage() {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <Button size="sm" variant="secondary" onClick={() => setCheckoutPlanDialog("blitz")}>
-                  {isZh ? "解锁自助全库 · $39" : "Unlock All 100 · $39"}
+                <Button size="sm" variant="secondary" disabled={quickUnlocking} onClick={() => void handleDirectBlitzUnlock()}>
+                  {quickUnlocking
+                    ? isZh ? "跳转中..." : "Opening..."
+                    : isZh ? "解锁自助全库 · $39" : "Unlock All 100 · $39"}
                 </Button>
                 <Button size="sm" onClick={() => setCheckoutPlanDialog("dfy")}>
-                  {isZh ? "100+ 人工代投 · $299" : "Human DFY · $299"}
+                  {isZh ? "人工代投 · $299" : "Human DFY · $299"}
                   <IconArrowRight className="size-3.5" />
                 </Button>
               </div>
@@ -402,7 +428,8 @@ export default function DirectoryFinderToolPage() {
                             variant="outline"
                             size="sm"
                             className="h-7 px-2.5 text-xs"
-                            onClick={() => setCheckoutPlanDialog("blitz")}
+                            disabled={quickUnlocking}
+                            onClick={() => void handleDirectBlitzUnlock()}
                           >
                             <IconLock className="size-3" />
                             {isZh ? "解锁 · $39" : "Unlock · $39"}
@@ -476,8 +503,8 @@ export default function DirectoryFinderToolPage() {
               <p>
                 {checkoutPlanDialog === "dfy"
                   ? isZh
-                    ? "• 英文产品三档目录简介精修 + 100+ 目录逐站人工提交 + 30 天死链免费补投"
-                    : "• Native English Brand Kit rewrite + manual human submission across all 100+ directories + 30-day replacement guarantee"
+                    ? "• 英文三档目录简介精修 + 70+ 免费公开高权目录人工代提交 + 30+ 严审/付费站即贴包 + 30 天死链补投"
+                    : "• Native English Brand Kit rewrite + manual human submission across 70+ free high-DR directories + ready pack for 30+ gated sites + 30-day replacement guarantee"
                   : isZh
                   ? "• 全部 100+ 验证直达 Submit URL + 一键复制文案包 + 自动 HTTP 200 外链存活巡检 + 归因短链"
                   : "• All 100+ direct Submit URLs + 1-click Brand Copy Pack + automated HTTP 200 live backlink verifier + attribution shortlinks"}

@@ -71,6 +71,70 @@ export default function DynamicLiveAuditPage() {
   const [checkoutPlanDialog, setCheckoutPlanDialog] = useState<"blitz" | "dfy" | null>(null);
   const [checkoutEmail, setCheckoutEmail] = useState("");
   const [submittingCheckout, setSubmittingCheckout] = useState(false);
+  const [directPlanLoading, setDirectPlanLoading] = useState<"blitz" | "dfy" | null>(null);
+
+  const [freeSampleEmail, setFreeSampleEmail] = useState("");
+  const [freeSampleLoading, setFreeSampleLoading] = useState(false);
+  const [freeSampleDoneMsg, setFreeSampleDoneMsg] = useState("");
+
+  const handleDirectInstantCheckout = async (plan: "blitz" | "dfy") => {
+    if (!instantScan) return;
+    setDirectPlanLoading(plan);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan,
+          slug: instantScan.domain,
+          targetUrl: instantScan.origin,
+        }),
+      });
+      const d = (await res.json()) as { checkoutUrl?: string };
+      if (res.ok && d.checkoutUrl) {
+        window.location.href = d.checkoutUrl;
+        return;
+      }
+      setCheckoutPlanDialog(plan);
+    } catch {
+      setCheckoutPlanDialog(plan);
+    } finally {
+      setDirectPlanLoading(null);
+    }
+  };
+
+  const handleRequestFree2DirSample = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!instantScan || !freeSampleEmail.trim()) return;
+    setFreeSampleLoading(true);
+    setFreeSampleDoneMsg("");
+    try {
+      const res = await fetch("/api/free-directory-sample", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: freeSampleEmail.trim(),
+          targetUrl: instantScan.origin,
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean; message?: string; error?: string };
+      if (res.ok && data.ok) {
+        setFreeSampleDoneMsg(
+          data.message ||
+            (isZh
+              ? "已排期！24 小时内将向您的邮箱发送 2 条真实提交回执链接。"
+              : "Queued! We will email 2 live starter directory submission receipts within 24h.")
+        );
+        setFreeSampleEmail("");
+      } else {
+        toast.error(data.error || "Could not submit request.");
+      }
+    } catch {
+      toast.error("Network error — please retry.");
+    } finally {
+      setFreeSampleLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -388,7 +452,50 @@ export default function DynamicLiveAuditPage() {
             </Card>
           </div>
 
-          {/* 清晰 ROI 价值锚点与双阶行动舱（聚焦 $39 自助全库加速与 $299 人工代投转化，避免免费入口分流冲动付费） */}
+          {/* 先尝甜头高信任微交付钩子：免费人工先投 2 个 DR 70+ 目录，解决冷流量不留邮箱直接流失问题 */}
+          <Card className="border-emerald-500/35 bg-emerald-500/[0.04]">
+            <CardContent className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-1 max-w-xl">
+                <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  {isZh
+                    ? "零风险先验真货（免费微交付）"
+                    : "Zero-Risk Proof Before You Pay"}
+                </p>
+                <h3 className="text-base font-semibold">
+                  {isZh
+                    ? `免费帮 ${instantScan.domain} 手动提交前 2 个高权目录（24h 发回实链回执）`
+                    : `Get 2 Free Manual Starter Directory Submissions for ${instantScan.domain}`}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {isZh
+                    ? "留下创始人邮箱，我们先免费替您完成 2 个公开目录人工提交并发回存活证明，亲眼看到真实收录后再决定是否升级 $39 自助包或 $299 全案代投。"
+                    : "Enter your work email and we'll manually submit 2 Wave-1 listings free within 24h so you can verify live backlink quality before spending a dollar."}
+                </p>
+              </div>
+              <form onSubmit={handleRequestFree2DirSample} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                <Input
+                  type="email"
+                  required
+                  value={freeSampleEmail}
+                  onChange={(e) => setFreeSampleEmail(e.target.value)}
+                  placeholder="founder@your-saas.com"
+                  className="h-10 sm:w-60 text-sm"
+                />
+                <Button type="submit" variant="outline" className="h-10" disabled={freeSampleLoading}>
+                  {freeSampleLoading
+                    ? isZh ? "提交中..." : "Queueing..."
+                    : isZh ? "免费领 2 条外链实证" : "Claim 2 Free Listings"}
+                </Button>
+              </form>
+            </CardContent>
+            {freeSampleDoneMsg && (
+              <div className="px-5 pb-4 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                {freeSampleDoneMsg}
+              </div>
+            )}
+          </Card>
+
+          {/* 清晰 ROI 价值锚点与一键免弹窗直跳收银台（已知域名无需二次填表拦截） */}
           <Card className="border-primary/40">
             <CardContent className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="space-y-1.5 max-w-xl">
@@ -402,8 +509,8 @@ export default function DynamicLiveAuditPage() {
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   {isZh
-                    ? "选 $39 自助加速包：立即解锁全部 100+ 直达 Submit URL、一键英文文案包与 HTTP 200 自动验活；或选 $299 全人工代投：由我们精修物料并逐站手动提交全部 100+ 目录（30 天死链免费补投）。"
-                    : "Choose Self-Serve Starter ($39 once · all 100+ direct Submit URLs, 1-click Brand Copy Pack & automated HTTP 200 verifier), or Done-For-You Concierge ($299 · 100% human manual submission across all 100+ directories)."}
+                    ? "选 $39 自助加速包：立即解锁全部 100+ 直达 Submit URL、一键英文文案包与 HTTP 200 自动验活；或选 $299 全人工代投：人工精修物料并逐站代提交 70+ 免费高权目录 + 交付 30+ 严审站即贴包（30 天死链免费补投）。"
+                    : "Choose Self-Serve Starter ($39 once · all 100+ direct Submit URLs, 1-click Brand Copy Pack & automated HTTP 200 verifier), or Done-For-You Concierge ($299 · human manual submission across 70+ free high-DR directories + ready pack for 30+ gated sites)."}
                 </p>
                 <div className="pt-1">
                   <Link
@@ -418,15 +525,21 @@ export default function DynamicLiveAuditPage() {
                 <Button
                   variant="secondary"
                   className="min-h-11"
-                  onClick={() => setCheckoutPlanDialog("blitz")}
+                  disabled={directPlanLoading === "blitz"}
+                  onClick={() => void handleDirectInstantCheckout("blitz")}
                 >
-                  {isZh ? "解锁 100+ 自助包 · $39" : "Self-Serve 100+ Kit · $39"}
+                  {directPlanLoading === "blitz"
+                    ? isZh ? "跳转中..." : "Opening..."
+                    : isZh ? "解锁 100+ 自助包 · $39" : "Self-Serve 100+ Kit · $39"}
                 </Button>
                 <Button
                   className="min-h-11"
-                  onClick={() => setCheckoutPlanDialog("dfy")}
+                  disabled={directPlanLoading === "dfy"}
+                  onClick={() => void handleDirectInstantCheckout("dfy")}
                 >
-                  {isZh ? "100+ 全人工代投 · $299" : "100+ Human DFY · $299"}
+                  {directPlanLoading === "dfy"
+                    ? isZh ? "跳转中..." : "Opening..."
+                    : isZh ? "全人工代投 · $299" : "Human DFY · $299"}
                   <IconArrowRight className="size-4" />
                 </Button>
               </div>

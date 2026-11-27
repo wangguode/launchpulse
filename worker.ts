@@ -530,12 +530,27 @@ async function handleCheckout(request: Request, env: Env): Promise<Response> {
         : `/portal?unlocked=1&plan=${plan}`;
 
     const creemApiKey = env.CREEM_API_KEY?.trim();
-    const productId =
+    let productId =
       plan === "blitz"
         ? env.CREEM_PRODUCT_ID_BLITZ?.trim() || env.CREEM_PRODUCT_ID_FIXPACK?.trim()
         : plan === "dfy"
         ? env.CREEM_PRODUCT_ID_DFY?.trim()
         : env.CREEM_PRODUCT_ID_RADAR?.trim();
+
+    if (env.DB) {
+      try {
+        const overrideRow = await env.DB.prepare(
+          `SELECT product_id FROM creem_sku_overrides WHERE app_key = 'lp' AND plan_key = ?1 LIMIT 1`
+        )
+          .bind(plan)
+          .first<{ product_id: string }>();
+        if (overrideRow?.product_id) {
+          productId = overrideRow.product_id;
+        }
+      } catch {
+        // ignore if table not initialized yet
+      }
+    }
 
     if (creemApiKey && productId) {
       const creemPayload: Record<string, unknown> = {
@@ -687,6 +702,16 @@ async function ensureEmailOutboxTable(env: Env): Promise<void> {
         plan TEXT NOT NULL DEFAULT 'blitz',
         country TEXT NOT NULL DEFAULT 'XX',
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`
+    ).run();
+    await env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS creem_sku_overrides (
+        app_key TEXT NOT NULL,
+        plan_key TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        price_usd INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (app_key, plan_key)
       )`
     ).run();
     try {
@@ -1061,10 +1086,10 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
 
             const planDisplayName =
               plan === "dfy"
-                ? "Done-For-You Growth Sprint ($299)"
+                ? "100+ Directory Done-For-You Concierge ($299)"
                 : plan === "blitz" || plan === "fixpack"
-                ? "50+ Directory Distribution Blitz ($39)"
-                : "24/7 Buyer Intent Radar Pro ($29/mo)";
+                ? "100+ SaaS Directory Starter Kit ($39)"
+                : "Growth Command & Buyer Radar Pro ($29/mo)";
 
             await sendResendEmail(env, {
               to: email,
@@ -2455,6 +2480,173 @@ export default {
         `SELECT * FROM show_hn_prospects ORDER BY discovered_at DESC LIMIT 50`
       ).all();
       return jsonResponse({ ok: true, harvestResult, leads: rows.results || [] });
+    }
+
+    // 校准并同步线上 Creem 收银台商品目录（彻底消除旧版 50+ / GitHub PR 货不对板文案，写入 D1 creem_sku_overrides 立即生效）
+    if (url.pathname === "/api/admin/sync-creem-skus" && request.method === "POST") {
+      if (!(await isAdminAuthorized(request, env))) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      const creemKey = env.CREEM_API_KEY?.trim();
+      if (!creemKey || !env.DB) {
+        return jsonResponse({ ok: false, error: "Missing CREEM_API_KEY or DB" }, 500);
+      }
+      await ensureEmailOutboxTable(env);
+      const specs: Array<{
+        appKey: "lp" | "sf";
+        planKey: string;
+        priceUsd: number;
+        payload: Record<string, unknown>;
+      }> = [
+        {
+          appKey: "lp",
+          planKey: "blitz",
+          priceUsd: 39,
+          payload: {
+            name: "LaunchPulse — 100+ SaaS Directory Starter Kit",
+            description:
+              "Instant unlock of all 100+ verified high-DR SaaS & AI direct submit URLs, 1-click English Brand Kit copy pack, Wave-1 pacer, automated HTTP 200 live backlink verifier & attribution shortlinks. (A StatementFlow AI Product)",
+            price: 3900,
+            currency: "USD",
+            billing_type: "onetime",
+          },
+        },
+        {
+          appKey: "lp",
+          planKey: "radar",
+          priceUsd: 29,
+          payload: {
+            name: "LaunchPulse — Growth Command & Buyer Radar Pro",
+            description:
+              "All 100+ curated directories paced over 3 weekly waves, 24/7 Reddit, Hacker News & GitHub buyer intent inbox with daily alerts, zero-link safe reply studio, and dollar-reconciled revenue attribution. (A StatementFlow AI Product)",
+            price: 2900,
+            currency: "USD",
+            billing_type: "recurring",
+            billing_period: "every-month",
+          },
+        },
+        {
+          appKey: "lp",
+          planKey: "dfy",
+          priceUsd: 299,
+          payload: {
+            name: "LaunchPulse — 100+ Directory Done-For-You Concierge",
+            description:
+              "Zero founder form-filling: native English Brand Kit rewrite + human manual submission across 70+ free high-DR directories + ready-to-paste pack for 30+ gated directories, HTTP 200 receipts & 30-day replacement guarantee. (A StatementFlow AI Product)",
+            price: 29900,
+            currency: "USD",
+            billing_type: "onetime",
+          },
+        },
+        {
+          appKey: "sf",
+          planKey: "pro",
+          priceUsd: 29,
+          payload: {
+            name: "StatementFlow AI Pro — Lifetime Unlimited",
+            description:
+              "One-time lifetime license (no recurring subscription): unlimited multi-month PDF batch merges, scanned Vision AI OCR, $0.00 cent-verified reconciliation, and native QuickBooks, Xero & multi-sheet Excel exports.",
+            price: 2900,
+            currency: "USD",
+            billing_type: "onetime",
+          },
+        },
+      ];
+
+      const synced: Array<{ appKey: string; planKey: string; productId: string; status: number }> = [];
+      for (const sp of specs) {
+        const existing = await env.DB.prepare(
+          `SELECT product_id FROM creem_sku_overrides WHERE app_key = ?1 AND plan_key = ?2 LIMIT 1`
+        )
+          .bind(sp.appKey, sp.planKey)
+          .first<{ product_id: string }>();
+        if (existing?.product_id) {
+          synced.push({ appKey: sp.appKey, planKey: sp.planKey, productId: existing.product_id, status: 200 });
+          continue;
+        }
+        const cRes = await fetch("https://api.creem.io/v1/products", {
+          method: "POST",
+          headers: {
+            "x-api-key": creemKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(sp.payload),
+        });
+        const cJson = (await cRes.json().catch(() => ({}))) as { id?: string; error?: unknown };
+        if (cRes.ok && cJson.id) {
+          await env.DB.prepare(
+            `INSERT INTO creem_sku_overrides (app_key, plan_key, product_id, price_usd, updated_at)
+             VALUES (?1, ?2, ?3, ?4, datetime('now'))
+             ON CONFLICT(app_key, plan_key) DO UPDATE SET product_id = ?3, price_usd = ?4, updated_at = datetime('now')`
+          )
+            .bind(sp.appKey, sp.planKey, cJson.id, sp.priceUsd)
+            .run();
+          synced.push({ appKey: sp.appKey, planKey: sp.planKey, productId: cJson.id, status: cRes.status });
+        } else {
+          synced.push({
+            appKey: sp.appKey,
+            planKey: sp.planKey,
+            productId: JSON.stringify(cJson).slice(0, 180),
+            status: cRes.status,
+          });
+        }
+      }
+      return jsonResponse({ ok: true, synced });
+    }
+
+    // 免费先投 2 个 DR 70+ 目录微交付钩子接口（先给真外链结果建立信任，再承接 $39 / $299 付费）
+    if (url.pathname === "/api/free-directory-sample" && request.method === "POST") {
+      if (!checkRateLimit(request, 8)) return jsonResponse({ ok: false, error: "Too many requests." }, 429);
+      try {
+        const body = (await request.json()) as {
+          email?: string;
+          targetUrl?: string;
+        };
+        const email = (body.email || "").trim().toLowerCase().slice(0, 120);
+        const parsedTarget = parseSafePublicHttpsUrl(body.targetUrl || "");
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !parsedTarget) {
+          return jsonResponse({ ok: false, error: "Please provide a valid work email and HTTPS URL." }, 400);
+        }
+        const country = ((request as Request & { cf?: { country?: string } }).cf?.country || "XX").slice(0, 8);
+        if (env.DB) {
+          await ensureEmailOutboxTable(env);
+          await env.DB.prepare(
+            `INSERT INTO checkout_intents (work_email, target_url, plan, country) VALUES (?1, ?2, 'free_2dir_sample', ?3)`
+          )
+            .bind(email, parsedTarget.origin, country)
+            .run();
+        }
+        await sendResendEmail(env, {
+          to: "hello@statementflow.win",
+          fromLabel: "LaunchPulse Leads",
+          subject: `🎯 [Free 2-Dir Proof Lead] ${parsedTarget.hostname} (${email})`,
+          text: `Founder requested 2 free manual DR 70+ starter directory submissions:\n- Email: ${email}\n- URL: ${parsedTarget.origin}\n- Country: ${country}\n\nAction: Submit 2 quick starter listings & reply with live screenshot proof to close $299 DFY!`,
+        });
+        await sendResendEmail(env, {
+          to: email,
+          fromLabel: "Wang Guo · LaunchPulse",
+          subject: `Queued: 2 Free DR 70+ Starter Submissions for ${parsedTarget.hostname}`,
+          text: [
+            `Hi there,`,
+            ``,
+            `We received your request for ${parsedTarget.hostname}!`,
+            ``,
+            `What happens next:`,
+            `1. Our team will manually submit ${parsedTarget.hostname} to 2 verified public SaaS/AI directories from our Wave-1 list and email you the live receipt links within 24 hours (100% free, zero obligation).`,
+            `2. Your live 12-point AEO & /llms.txt report remains bookmarked here: https://pulse.statementflow.win/audit/live?url=${encodeURIComponent(parsedTarget.origin)}`,
+            ``,
+            `Want to unlock all 100+ direct submit URLs immediately ($39 once) or have our team manually handle the entire campaign ($299)? Reply anytime to this email.`,
+            ``,
+            `— Wang Guo, LaunchPulse`,
+          ].join("\n"),
+        });
+        return jsonResponse({
+          ok: true,
+          message: `Queued! We will email ${email} with 2 live starter directory submission receipts within 24 hours.`,
+        });
+      } catch {
+        return jsonResponse({ ok: false, error: "Invalid request payload." }, 400);
+      }
     }
 
     // 企业域名专业发信接口（基于 Resend DKIM/SPF 认证域 hello@mail.statementflow.win，彻底取代免费 Gmail 发 B2B 开发信）

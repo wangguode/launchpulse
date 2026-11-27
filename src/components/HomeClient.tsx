@@ -218,8 +218,43 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
     await executeScanForUrl(scanUrl);
   };
 
-  const handleCheckout = (plan: "blitz" | "radar" | "dfy") => {
-    setCheckoutTargetUrl(scanResult?.origin || scanUrl.trim() || "");
+  const handleCheckout = async (plan: "blitz" | "radar" | "dfy") => {
+    const prefilledUrl = scanResult?.origin || scanUrl.trim() || "";
+    // $39 自助加速包与 $29/月 订阅制直接一键秒跳 Creem 收银台，消除前置必填弹窗流失；仅 $299 人工代投在未填网址时询问推广域名
+    if (plan !== "dfy" || prefilledUrl) {
+      setCheckoutPlan(plan);
+      try {
+        let cleanUrl = prefilledUrl;
+        if (cleanUrl && !/^https?:\/\//i.test(cleanUrl)) {
+          cleanUrl = `https://${cleanUrl}`;
+        }
+        let derivedDomain = scanResult?.domain || "saas-launch";
+        try {
+          if (cleanUrl) derivedDomain = new URL(cleanUrl).hostname.replace(/^www\./i, "");
+        } catch {
+          // ignore
+        }
+        const res = await fetch("/api/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            plan,
+            slug: derivedDomain,
+            targetUrl: cleanUrl,
+          }),
+        });
+        const data = (await res.json()) as { checkoutUrl?: string };
+        if (res.ok && data.checkoutUrl) {
+          window.location.href = data.checkoutUrl;
+          return;
+        }
+      } catch {
+        // 异常时回退至弹窗补充信息
+      } finally {
+        setCheckoutPlan(null);
+      }
+    }
+    setCheckoutTargetUrl(prefilledUrl);
     setCheckoutDialogPlan(plan);
   };
 
@@ -368,20 +403,20 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
       price: "$299",
       unit: isZh ? "一次性全托管" : "one-time concierge",
       desc: isZh
-        ? "创始人零填表：我们人工精修英文定位并逐站手动提交全部 100+ 目录。"
-        : "Zero founder form-filling: our team rewrites your Brand Kit and manually submits all 100+ listings.",
+        ? "创始人零填表：人工精修英文定位，逐站代交 70+ 免费高权目录并交付 30+ 严审站物料包。"
+        : "Zero founder form-filling: human Brand Kit rewrite + manual submission across 70+ free high-DR directories + ready pack for 30+ gated sites.",
       features: isZh
         ? [
-            "100+ 精选目录全人工逐站注册与手动代提交（省 25 小时）",
+            "70+ 免费公开高权目录全人工逐站注册代提交 + 30+ 严审/付费站即贴物料包",
             "母语级英文产品定位与三档目录简介人工精修",
             "每条外链附 HTTP 200 验活回执 · 30 天死链免费补投",
-            "附赠 30 天增长指挥台 Pro 完整权限",
+            "附赠 30 天增长指挥台 Pro 完整权限（不含第三方目录自收加急费）",
           ]
         : [
-            "100% human manual submission across all 100+ directories",
+            "70+ free high-DR directories manually submitted + ready pack for 30+ gated sites",
             "Native English Brand Kit & positioning rewrite",
             "Live HTTP 200 receipt per link + 30-day replacement guarantee",
-            "Includes 30 days of Growth Command Pro access",
+            "Includes 30 days of Growth Command Pro (excludes 3rd-party paid listing fees)",
           ],
       cta: isZh ? "预约全人工代投 · $299" : "Book Concierge · $299",
       highlighted: false,
@@ -642,11 +677,11 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 bg-[var(--frost-well)] px-5 py-3 text-[13px]">
                 <div className="flex items-center gap-2.5 font-medium">
                   <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>{isZh ? "LaunchPulse 增长指挥台 · 公开可核验实盘战报与归因沙盒" : "LaunchPulse Command Center · Verifiable Public Proof & Sandbox"}</span>
+                  <span>{isZh ? "LaunchPulse 控制台交互沙盒预览（示例归因账本 Schema）" : "Interactive Console Sandbox · Sample Attribution Ledger Preview"}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" className="h-7 text-xs" render={<Link href="/report/rpt-7pwk585y" />}>
-                    {isZh ? "查验 StatementFlow 实盘战报" : "Live Case: StatementFlow AI"}
+                  <Button variant="outline" size="sm" className="h-7 text-xs" render={<Link href="/tools/directory-finder" />}>
+                    {isZh ? "查验 100+ 真实目录库" : "Inspect 100+ Directories"}
                     <IconExternalLink className="size-3.5" />
                   </Button>
                   <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/dashboard?sample=1" />}>
@@ -1107,7 +1142,7 @@ export default function HomeClient({ sampleAudits }: { sampleAudits: StartupAudi
           <div className="flex items-center gap-2">
             <span className="font-semibold text-foreground">LaunchPulse</span>
             <span>·</span>
-            <span>{isZh ? "出海产品增长与投流归因平台" : "Growth & Attribution Command Center"}</span>
+            <span>{isZh ? "StatementFlow AI 旗下出海增长与归因产品" : "A StatementFlow AI Product · Growth & Attribution OS"}</span>
           </div>
           <div className="flex flex-wrap items-center gap-5">
             <Link href="/dashboard?sample=1" className="hover:text-foreground">
