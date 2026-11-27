@@ -817,12 +817,12 @@ async function findRealBuyerThreadsForTitle(
   if (!query) return [];
 
   try {
-    const cutoffSec = Math.floor(Date.now() / 1000) - 21 * 86400;
+    const cutoffSec = Math.floor(Date.now() / 1000) - 30 * 86400;
     const fetchHnHits = async (q: string) => {
       const r = await fetch(
         `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(
           q
-        )}&tags=comment&numericFilters=created_at_i>${cutoffSec}&hitsPerPage=12`
+        )}&tags=story&numericFilters=created_at_i>${cutoffSec}&hitsPerPage=10`
       );
       if (!r.ok) return [];
       const j = (await r.json()) as {
@@ -948,19 +948,25 @@ async function harvestDailyShowHnLaunches(
         combinedContactCorpus = `${html}\n${contactRes.text}\n${decodedHnAbout}`;
       }
       const rawEmails: string[] =
-        combinedContactCorpus.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+        combinedContactCorpus.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?![0-9a-zA-Z])/g) || [];
       const cleanEmails: string[] = Array.from(
         new Set<string>(
           rawEmails
             .map((e: string) => e.toLowerCase())
             .filter(
               (e: string) =>
-                !/\.(png|jpg|jpeg|gif|webp|svg|css|js|woff2?)$/i.test(e) &&
-                !/(sentry|example\.com|yourdomain|email\.com|wixpress|cloudflare|github\.com|noreply|no-reply|ycombinator\.com)/i.test(e)
+                !/\.(png|jpg|jpeg|gif|webp|svg|css|js|woff2?|mp4|mp3|webm|mov|mp|avi)$/i.test(e) &&
+                !/^[^@]+@\d+x\./i.test(e) &&
+                !/^[^@]+@\d+p\./i.test(e) &&
+                !/(sentry|example\.com|yourdomain|email\.com|acme\.com|acmesaas\.com|wixpress|cloudflare|github\.com|noreply|no-reply|ycombinator\.com)/i.test(e)
             )
         )
       );
-      const founderEmail: string = cleanEmails[0] || "";
+      // 优先选择与项目主域名一致的官方联系邮箱，避免误抓页面 Demo 示例里的占位邮箱
+      const sameDomainEmail = cleanEmails.find(
+        (e: string) => e.endsWith(`@${domain}`) || e.endsWith(`.${domain}`)
+      );
+      const founderEmail: string = sameDomainEmail || cleanEmails[0] || "";
       if (founderEmail) withEmail += 1;
 
       const hasLlms = llmsRes.ok && !/<!doctype html|<html[\s>]/i.test(llmsRes.text.slice(0, 300));
