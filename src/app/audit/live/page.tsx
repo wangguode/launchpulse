@@ -143,10 +143,12 @@ export default function DynamicLiveAuditPage() {
     const rawUrl = (params.get("url") || "").trim();
 
     if (rawUrl) {
+      const utmSource = (params.get("utm_source") || "").trim().slice(0, 64);
+      const utmCampaign = (params.get("utm_campaign") || "").trim().slice(0, 80);
       fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: rawUrl }),
+        body: JSON.stringify({ url: rawUrl, utmSource, utmCampaign }),
       })
         .then(async (res) => {
           if (!res.ok) throw new Error("unableToLoad");

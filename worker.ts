@@ -3118,6 +3118,38 @@ export default {
 
     if (url.pathname === "/api/scan" && request.method === "POST") {
       if (!checkRateLimit(request, 20)) return jsonResponse({ error: "Rate limit exceeded. Try again in 60s." }, 429);
+      if (env.DB) {
+        try {
+          const cloned = (await request.clone().json()) as {
+            url?: string;
+            utmSource?: string;
+            utmCampaign?: string;
+          };
+          const rawTarget = (cloned.url || "").trim();
+          const hasOutreachSignal = Boolean(cloned.utmSource || cloned.utmCampaign);
+          if (rawTarget && hasOutreachSignal) {
+            const parsedHost = new URL(
+              /^https?:\/\//i.test(rawTarget) ? rawTarget : `https://${rawTarget}`
+            ).hostname
+              .replace(/^www\./i, "")
+              .toLowerCase();
+            if (parsedHost) {
+              await env.DB.prepare(
+                `UPDATE outreach_logs
+                 SET page_views = page_views + 1,
+                     last_event_at = datetime('now'),
+                     last_event_type = 'lp:audit_live_view'
+                 WHERE LOWER(recipient_email) LIKE '%@' || ?1
+                    OR LOWER(slug) LIKE '%' || ?2 || '%'`
+              )
+                .bind(parsedHost, parsedHost.split(".")[0] || parsedHost)
+                .run();
+            }
+          }
+        } catch {
+          // 归因统计失败不阻塞实时扫描主链路
+        }
+      }
       return handleDeepLiveScan(request, env);
     }
     if (url.pathname === "/api/track" && request.method === "POST") {
