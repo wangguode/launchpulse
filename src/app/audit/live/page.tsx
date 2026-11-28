@@ -76,6 +76,7 @@ export default function DynamicLiveAuditPage() {
   const [freeSampleEmail, setFreeSampleEmail] = useState("");
   const [freeSampleLoading, setFreeSampleLoading] = useState(false);
   const [freeSampleDoneMsg, setFreeSampleDoneMsg] = useState("");
+  const [llmsUnlocked, setLlmsUnlocked] = useState(false);
 
   const handleDirectInstantCheckout = async (plan: "blitz" | "radar" | "dfy") => {
     if (!instantScan) return;
@@ -119,11 +120,12 @@ export default function DynamicLiveAuditPage() {
       });
       const data = (await res.json()) as { ok?: boolean; message?: string; error?: string };
       if (res.ok && data.ok) {
+        setLlmsUnlocked(true);
         setFreeSampleDoneMsg(
           data.message ||
             (isZh
-              ? "已排期！24 小时内将向您的邮箱发送 2 条真实提交回执链接。"
-              : "Queued! We will email 2 live starter directory submission receipts within 24h.")
+              ? "已解锁完整 /llms.txt，并已排期在 24 小时内向您的邮箱发送 2 条真实目录提交回执！"
+              : "Full /llms.txt unlocked! Plus we will email 2 live starter directory submission receipts within 24h.")
         );
         setFreeSampleEmail("");
       } else {
@@ -344,43 +346,58 @@ export default function DynamicLiveAuditPage() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      navigator.clipboard
-                        .writeText(llmsPreview)
-                        .then(() => {
-                          setCopiedLlms(true);
-                          toast.success(isZh ? "已复制 /llms.txt 内容" : "Copied /llms.txt to clipboard");
-                        })
-                        .catch(() => {});
-                    }}
-                  >
-                    {copiedLlms ? <IconCheck className="size-3.5 text-emerald-500" /> : <IconCopy className="size-3.5" />}
-                    {isZh ? "一键复制" : "Copy"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const blob = new Blob([llmsPreview], { type: "text/plain;charset=utf-8" });
-                      const u = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = u;
-                      a.download = "llms.txt";
-                      a.click();
-                      URL.revokeObjectURL(u);
-                    }}
-                  >
-                    <IconDownload className="size-3.5" />
-                    {isZh ? "下载 llms.txt" : "Download .txt"}
-                  </Button>
+                  {llmsUnlocked ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard
+                            .writeText(llmsPreview)
+                            .then(() => {
+                              setCopiedLlms(true);
+                              toast.success(isZh ? "已复制完整 /llms.txt" : "Copied full /llms.txt to clipboard");
+                            })
+                            .catch(() => {});
+                        }}
+                      >
+                        {copiedLlms ? <IconCheck className="size-3.5 text-emerald-500" /> : <IconCopy className="size-3.5" />}
+                        {isZh ? "一键复制完整版" : "Copy Full"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const blob = new Blob([llmsPreview], { type: "text/plain;charset=utf-8" });
+                          const u = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = u;
+                          a.download = "llms.txt";
+                          a.click();
+                          URL.revokeObjectURL(u);
+                        }}
+                      >
+                        <IconDownload className="size-3.5" />
+                        {isZh ? "下载 llms.txt" : "Download .txt"}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        document.getElementById("free-proof-capture")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                    >
+                      {isZh ? "免费留邮解锁完整 /llms.txt ↓" : "Enter Email to Unlock Full .txt ↓"}
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 <pre className="max-h-48 overflow-auto rounded-xl border bg-muted/40 p-3.5 font-mono text-xs leading-relaxed text-foreground">
-                  {llmsPreview}
+                  {llmsUnlocked
+                    ? llmsPreview
+                    : `${llmsPreview.split("\n").slice(0, 7).join("\n")}\n\n# [Locked Preview — Enter founder email below (free) or grab the $39 Starter Pack to unlock full AI citation rules & JSON-LD]`}
                 </pre>
               </CardContent>
             </Card>
@@ -438,23 +455,25 @@ export default function DynamicLiveAuditPage() {
                       </div>
                       <p className="text-sm font-medium">{ld.title}</p>
                       <p className="text-xs text-muted-foreground line-clamp-2">{ld.excerpt}</p>
-                      {(ld as { unlocked?: boolean }).unlocked !== false && ld.url ? (
+                      {i === 0 && (ld as { unlocked?: boolean }).unlocked !== false && ld.url ? (
                         <a
                           href={ld.url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                         >
-                          {isZh ? "查看原帖" : "Open thread"}
+                          {isZh ? "查看第 1 条真实求购原帖（免费验真）" : "Open verified thread #1 (Free sample)"}
                           <IconArrowUpRight className="size-3.5" />
                         </a>
                       ) : (
                         <button
                           type="button"
-                          onClick={() => void handleDirectInstantCheckout("radar")}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                          onClick={() => void handleDirectInstantCheckout("blitz")}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
                         >
-                          {isZh ? "已锁定原帖链接 · 开启 $29/月求购雷达解锁 →" : "Thread URL locked · Unlock 24/7 Radar ($29/mo) →"}
+                          {isZh
+                            ? "原帖直达链接已锁定 · $39 启动包立即解锁全部求购帖 + 赠 5 个人工代投 →"
+                            : "Thread URL locked · Unlock all buyer threads + 5 human DFY submissions ($39) →"}
                         </button>
                       )}
                     </div>
@@ -464,14 +483,14 @@ export default function DynamicLiveAuditPage() {
             </Card>
           </div>
 
-          {/* 先尝甜头高信任微交付钩子：免费人工先投 2 个 DR 70+ 目录，解决冷流量不留邮箱直接流失问题 */}
-          <Card className="border-emerald-500/35 bg-emerald-500/[0.04]">
+          {/* 先尝甜头高信任微交付钩子：免费人工先投 2 个 DR 70+ 目录 + 解锁完整 /llms.txt */}
+          <Card id="free-proof-capture" className="border-emerald-500/35 bg-emerald-500/[0.04]">
             <CardContent className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="space-y-1 max-w-xl">
                 <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                   {isZh
-                    ? "零风险先验真货（免费微交付）"
-                    : "Zero-Risk Proof Before You Pay"}
+                    ? "零风险先验真货（解锁完整 /llms.txt + 免费代投 2 个目录）"
+                    : "Zero-Risk Proof: Unlock Full /llms.txt + 2 Free Manual Submissions"}
                 </p>
                 <h3 className="text-base font-semibold">
                   {isZh
@@ -480,8 +499,8 @@ export default function DynamicLiveAuditPage() {
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   {isZh
-                    ? "留下创始人邮箱，我们先免费替您完成 2 个公开目录人工提交并发回存活证明，亲眼看到真实收录后再决定是否升级 $39 自助包或 $299 全案代投。"
-                    : "Enter your work email and we'll manually submit 2 Wave-1 listings free within 24h so you can verify live backlink quality before spending a dollar."}
+                    ? "输入创始人邮箱，立即解锁上方完整 /llms.txt，并免费由人工替您提交 2 个公开目录发回存活截图，亲眼验真后再决定是否升级 $39 或 $299 方案。"
+                    : "Enter your founder email to instantly unlock your full /llms.txt above, plus we'll manually submit 2 directories free within 24h so you verify quality before spending a cent."}
                 </p>
               </div>
               <form onSubmit={handleRequestFree2DirSample} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
@@ -495,8 +514,8 @@ export default function DynamicLiveAuditPage() {
                 />
                 <Button type="submit" variant="outline" className="h-10" disabled={freeSampleLoading}>
                   {freeSampleLoading
-                    ? isZh ? "提交中..." : "Queueing..."
-                    : isZh ? "免费领 2 条外链实证" : "Claim 2 Free Listings"}
+                    ? isZh ? "解锁中..." : "Unlocking..."
+                    : isZh ? "免费解锁 + 领 2 条外链" : "Unlock + Claim 2 Free"}
                 </Button>
               </form>
             </CardContent>
@@ -507,22 +526,22 @@ export default function DynamicLiveAuditPage() {
             )}
           </Card>
 
-          {/* 清晰 ROI 价值锚点与一键免弹窗直跳收银台（已知域名无需二次填表拦截） */}
+          {/* 清晰 ROI 价值锚点与一键免弹窗直跳收银台（升级 $39 为含 5 个人工代投的高转化冲动包） */}
           <Card className="border-primary/40">
             <CardContent className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="space-y-1.5 max-w-xl">
                 <Badge variant="outline" className="text-xs">
-                  {isZh ? "省去 25 小时枯燥手工搜站填表" : "Save ~25 Founder Hours of Manual Directory Forms"}
+                  {isZh ? "省去枯燥手工填表 · 首单高性价比破冰" : "Skip Tedious Directory Forms · High-ROI Launch Pack"}
                 </Badge>
                 <h3 className="text-lg font-semibold">
                   {isZh
-                    ? `为 ${instantScan.domain} 启动 100+ 高权重外链三波次分发`
-                    : `Distribute ${instantScan.domain} across 100+ verified DR 70+ SaaS directories`}
+                    ? `为 ${instantScan.domain} 启动 30 个实测存活 DR 70+ 目录外链分发`
+                    : `Launch ${instantScan.domain} across 30 verified DR 70+ SaaS & AI directories`}
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   {isZh
-                    ? "选 $39 自助加速包：立即解锁全部 100+ 直达 Submit URL、一键英文文案包与 HTTP 200 自动验活；或选 $299 全人工代投：人工精修物料并逐站代提交 70+ 免费高权目录 + 交付 30+ 严审站即贴包（30 天死链免费补投）。"
-                    : "Choose Self-Serve Starter ($39 once · all 100+ direct Submit URLs, 1-click Brand Copy Pack & automated HTTP 200 verifier), or Done-For-You Concierge ($299 · human manual submission across 70+ free high-DR directories + ready pack for 30+ gated sites)."}
+                    ? "选 $39 极速启动包（最受欢迎）：立即解锁全部 30 个直达 Submit URL、英文提交文案包、全部求购原帖 + 额外赠送前 5 个高权目录纯人工代投（48h 截图回执）！或选 $299 全托管代投：由人工包办全部 30 个高权目录三波次提交与 30 天死链补投。"
+                    : "Choose $39 Starter Pack (Best Impulse Value): unlock all 30 verified direct Submit URLs, 1-click Brand Copy Pack, all buyer threads + BONUS human manual submission to your top 5 directories (48h screenshot proof)! Or choose $299 Full DFY Concierge for all 30 directories."}
                 </p>
                 <div className="pt-1">
                   <Link
@@ -536,13 +555,13 @@ export default function DynamicLiveAuditPage() {
               <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                 <Button
                   variant="secondary"
-                  className="min-h-11"
+                  className="min-h-11 font-semibold"
                   disabled={directPlanLoading === "blitz"}
                   onClick={() => void handleDirectInstantCheckout("blitz")}
                 >
                   {directPlanLoading === "blitz"
                     ? isZh ? "跳转中..." : "Opening..."
-                    : isZh ? "解锁 100+ 自助包 · $39" : "Self-Serve 100+ Kit · $39"}
+                    : isZh ? "5 站人工代投+30 站全包 · $39" : "5 DFY + 30-Dir Kit · $39"}
                 </Button>
                 <Button
                   className="min-h-11"
@@ -551,7 +570,7 @@ export default function DynamicLiveAuditPage() {
                 >
                   {directPlanLoading === "dfy"
                     ? isZh ? "跳转中..." : "Opening..."
-                    : isZh ? "全人工代投 · $299" : "Human DFY · $299"}
+                    : isZh ? "30 站全人工代投 · $299" : "Full 30-Dir DFY · $299"}
                   <IconArrowRight className="size-4" />
                 </Button>
               </div>
@@ -570,11 +589,11 @@ export default function DynamicLiveAuditPage() {
               <DialogTitle className="text-base">
                 {checkoutPlanDialog === "dfy"
                   ? isZh
-                    ? `确认 ${instantScan.domain} 全托管代投 ($299)`
-                    : `Book 100+ DFY Concierge for ${instantScan.domain} ($299)`
+                    ? `确认 ${instantScan.domain} 30 站全托管代投 ($299)`
+                    : `Book Full 30-Dir DFY Concierge for ${instantScan.domain} ($299)`
                   : isZh
-                  ? `解锁 ${instantScan.domain} 全部 100+ 目录自助包 ($39)`
-                  : `Unlock All 100+ Directories for ${instantScan.domain} ($39)`}
+                  ? `解锁 ${instantScan.domain} 5 站人工代投 + 30 站启动包 ($39)`
+                  : `Get 5 Manual DFY Submissions + 30-Dir Starter Kit for ${instantScan.domain} ($39)`}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleConfirmLiveCheckout} className="space-y-4 pt-1">
