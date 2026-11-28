@@ -3141,6 +3141,14 @@ export default {
               .replace(/^www\./i, "")
               .toLowerCase();
             if (parsedHost) {
+              const prevLead = await env.DB.prepare(
+                `SELECT slug, recipient_email, page_views FROM outreach_logs
+                 WHERE (LOWER(recipient_email) LIKE '%@' || ?1 OR LOWER(slug) LIKE '%' || ?2 || '%')
+                   AND recipient_email != ''
+                 ORDER BY id DESC LIMIT 1`
+              )
+                .bind(parsedHost, parsedHost.split(".")[0] || parsedHost)
+                .first<{ slug: string; recipient_email: string; page_views: number }>();
               await env.DB.prepare(
                 `UPDATE outreach_logs
                  SET page_views = page_views + 1,
@@ -3151,6 +3159,13 @@ export default {
               )
                 .bind(parsedHost, parsedHost.split(".")[0] || parsedHost)
                 .run();
+              if (prevLead && (prevLead.page_views === 0 || prevLead.page_views === 2)) {
+                await sendResendEmail(env, {
+                  to: "hello@statementflow.win",
+                  subject: `🔥 [LaunchPulse Hot Lead Online] ${prevLead.recipient_email} opened audit (${prevLead.page_views + 1}x)`,
+                  text: `Warm prospect is actively viewing their LaunchPulse audit right now:\n- Prospect: ${prevLead.recipient_email} (${prevLead.slug})\n- Domain: ${parsedHost}\n- Views: ${prevLead.page_views + 1}\n\nFollow up within 15 minutes while you are top of mind!`,
+                });
+              }
             }
           }
         } catch {
@@ -3575,24 +3590,24 @@ export default {
         }
 
         const canonicalTargetUrl = row.target_url || `https://${row.domain}`;
-        const auditLink = `https://pulse.statementflow.win/audit/live?url=${encodeURIComponent(canonicalTargetUrl)}`;
+        const auditLink = `https://pulse.statementflow.win/audit/live?url=${encodeURIComponent(canonicalTargetUrl)}&utm_source=cron_showhn&utm_campaign=auto_${encodeURIComponent(row.domain)}`;
         const threadBlock =
           threads.length > 0
             ? [
-                `While indexing today's Show HN launches, our radar also surfaced ${threads.length} active developer discussion(s) around this space where your perspective might help:`,
-                ...threads.slice(0, 2).map((t) => `• ${t.title}\n  ${t.url}`),
+                `While indexing today's Show HN launches, our radar also matched ${threads.length} active developer pain-point discussion(s) in your space (the first verified thread is unlocked directly inside your report below):`,
+                `• "${threads[0].title}"${threads.length > 1 ? ` (+${threads.length - 1} more matched threads)` : ""}`,
                 ``,
               ]
             : [];
 
         const llmsLine = row.has_llms_txt
-          ? `Your site already serves /llms.txt (nice work — Readiness Score: ${row.aeo_score}/100). We generated an updated 12-point AEO & directory authority snapshot for ${row.domain} here:`
-          : `One quick win from our passive scan (${row.aeo_score}/100): ${row.domain} doesn't have a /llms.txt manifest yet for ChatGPT Search & Perplexity citations. We generated a ready-to-drop /llms.txt file for you free (zero signup):`;
+          ? `Your site already serves /llms.txt (nice work — Readiness Score: ${row.aeo_score}/100). Here is your live 12-point AEO & directory authority snapshot for ${row.domain}:`
+          : `One quick win from our passive scan (${row.aeo_score}/100): ${row.domain} doesn't serve a /llms.txt manifest yet for ChatGPT Search & Perplexity citations. You can unlock your custom /llms.txt + claim 2 free manual starter directory submissions here:`;
 
         const sentOk = await sendResendEmail(env, {
           to: email,
           fromLabel: "Wang Guo · LaunchPulse",
-          subject: `Congrats on the Show HN for ${row.domain} (+ free /llms.txt & launch notes)`,
+          subject: `Congrats on the Show HN for ${row.domain} (+ 2 free directory submissions)`,
           text: [
             `Hi there,`,
             ``,
@@ -3602,7 +3617,9 @@ export default {
             llmsLine,
             auditLink,
             ``,
-            `If you ever want to skip ~25 hours of manual directory forms after HN traffic cools down, we also maintain 100+ verified DR 70+ SaaS/AI submit links there. Either way, hope the free /llms.txt helps!`,
+            `If you want to skip hours of tedious form-filling after HN traffic cools down, reply "go" (or claim on the page) and we'll manually submit ${row.domain} to 2 high-DR directories free within 24h so you can verify live proof before considering our $39 5-DFY Starter Pack.`,
+            ``,
+            `Reply "stop" anytime if not relevant.`,
             ``,
             `Best,`,
             `Wang Guo`,
@@ -3627,6 +3644,66 @@ export default {
       }
     } catch {
       // ignore
+    }
+
+    // 3b. 收银台弃单自动温和挽回（扫描过去 1h~48h 填了邮箱但未完成付款的 checkout_intents，每轮上限 2 封严控子请求配额）
+    try {
+      const abandoned = await env.DB.prepare(
+        `SELECT ci.work_email, ci.target_url, ci.plan
+         FROM checkout_intents ci
+         WHERE ci.created_at <= datetime('now', '-1 hour')
+           AND ci.created_at >= datetime('now', '-48 hours')
+           AND NOT EXISTS (
+             SELECT 1 FROM customers_orders co
+             WHERE LOWER(co.customer_email) = LOWER(ci.work_email) AND co.status = 'active'
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM outreach_logs ol
+             WHERE LOWER(ol.recipient_email) = LOWER(ci.work_email) AND ol.last_event_type = 'abandoned_checkout_recovery'
+           )
+         GROUP BY LOWER(ci.work_email)
+         ORDER BY MAX(ci.id) DESC
+         LIMIT 2`
+      ).all<{ work_email: string; target_url: string; plan: string }>();
+
+      for (const ab of abandoned.results || []) {
+        const abEmail = (ab.work_email || "").trim().toLowerCase();
+        if (!abEmail || !abEmail.includes("@")) continue;
+        const abTarget = ab.target_url || "your product";
+        const abAuditUrl = ab.target_url
+          ? `https://pulse.statementflow.win/audit/live?url=${encodeURIComponent(ab.target_url)}&utm_source=abandon_recovery&utm_campaign=abandon_${encodeURIComponent(abEmail.split("@")[1] || "lead")}`
+          : "https://pulse.statementflow.win";
+        const recOk = await sendResendEmail(env, {
+          to: abEmail,
+          fromLabel: "Wang Guo · LaunchPulse",
+          subject: `Quick check-in on your LaunchPulse setup (${abTarget})`,
+          text: [
+            `Hi there,`,
+            ``,
+            `Noticed you started unlocking LaunchPulse (${ab.plan === "dfy" ? "$299 Full DFY" : "$39 5-DFY + 30-Dir Starter Pack"}) for ${abTarget} earlier — just checking if you hit any checkout snag or had a question.`,
+            ``,
+            `If you'd like to verify our manual submission quality before paying a cent: reply "sample" to this email and I will manually submit ${abTarget} to 2 curated directories free within 24 hours and send over the live screenshot proof.`,
+            ``,
+            `Or resume anytime here: ${abAuditUrl}`,
+            ``,
+            `Best,`,
+            `Wang Guo`,
+            `Founder, LaunchPulse`,
+          ].join("\n"),
+        });
+        if (recOk) {
+          const recSlug = `abandon-${abEmail.replace(/[^a-z0-9]/gi, "-").slice(0, 48)}`;
+          await env.DB.prepare(
+            `INSERT INTO outreach_logs (slug, recipient_email, channel, sent_at, last_event_at, last_event_type, follow_up_status)
+             VALUES (?1, ?2, 'abandon_recovery', datetime('now'), datetime('now'), 'abandoned_checkout_recovery', 'sent')
+             ON CONFLICT(slug) DO UPDATE SET last_event_at = datetime('now'), last_event_type = 'abandoned_checkout_recovery', follow_up_status = 'sent'`
+          )
+            .bind(recSlug, abEmail)
+            .run();
+        }
+      }
+    } catch {
+      // 弃单挽回异常不影响后续定时步骤
     }
 
     // 4. 扫描开启每日监控的付费订阅客户（使用 EXISTS 去重防止多订单客户收到重复邮件）
