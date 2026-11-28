@@ -129,8 +129,8 @@ export default function WaveTelemetryMatrix({
                       title={
                         isLockedBar
                           ? isZh
-                            ? `已锁定高权目录 (DR ${dir.dr}) · $39 解锁全部 100+ 站`
-                            : `Locked Directory (DR ${dir.dr}) · Unlock all 100+ for $39`
+                            ? `已锁定高权目录 (DR ${dir.dr}) · $39 解锁全部 30 站 + 赠 5 站人工代投`
+                            : `Locked Directory (DR ${dir.dr}) · Unlock all 30 + 5 manual DFY for $39`
                           : `${dir.name} (DR ${dir.dr}) · ${dir.effectiveStatus}`
                       }
                       onClick={(e) => {

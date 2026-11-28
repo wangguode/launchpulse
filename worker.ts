@@ -1175,14 +1175,15 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
               .run();
           }
 
-          // 若为 $299 DFY 旗舰代投单，幂等入队 dfy_fulfillment_jobs
-          if (plan === "dfy") {
+          // 若为 $299 DFY 全案代投或 $39 含 5 站人工代投启动包，幂等入队 dfy_fulfillment_jobs 确保人工履约零遗漏
+          if (plan === "dfy" || plan === "blitz") {
+            const initialStatus = plan === "dfy" ? "queued_wave1" : "queued_starter5";
             await env.DB.prepare(
               `INSERT INTO dfy_fulfillment_jobs (order_id, customer_email, target_url, slug, status, updated_at)
-               VALUES (?1, ?2, ?3, ?4, 'queued_wave1', datetime('now'))
+               VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))
                ON CONFLICT(order_id) DO UPDATE SET updated_at = datetime('now')`
             )
-              .bind(orderId, email, targetUrl, slug)
+              .bind(orderId, email, targetUrl, slug, initialStatus)
               .run();
           }
 
@@ -1207,9 +1208,9 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
 
             const planDisplayName =
               plan === "dfy"
-                ? "100+ Directory Done-For-You Concierge ($299)"
+                ? "30-Directory Full Done-For-You Concierge ($299)"
                 : plan === "blitz"
-                ? "100+ SaaS Directory Starter Kit ($39)"
+                ? "5 Manual DFY + 30-Directory Starter Pack ($39)"
                 : "Growth Command & Buyer Radar Pro ($29/mo)";
 
             await sendResendEmail(env, {
@@ -1220,10 +1221,12 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
                 "",
                 "Your payment is confirmed and your workspace is unlocked immediately (no password needed).",
                 "",
-                `• Customer Portal (100+ Directory Tracker, Bonus /llms.txt, Re-Scan & Buyer Feed): ${portalLink}`,
+                `• Customer Portal (30 Verified DR 70+ Directories, Bonus /llms.txt, Re-Scan & Buyer Feed): ${portalLink}`,
                 slug ? `• Unlocked War-Room Report: ${warRoomLink}` : "",
                 plan === "dfy"
-                  ? "• Done-For-You Sprint Auto-Queued: Please verify your Brand Launch Kit in the console; Wave 1 (Top 30 high-DR directories) starts within 24 hours."
+                  ? "• Full 30-Directory Done-For-You Concierge Queued: Please verify your Brand Launch Kit in the console; Wave 1 starts within 24 hours."
+                  : plan === "blitz"
+                  ? "• Bonus 5 Manual DFY Submissions Queued: Reply with your 1-line tagline (or fill your Brand Kit in the portal) and we will manually submit your top 5 directories within 48 hours with screenshot receipts!"
                   : "",
                 "",
                 "Need anything? Simply reply to this email (hello@statementflow.win).",
@@ -1245,7 +1248,11 @@ async function handleWebhook(request: Request, env: Env): Promise<Response> {
                 `- Plan: ${planDisplayName} ($${amountUsd})`,
                 `- Target URL: ${targetUrl || slug || "N/A"}`,
                 `- Auto-Unlock Status: Active & Magic Link Sent`,
-                plan === "dfy" ? `- Action: Added to /api/admin/dfy-queue for Wave 1 fulfillment.` : `- Action: 100% Self-Serve Automated (Zero manual action required).`,
+                plan === "dfy"
+                  ? `- Action: Added to /api/admin/dfy-queue (queued_wave1 · Full 30 directories).`
+                  : plan === "blitz"
+                  ? `- Action: Added to /api/admin/dfy-queue (queued_starter5 · Fulfill 5 manual starter submissions within 48h).`
+                  : `- Action: 100% Self-Serve Automated Radar.`,
               ].join("\n"),
             });
           }

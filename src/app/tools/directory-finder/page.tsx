@@ -252,18 +252,18 @@ export default function DirectoryFinderToolPage() {
                 </div>
                 <p className="text-xs sm:text-sm text-muted-foreground">
                   {isZh
-                    ? "解锁 $39 启动包：获取全部 100+ 人工清洗直达提交入口 + 一键复制三档英文文案包 + 3 周自然排期器 + HTTP 200 自动验活；或选 $299 由我们人工逐站代填全部 100+ 站点。"
-                    : "Unlock Launch Starter ($39 once) for all 100+ direct submit URLs, 1-click Brand Kit copy pack, 3-wave pacer & HTTP 200 live verifier — or book $299 100% Human Manual Submission."}
+                    ? "解锁 $39 启动包：获取全部 30 个实测存活高权目录直达入口 + 一键英文文案包 + 额外赠送前 5 个高权目录纯人工代投（48h 截图回执）；或选 $299 由我们人工逐站代投全部 30 个站点。"
+                    : "Unlock Launch Starter ($39 once): all 30 verified high-DR direct submit URLs, 1-click Brand Kit copy pack + BONUS 5 human manual directory submissions (48h proof) — or book $299 Full 30-Dir Human DFY."}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <Button size="sm" variant="secondary" disabled={quickUnlocking} onClick={() => void handleDirectBlitzUnlock()}>
                   {quickUnlocking
                     ? isZh ? "跳转中..." : "Opening..."
-                    : isZh ? "解锁自助全库 · $39" : "Unlock All 100 · $39"}
+                    : isZh ? "5 站代投+30 站全库 · $39" : "5 DFY + 30-Dir Kit · $39"}
                 </Button>
                 <Button size="sm" onClick={() => setCheckoutPlanDialog("dfy")}>
-                  {isZh ? "人工代投 · $299" : "Human DFY · $299"}
+                  {isZh ? "30 站全人工代投 · $299" : "Full 30-Dir DFY · $299"}
                   <IconArrowRight className="size-3.5" />
                 </Button>
               </div>
@@ -456,11 +456,11 @@ export default function DirectoryFinderToolPage() {
             <DialogTitle className="text-base">
               {checkoutPlanDialog === "dfy"
                 ? isZh
-                  ? "预约 100+ 目录全人工代投 ($299)"
-                  : "Book 100+ Human Done-For-You Submission ($299)"
+                  ? "预约 30 个高权目录全人工代投 ($299)"
+                  : "Book Full 30-Directory Human Done-For-You ($299)"
                 : isZh
-                ? "解锁全部 100+ 目录直达库与三波次排期 ($39)"
-                : "Unlock All 100+ Submit URLs & Wave Pacer ($39 once)"}
+                ? "解锁 5 站人工代投 + 全部 30 个目录直达库 ($39)"
+                : "Get 5 Manual DFY Submissions + All 30 Submit URLs ($39)"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleConfirmUnlockCheckout} className="space-y-4 pt-1">
